@@ -1,0 +1,19 @@
+# Dependensi
+node_modules/
+
+# Kredensial & konfigurasi lokal clasp (JANGAN commit)
+.clasp.json
+backend/.clasp.json
+
+# Hasil build
+dist/
+frontend/dist/
+
+# Variabel lingkungan
+.env
+.env.local
+*.local
+
+# Log & sistem
+*.log
+.DS_Store
