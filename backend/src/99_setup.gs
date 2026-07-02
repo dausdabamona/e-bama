@@ -2,6 +2,8 @@
  * 99_setup.gs — Inisialisasi database e-BAMA (sekali jalan, idempotent)
  *
  * Cara pakai (dari editor Apps Script, pilih fungsi lalu Run):
+ *   0) setSpreadsheetId('<ID>')  → WAJIB sekali untuk proyek standalone (clasp).
+ *      Lewati bila skrip terikat (bound) langsung ke spreadsheet.
  *   1) setupSemua()        → jalankan ketiga langkah sekaligus (disarankan)
  *    atau satu per satu:
  *   2) setupDatabase()     → buat 13 sheet + header + validasi + format + proteksi
@@ -11,6 +13,31 @@
  * Semua nama sheet dirujuk dari SHEETS (00_config.gs). Aman dijalankan ulang:
  * sheet/kolom/akun yang sudah ada tidak diduplikasi, DATA TIDAK DIHAPUS.
  */
+
+/**
+ * setSpreadsheetId(id) — tautkan skrip standalone ke spreadsheet target.
+ * Contoh: setSpreadsheetId('12AF44PZlGxlm2762_VWgVp6C91Dv6Ylkw4mil9tYXvI')
+ */
+function setSpreadsheetId(id) {
+  if (!id) throw new Error('ID spreadsheet wajib diisi.');
+  PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', id);
+  Logger.log('SPREADSHEET_ID diset: ' + id);
+  return id;
+}
+
+/**
+ * _getSpreadsheet_() — resolver spreadsheet aktif:
+ * pakai SPREADSHEET_ID dari Script Properties (standalone) bila ada,
+ * jika tidak pakai spreadsheet terikat (bound).
+ */
+function _getSpreadsheet_() {
+  var id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+  if (id) return SpreadsheetApp.openById(id);
+  var active = SpreadsheetApp.getActiveSpreadsheet();
+  if (active) return active;
+  throw new Error('SPREADSHEET_ID belum diset. Jalankan setSpreadsheetId("<id>") dulu, ' +
+    'atau jalankan dari skrip yang terikat spreadsheet.');
+}
 
 // ── Definisi kolom per sheet (PERSIS docs/skema-sheet.md) ───────────────────
 // Tipe kolom: 's' teks | 'i' integer | 'n' angka desimal | 'd' tanggal |
@@ -99,7 +126,7 @@ function setupSemua() {
  * setupDatabase() — buat/segarkan 13 sheet sesuai skema. Idempotent.
  */
 function setupDatabase() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = _getSpreadsheet_();
   var skema = _skema_();
 
   skema.forEach(function (def) {
@@ -168,7 +195,7 @@ function setupDatabase() {
  * Idempotent: akun dengan user_id yang sudah ada dilewati.
  */
 function seedAwal() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = _getSpreadsheet_();
   var sheet = ss.getSheetByName(SHEETS.PENGGUNA);
   if (!sheet) throw new Error('Sheet PENGGUNA belum ada. Jalankan setupDatabase() dulu.');
 
