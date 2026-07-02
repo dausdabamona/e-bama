@@ -1,135 +1,147 @@
-# Kontrak API e-BAMA
+# Kontrak API e-BAMA — GAS Web App
 
-> ⚠️ **STATUS: DRAF REKONSTRUKSI — WAJIB DIREVIEW.**
-> Direkonstruksi dari PROMPT 2–8 karena lampiran asli tidak disertakan.
-> Ini **sumber kebenaran API**; kode mengikuti dokumen ini.
+> **Satu sumber kebenaran endpoint.** Perubahan endpoint hanya lewat revisi
+> file ini. Skema data merujuk `docs/skema-sheet.md`.
 
-## Amplop & Transport
+## Transport
 
-- **Endpoint tunggal**: `POST {VITE_GAS_URL}` (Web App GAS).
-- **Content-Type**: `text/plain` berisi JSON (menghindari preflight CORS).
-- **Body**: `{ "action": "domain.aksi", "token": "<uuid|null>", "payload": {…} }`
-- **Balasan sukses**: `{ "ok": true,  "data": {…} }`
-- **Balasan gagal**:  `{ "ok": false, "error": "pesan Bahasa Indonesia" }`
-- **Health check**: `GET {VITE_GAS_URL}` → `{ "ok": true, "data": { "app": "e-BAMA", "version": "…" } }`
+- **Endpoint tunggal:** URL Web App GAS (`doPost`), health check via `doGet`.
+- **Request:** HTTP POST, body `text/plain` berisi JSON (menghindari preflight CORS):
 
-## Aturan lintas-endpoint
+```json
+{ "action": "pesanan.create", "token": "uuid-sesi", "payload": { } }
+```
 
-- **Role divalidasi di router** (`ACTION_MAP.roles`), sebelum handler.
-- Setiap aksi tulis → `withLock` + baris `AUDIT_LOG`.
-- Handler tetap memvalidasi payload (field wajib, tipe, enum) → error jelas.
-- Token kedaluwarsa → `{ok:false, error}` → frontend melempar ke login.
+- **Response — amplop seragam:**
 
----
+```json
+{ "ok": true,  "data": {  } }
+{ "ok": false, "error": "Pesan kesalahan Bahasa Indonesia" }
+```
+
+- `auth.login` adalah satu-satunya action tanpa token.
+- **Role diperiksa di GAS** (routing table `ACTION_MAP {action: {handler, roles}}`), bukan di frontend.
+- Semua aksi tulis: dibungkus `LockService` + append `AUDIT_LOG`. Tanpa pengecualian.
+- Error tak terduga: dicatat AUDIT_LOG aksi=`ERROR`, balasan generik tanpa stack trace.
+- Upload file: field `berkas: {base64, nama_file, jenis}` di payload → `lampiranSave()`; maks 5 MB.
 
 ## Daftar Action
 
-Kolom **Roles** = role yang diizinkan (selain itu ditolak router).
-Tahap = tahap implementasi handler.
+### Auth
 
-### Auth — `02_auth.gs` (TAHAP 2)
+| Action | Role | Payload → Data | Keterangan |
+|---|---|---|---|
+| `auth.login` | publik | `{user_id, pin}` → `{token, role, nama}` | gagal 5× → blokir 15 menit (CacheService) |
+| `auth.logout` | semua | `{}` | hapus token |
+| `auth.change_pin` | semua | `{pin_lama, pin_baru}` | pin_lama wajib benar; pin 6 digit |
 
-| Action | Roles | Payload | Data balasan |
-|--------|-------|---------|--------------|
-| `auth.login` | publik | `{user_id, pin}` | `{token, role, nama}` |
-| `auth.logout` | login | `{}` | `{ok}` |
-| `auth.change_pin` | login | `{pin_lama, pin_baru}` | `{ok}` |
+### Master (Admin)
 
-### Taruna — `10_taruna.gs` (TAHAP 3)
+| Action | Role | Keterangan |
+|---|---|---|
+| `taruna.list` | semua login | filter `{status?, prodi?, tingkat?, kelas?}` |
+| `taruna.upsert` | ADMIN | tolak `rek_mask` yang memuat >4 digit angka (indikasi rekening lengkap) |
+| `penyedia.list` | semua login | |
+| `penyedia.upsert` | ADMIN, PPK | |
+| `kontrak.list` | semua login | |
+| `kontrak.upsert` | PPK | |
+| `kontrak.approve` | PPK | `DRAFT → DISETUJUI_PPK` (SOP no. 4) |
+| `pengguna.list` / `pengguna.upsert` / `pengguna.reset_pin` | ADMIN | |
 
-| Action | Roles | Payload | Data balasan |
-|--------|-------|---------|--------------|
-| `taruna.list` | login | `{status?, prodi?, tingkat?}` | `{taruna: []}` |
-| `taruna.upsert` | ADMIN | `{nit, nama, prodi, tingkat, rek_mask, status}` | `{taruna}` |
+### Status Harian (SOP: Peringatan no. 2)
 
-### Status Harian — `11_status_harian.gs` (TAHAP 3)
+| Action | Role | Keterangan |
+|---|---|---|
+| `status.set` | ADMIN, PEMBINA | upsert per (tanggal, nit) |
+| `status.batch` | ADMIN, PEMBINA | input massal (mis. satu kelas pesiar) |
+| `status.list` | semua login | per rentang tanggal |
 
-| Action | Roles | Payload | Data balasan |
-|--------|-------|---------|--------------|
-| `status.set` | ADMIN, PEMBINA | `{nit, tanggal, sebab, keterangan?}` | `{status}` |
-| `status.list` | login | `{dari, sampai, nit?}` | `{status: []}` |
-| `status.batch` | ADMIN, PEMBINA | `{tanggal, sebab, nit: [], keterangan?}` | `{jml}` |
+### Pesanan (SOP no. 5–7) — mesin status `DRAFT → DIAJUKAN → (DIKEMBALIKAN | DISETUJUI) → TERKIRIM`
 
-### Pesanan — `12_pesanan.gs` (TAHAP 3)
+| Action | Role | Keterangan |
+|---|---|---|
+| `pesanan.create` | SENAT | tgl_makan unik; `jml_taruna` otomatis (AKTIF − STATUS_HARIAN), koreksi manual wajib catatan; simpan snapshot |
+| `pesanan.submit` | SENAT | `DRAFT → DIAJUKAN`; hanya pembuat |
+| `pesanan.verify` | PEMBINA | `DIAJUKAN → DISETUJUI` (SOP no. 6) |
+| `pesanan.return` | PEMBINA | `DIAJUKAN → DIKEMBALIKAN`; alasan wajib |
+| `pesanan.kirim` | SENAT | `DISETUJUI → TERKIRIM`; hanya ≤ H-1 dari tgl_makan; lewat itu tolak → arahkan ke `pesanan.revisi` |
+| `pesanan.revisi` | SENAT | pesanan baru ber-`revisi_dari` (SOP 7b); wajib lampiran BA perubahan |
+| `pesanan.list` / `pesanan.get` | semua login | |
 
-| Action | Roles | Payload | Data balasan |
-|--------|-------|---------|--------------|
-| `pesanan.list` | login | `{bulan?}` | `{pesanan: []}` |
-| `pesanan.get` | login | `{pesanan_id}` | `{pesanan}` |
-| `pesanan.create` | SENAT | `{tgl_makan, menu, jml_taruna?, catatan?}` | `{pesanan}` |
-| `pesanan.submit` | SENAT | `{pesanan_id}` | `{pesanan}` |
-| `pesanan.verify` | PEMBINA | `{pesanan_id}` | `{pesanan}` |
-| `pesanan.return` | PEMBINA | `{pesanan_id, alasan}` | `{pesanan}` |
-| `pesanan.kirim` | SENAT | `{pesanan_id}` | `{pesanan}` |
-| `pesanan.revisi` | SENAT | `{pesanan_id, menu, jml_taruna?, catatan, lampiran_ba}` | `{pesanan}` |
+Transisi ilegal → error eksplisit (mis. "Pesanan berstatus DRAFT, tidak bisa diverifikasi").
 
-### Realisasi — `13_realisasi.gs` (TAHAP 3)
+### Realisasi (SOP no. 8–9)
 
-| Action | Roles | Payload | Data balasan |
-|--------|-------|---------|--------------|
-| `realisasi.list` | login | `{bulan?}` | `{realisasi: []}` |
-| `realisasi.create` | PEMBINA, SENAT | `{pesanan_id, porsi_diterima, jml_makan, ketidaksesuaian?, tindak_lanjut?, geotag, foto_base64?}` | `{realisasi}` |
-| `realisasi.ttd` | PEMBINA, SENAT | `{realisasi_id, pin}` | `{realisasi}` |
+| Action | Role | Keterangan |
+|---|---|---|
+| `realisasi.create` | PEMBINA, SENAT | pesanan wajib TERKIRIM; porsi, ketidaksesuaian, geotag; foto via lampiran `jenis=FOTO` |
+| `realisasi.ttd` | PEMBINA, SENAT | mengisi `ttd_{role}_at` miliknya (konfirmasi PIN); kedua ttd terisi → otomatis `rekapUpdate(tanggal)` |
+| `realisasi.list` | semua login | |
 
-### Rekap — `14_rekap.gs` (TAHAP 3)
+### Rekap Bulanan (SOP no. 10)
 
-| Action | Roles | Payload | Data balasan |
-|--------|-------|---------|--------------|
-| `rekap.get` | PPK, KPA | `{bulan}` | `{rekap: [], total}` |
-| `rekap.verify` | PPK | `{bulan}` | `{ok}` |
-| `rekap.final` | PPK | `{bulan}` | `{ok}` |
+| Action | Role | Keterangan |
+|---|---|---|
+| `rekap.get` | PPK, KPA | per bulan |
+| `rekap.verify` | PPK | `DRAFT → TERVERIFIKASI_PPK` |
+| `rekap.final` | PPK | `→ FINAL` — beku, dasar SPM; update berikutnya ditolak |
 
-### Pembayaran — `15_pembayaran.gs` (TAHAP 4A)
+`rekapUpdate(tanggal)` internal (bukan action publik): incremental per hari, uang integer.
 
-| Action | Roles | Payload | Data balasan |
-|--------|-------|---------|--------------|
-| `bayar.list` | PPK, KPA, SENAT | `{bulan?}` | `{pembayaran: []}` |
-| `bayar.create` | PPK | `{bulan}` | `{pembayaran}` |
-| `bayar.update` | PPK | `{bayar_id, no_spm?, tgl_spm?, no_sp2d?, tgl_sp2d?, lampiran?}` | `{pembayaran}` |
-| `bayar.confirm` | SENAT | `{bayar_id}` | `{pembayaran}` |
-| `bayar.close` | PPK | `{bayar_id}` | `{pembayaran}` |
+### Pembayaran (SOP no. 11–17) — mesin status `DIAJUKAN → SP2D_TERBIT → DITRANSFER → DIKONFIRMASI → SELESAI`
 
-### Tagihan — `16_tagihan.gs` (TAHAP 4A)
+| Action | Role | Keterangan |
+|---|---|---|
+| `bayar.create` | PPK | syarat REKAP bulan tsb FINAL; `nilai_total` = SUM(nominal) snapshot |
+| `bayar.update` | PPK | isi no_spm/tgl_spm, no_sp2d/tgl_sp2d — status naik sesuai urutan; lampiran surat blokir / bukti debet / invoice |
+| `bayar.confirm` | SENAT | `DITRANSFER → DIKONFIRMASI` (SOP 15–16) |
+| `bayar.close` | PPK | `→ SELESAI` (SOP 17) |
+| `bayar.list` / `bayar.get` | PPK, KPA, SENAT | |
 
-| Action | Roles | Payload | Data balasan |
-|--------|-------|---------|--------------|
-| `tagihan.list` | login | `{bulan?, status?}` | `{tagihan: []}` (+ `level_aktif`, `tenggat_aktif`) |
-| `tagihan.create` | SENAT, PPK | `{bulan, nit: [], sebab}` | `{tagihan: []}` (SP-1 langsung terbit) |
-| `tagihan.setor` | SENAT | `{tagihan_id, tgl_setor, bukti_base64}` | `{tagihan}` |
-| `tagihan.verify` | PPK | `{tagihan_id}` | `{tagihan}` |
-| `tagihan.waive` | PPK | `{tagihan_id, catatan_hapus}` | `{tagihan}` |
-| `tagihan.summary` | PPK, KPA | `{bulan?}` | `{per_level:{0..3:{jumlah,nominal}}, total_outstanding}` |
-| `tagihan.regenerate_sp` | PPK | `{tagihan_id}` | `{sp}` |
+### Tagihan Gagal Debet — status `TERTAGIH → LUNAS | DIHAPUSKAN | ESKALASI_MANUAL`
 
-### Surat Peringatan — `17_surat_peringatan.gs` (TAHAP 4B)
+| Action | Role | Keterangan |
+|---|---|---|
+| `tagihan.create` | SENAT, PPK | batch `{bulan, nit[], sebab}`; nominal snapshot dari REKAP FINAL; tolak duplikat bulan+nit; **langsung terbitkan SP-1** |
+| `tagihan.list` | semua login | sertakan `level_aktif` (MAX level SP) + `tenggat_aktif`; cache 60 detik, invalidate saat tulis |
+| `tagihan.summary` | PPK, KPA | `{per_level: {0..3: {jumlah, nominal}}, total_outstanding}` — dashboard piutang |
+| `tagihan.setor` | SENAT | bukti setor (`jenis=BUKTI_SETOR`) + tgl_setor; status tetap TERTAGIH |
+| `tagihan.verify` | PPK | syarat bukti setor ada → `LUNAS` |
+| `tagihan.waive` | PPK | `catatan_hapus` WAJIB → `DIHAPUSKAN` |
+| `tagihan.regenerate_sp` | PPK | terbitkan ulang PDF level aktif — no_surat BARU, baris SP baru, `generated_by=MANUAL` |
+| `sp.list` | semua login | riwayat SP per tagihan |
 
-| Action | Roles | Payload | Data balasan |
-|--------|-------|---------|--------------|
-| `sp.list` | login | `{tagihan_id}` | `{sp: []}` |
+### Laporan & Audit
 
-> `spTerbitkan(tagihanId, level, session)` adalah fungsi internal (dipanggil
-> `tagihan.create`, `eskalasiTagihan`, `tagihan.regenerate_sp`), bukan action.
+| Action | Role | Keterangan |
+|---|---|---|
+| `laporan.bulanan` | PPK, KPA | ringkasan realisasi + pembayaran + piutang per bulan (SOP 17–19); format menyesuaikan Laporan Bulanan BAMA |
+| `audit.list` | PPK, KPA | filter tanggal/pengguna/aksi |
 
-### Pengguna (Admin) — `02_auth.gs` / setup (TAHAP 7)
+## Proses internal terjadwal (bukan action HTTP)
 
-| Action | Roles | Payload | Data balasan |
-|--------|-------|---------|--------------|
-| `pengguna.list` | ADMIN | `{}` | `{pengguna: []}` |
-| `pengguna.upsert` | ADMIN | `{user_id, nama, role, status}` | `{pengguna}` |
-| `pengguna.reset_pin` | ADMIN | `{user_id}` | `{ok}` (PIN direset ke default) |
+| Fungsi | Jadwal | Keterangan |
+|---|---|---|
+| `eskalasiTagihan()` | harian 06.00 WIT | TAGIHAN `TERTAGIH` lewat tenggat SP aktif: level 1→terbit SP-2, 2→SP-3, 3→status `ESKALASI_MANUAL`. **Idempotent** — SP level target sudah ada → lewati |
+| `backupMingguan()` | mingguan | copy spreadsheet ke Drive `e-BAMA/BACKUP` |
 
-### Audit — `03_helpers.gs` (TAHAP 7)
+## Konfigurasi kebijakan (`00_config.gs` → `CONFIG.SP`)
 
-| Action | Roles | Payload | Data balasan |
-|--------|-------|---------|--------------|
-| `audit.list` | PPK, KPA | `{dari?, sampai?, user_id?, aksi?}` | `{log: []}` |
+| Kunci | Default | Keterangan |
+|---|---|---|
+| `TENGGAT_HARI` | `{1:7, 2:7, 3:3}` | hari kalender per level SP |
+| `PENANDATANGAN` | `{1:'PPK', 2:'PPK', 3:'KPA'}` | PPK: Firdaus Dabamona, S.T., NIP 198201032007011002; KPA: Daniel Heintje Ndahawali, S.Pi., M.Si., NIP 197207172002121003 |
+| `JAM_TRIGGER` | `6` | jam trigger eskalasi, Asia/Jayapura |
 
----
+Nilai di atas kebijakan internal — ubah lewat konfigurasi, bukan kode.
 
-## Ringkasan mesin status (rujukan cepat)
+## Format nomor surat SP
 
-- **PESANAN**: `DRAFT → DIAJUKAN → (DIKEMBALIKAN | DISETUJUI) → TERKIRIM`
-- **REKAP_BULANAN**: `DRAFT → TERVERIFIKASI_PPK → FINAL`
-- **PEMBAYARAN**: `DIAJUKAN → SP2D_TERBIT → DITRANSFER → DIKONFIRMASI → SELESAI`
-- **TAGIHAN**: `TERTAGIH → LUNAS | DIHAPUSKAN | ESKALASI_MANUAL`
-- **SP**: eskalasi `1 → 2 → 3 → ESKALASI_MANUAL` (tenggat 7/7/3 hari)
+```
+B-{urut}/PKPS/SP{level}/{bulan-romawi}/{tahun}
+```
+
+Counter `{urut}` per level di Script Properties, tidak pernah mundur.
+Placeholder template Doc: `{{NO_SURAT}} {{TGL_SURAT}} {{NAMA}} {{NIT}}
+{{PRODI_TINGKAT}} {{BULAN}} {{NOMINAL}} {{NOMINAL_TERBILANG}} {{REK_SENAT}}
+{{TENGGAT}} {{PENANDATANGAN_NAMA}} {{PENANDATANGAN_NIP}}`.

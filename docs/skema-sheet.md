@@ -1,251 +1,246 @@
-# Skema Sheet e-BAMA — 13 Sheet (3NF + 3 Snapshot)
+# Skema Database e-BAMA — Google Spreadsheet (13 Sheet)
 
-> ⚠️ **STATUS: DRAF REKONSTRUKSI — WAJIB DIREVIEW.**
-> Lampiran skema asli tidak disertakan dalam PROMPT 0. Skema di bawah
-> **direkonstruksi** dari detail yang tersebar di PROMPT 1–8 sebagai draf awal.
-> Sesuai Aturan Main no.2, **skema hanya berubah lewat revisi dokumen ini**.
-> Firdaus harap memverifikasi nama kolom, enum, dan tipe **sebelum TAHAP 1**.
-
-Konvensi:
-- Nama sheet: `SCREAMING_SNAKE_CASE` (baca dari `SHEETS` di `00_config.gs`).
-- Nama kolom: `snake_case`, **baris 1 = header** (freeze, bold, bg `#E0F2F1`).
-- Tipe `tanggal` = format `YYYY-MM-DD`; `timestamp` = datetime.
-- **Uang selalu integer rupiah.**
-- Kolom bertanda 🔒 = **snapshot** (ditulis sistem sekali, tak diedit manual).
-- Kolom bertanda 🔑 = kunci/ID unik.
-
-Ikhtisar 13 sheet:
-
-| # | Sheet | Peran | Snapshot |
-|---|-------|-------|----------|
-| 1 | `PENGGUNA` | Akun & sesi login | — |
-| 2 | `TARUNA` | Master data taruna | — |
-| 3 | `STATUS_HARIAN` | Status tidak-makan harian | — |
-| 4 | `PESANAN` | Pesanan makan (mesin status) | 🔒 jml_taruna |
-| 5 | `REALISASI` | Realisasi penyerahan makan | — |
-| 6 | `REKAP_BULANAN` | Materialized view bulanan | 🔒 seluruh baris |
-| 7 | `PEMBAYARAN` | Pembayaran LS ke penyedia | 🔒 nilai_total |
-| 8 | `TAGIHAN` | Tagihan gagal debet | 🔒 nominal |
-| 9 | `SURAT_PERINGATAN` | Riwayat SP (append-only) | — |
-| 10 | `LAMPIRAN` | Berkas polymorphic (Drive) | — |
-| 11 | `AUDIT_LOG` | Jejak audit (append-only) | — |
-| 12 | `KONTRAK` | Kontrak penyedia (harga/porsi) | — |
-| 13 | `PENYEDIA` | Master data penyedia | — |
+> **Satu sumber kebenaran skema.** Perubahan skema hanya lewat revisi file ini,
+> bukan langsung di kode. Nama sheet dan kolom: `snake_case`, dikunci di
+> `00_config.gs` objek `SHEETS`.
+>
+> Normalisasi: 3NF, dengan **3 denormalisasi snapshot yang disengaja**
+> (ditandai 📸) — ditulis sistem SEKALI saat transisi status, dilarang diedit
+> manual, momen penulisan tercatat di AUDIT_LOG.
+>
+> Semua nilai uang: **integer rupiah** (tanpa desimal, tanpa float).
+> Semua file/berkas: **hanya** lewat sheet LAMPIRAN (polymorphic) — tidak ada
+> kolom file ID di sheet lain.
 
 ---
 
-## 1. PENGGUNA
+## A. MASTER
 
-| Kolom | Tipe | Enum / Aturan |
-|-------|------|---------------|
-| `user_id` 🔑 | teks | mis. `kpa01`, `ppk01` |
-| `nama` | teks | |
-| `role` | enum | `KPA` \| `PPK` \| `SENAT` \| `PEMBINA` \| `ADMIN` |
-| `pin_hash` | teks | SHA-256(pin + SALT) — jangan simpan PIN polos |
-| `token` | teks | UUID sesi aktif (boleh kosong) |
-| `token_exp` | timestamp | kedaluwarsa 24 jam |
-| `status` | enum | `AKTIF` \| `NONAKTIF` |
-| `dibuat_pada` | timestamp | |
-| `diperbarui_pada` | timestamp | |
+### 1. PENGGUNA
 
-## 2. TARUNA
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| user_id | string | kunci; kode singkat, mis. `ppk01`, `senat01` |
+| nama | string | |
+| role | enum | `KPA` / `PPK` / `SENAT` / `PEMBINA` / `ADMIN` |
+| pin_hash | string | SHA-256(pin + SALT); SALT di Script Properties |
+| token | string | token sesi aktif (UUID) |
+| token_exp | datetime | kadaluarsa 24 jam sejak login |
+| status | enum | `AKTIF` / `NONAKTIF` |
 
-| Kolom | Tipe | Enum / Aturan |
-|-------|------|---------------|
-| `nit` 🔑 | teks | Nomor Induk Taruna |
-| `nama` | teks | |
-| `prodi` | teks | |
-| `tingkat` | enum | `1` \| `2` \| `3` \| `4` |
-| `rek_mask` | teks | pola `••••1234` / 4 digit terakhir — **tolak nomor lengkap** |
-| `status` | enum | `AKTIF` \| `NONAKTIF` |
-| `dibuat_pada` | timestamp | |
-| `diperbarui_pada` | timestamp | |
+### 2. TARUNA
 
-## 3. STATUS_HARIAN
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| nit | string | kunci; Nomor Induk Taruna |
+| nama | string | |
+| prodi | string | |
+| tingkat | string | |
+| kelas | string | |
+| bank | enum | `BNI` / `BSI` |
+| rek_mask | string | **HANYA 4 digit terakhir** (mis. `••••4821`). Nomor rekening lengkap DILARANG masuk sistem — arsip lengkap dipegang PPK di luar aplikasi (tindak lanjut temuan Itjen III) |
+| status | enum | `AKTIF` / `NONAKTIF` |
 
-Satu taruna satu status per tanggal (upsert oleh Admin/Pembina).
+### 3. PENYEDIA
 
-| Kolom | Tipe | Enum / Aturan |
-|-------|------|---------------|
-| `status_id` 🔑 | teks | `STS-000001` |
-| `nit` | teks | ref TARUNA |
-| `tanggal` | tanggal | |
-| `sebab` | enum | `PESIAR` \| `CUTI` \| `SAKIT` \| `PENUNDAAN` \| `DINAS` |
-| `keterangan` | teks | |
-| `dicatat_oleh` | teks | user_id |
-| `dicatat_pada` | timestamp | |
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| penyedia_id | string | kunci; `PNY-000001` |
+| nama | string | |
+| kontak | string | |
+| alamat | string | |
+| npwp_mask | string | 4 digit terakhir saja |
+| status | enum | `AKTIF` / `NONAKTIF` |
 
-## 4. PESANAN
+### 4. KONTRAK
 
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| kontrak_id | string | kunci; `KTR-000001` |
+| penyedia_id | FK → PENYEDIA | |
+| harga_per_porsi | integer | rupiah |
+| porsi_per_hari | integer | umumnya 3 (pagi/siang/malam) |
+| tgl_mulai | date | |
+| tgl_akhir | date | |
+| status | enum | `DRAFT` / `DISETUJUI_PPK` |
+| approved_by | FK → PENGGUNA | |
+| approved_at | datetime | |
+
+Lampiran kontrak (menu & nilai gizi, BA penunjukan penyedia, notulen rapat) → LAMPIRAN `ref_type=KONTRAK`.
+
+---
+
+## B. TRANSAKSI
+
+### 5. STATUS_HARIAN
+
+Taruna yang TIDAK berhak makan pada tanggal tertentu (SOP: Peringatan no. 2).
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| status_id | string | kunci; `STH-000001` |
+| tanggal | date | |
+| nit | FK → TARUNA | unik per (tanggal, nit) — upsert |
+| status | enum | `PESIAR` / `CUTI` / `SAKIT_RUMAH` / `PENUNDAAN_STUDI` |
+| input_by | FK → PENGGUNA | |
+| timestamp | datetime | |
+
+Surat pendukung → LAMPIRAN `ref_type=STATUS_HARIAN`.
+
+### 6. PESANAN
+
+Pre-Order H-1, satu pesanan per hari (SOP no. 5–7).
 Mesin status: `DRAFT → DIAJUKAN → (DIKEMBALIKAN | DISETUJUI) → TERKIRIM`.
 
-| Kolom | Tipe | Enum / Aturan |
-|-------|------|---------------|
-| `pesanan_id` 🔑 | teks | `PSN-000001` |
-| `tgl_makan` | tanggal | **unik** (satu pesanan per hari, kecuali revisi) |
-| `jml_taruna` 🔒 | integer | AKTIF − STATUS_HARIAN; koreksi manual wajib `catatan` |
-| `menu` | teks | |
-| `status` | enum | `DRAFT` \| `DIAJUKAN` \| `DIKEMBALIKAN` \| `DISETUJUI` \| `TERKIRIM` |
-| `catatan` | teks | wajib bila `jml_taruna` dikoreksi manual |
-| `alasan_kembali` | teks | wajib saat `pesanan.return` |
-| `verif_by` | teks | user_id Pembina |
-| `verif_at` | timestamp | |
-| `revisi_dari` | teks | `pesanan_id` asal (SOP 7b) |
-| `dibuat_oleh` | teks | user_id Senat |
-| `dibuat_pada` | timestamp | |
-| `diperbarui_pada` | timestamp | |
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| pesanan_id | string | kunci; `PSN-000001` |
+| tgl_makan | date | **unik** — satu pesanan per hari |
+| kontrak_id | FK → KONTRAK | kontrak aktif pada tgl_makan |
+| jml_taruna 📸 | integer | snapshot: taruna AKTIF − STATUS_HARIAN tgl tsb; boleh dikoreksi manual dengan catatan wajib |
+| menu | string | |
+| catatan | string | wajib diisi bila jml_taruna ≠ hitungan otomatis |
+| status | enum | `DRAFT` / `DIAJUKAN` / `DIKEMBALIKAN` / `DISETUJUI` / `TERKIRIM` |
+| created_by | FK → PENGGUNA | Senat |
+| verif_by | FK → PENGGUNA | Pembina |
+| verif_at | datetime | |
+| revisi_dari | FK → PESANAN | terisi bila pesanan ini revisi setelah TERKIRIM (SOP 7b); wajib lampiran BA perubahan |
 
-## 5. REALISASI
+### 7. REALISASI
 
-| Kolom | Tipe | Enum / Aturan |
-|-------|------|---------------|
-| `realisasi_id` 🔑 | teks | `RLS-000001` |
-| `pesanan_id` | teks | ref PESANAN (harus TERKIRIM) |
-| `tgl_makan` | tanggal | |
-| `porsi_diterima` | integer | |
-| `jml_makan` | integer | jumlah taruna yang makan |
-| `ketidaksesuaian` | teks | |
-| `tindak_lanjut` | teks | |
-| `geotag` | teks | `lat,lng` |
-| `ttd_pembina_at` | timestamp | diisi saat ttd Pembina |
-| `ttd_senat_at` | timestamp | diisi saat ttd Senat |
-| `dibuat_oleh` | teks | user_id |
-| `dibuat_pada` | timestamp | |
+Pendataan penyediaan makan harian (SOP no. 8–9).
 
-> Foto realisasi disimpan di `LAMPIRAN` (`ref_type=REALISASI`, `jenis=FOTO`).
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| real_id | string | kunci; `REL-000001` |
+| pesanan_id | FK → PESANAN | pesanan harus TERKIRIM |
+| tanggal | date | |
+| porsi_diterima | integer | |
+| jml_taruna_makan | integer | |
+| ketidaksesuaian | string | kosong bila sesuai |
+| tindak_lanjut | string | dikembalikan / dilengkapi penyedia |
+| geotag_lat | number | dari GPS browser |
+| geotag_lng | number | |
+| ttd_pembina_at | datetime | tanda tangan digital (konfirmasi PIN) |
+| ttd_senat_at | datetime | idem; kedua ttd terisi → trigger rekapUpdate(tanggal) |
 
-## 6. REKAP_BULANAN 🔒
+Foto dokumentasi (terkompres ±200KB) → LAMPIRAN `ref_type=REALISASI`, `jenis=FOTO`.
 
-Materialized view — **seluruh baris snapshot**, di-update sistem incremental
-untuk bulan berjalan, ditolak bila `FINAL`.
+### 8. PEMBAYARAN
 
-| Kolom | Tipe | Enum / Aturan |
-|-------|------|---------------|
-| `rekap_id` 🔑 | teks | `RKP-{yyyymm}-{nit}` |
-| `bulan` | teks | `YYYY-MM` |
-| `nit` | teks | ref TARUNA |
-| `nama` | teks | denormalisasi (materialized view) |
-| `hari_makan` | integer | jumlah realisasi sah |
-| `hari_tidak_makan` | integer | dari STATUS_HARIAN |
-| `harga_per_porsi` 🔒 | integer | snapshot dari KONTRAK aktif |
-| `porsi_per_hari` 🔒 | integer | snapshot dari KONTRAK aktif |
-| `nominal` 🔒 | integer | `hari_makan × harga_per_porsi × porsi_per_hari` |
-| `status` | enum | `DRAFT` \| `TERVERIFIKASI_PPK` \| `FINAL` |
-| `verif_ppk_by` | teks | user_id PPK |
-| `verif_ppk_at` | timestamp | |
-| `final_at` | timestamp | |
-| `diperbarui_pada` | timestamp | |
+LS via KPPN (SOP no. 11–17).
+Mesin status: `DIAJUKAN → SP2D_TERBIT → DITRANSFER → DIKONFIRMASI → SELESAI`.
 
-## 7. PEMBAYARAN
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| bayar_id | string | kunci; `BYR-000001` |
+| bulan | string | `YYYY-MM`; unik per kontrak |
+| kontrak_id | FK → KONTRAK | |
+| nilai_total 📸 | integer | snapshot SUM(nominal) REKAP_BULANAN FINAL bulan tsb |
+| no_spm | string | input manual PPK |
+| tgl_spm | date | |
+| no_sp2d | string | input manual PPK |
+| tgl_sp2d | date | |
+| konfirmasi_senat_at | datetime | invoice diterima penyedia (SOP 15–16) |
+| status | enum | lihat mesin status di atas |
 
-Status: `DIAJUKAN → SP2D_TERBIT → DITRANSFER → DIKONFIRMASI → SELESAI`.
+Surat blokir, bukti debet bank, invoice penyedia → LAMPIRAN `ref_type=PEMBAYARAN`.
 
-| Kolom | Tipe | Enum / Aturan |
-|-------|------|---------------|
-| `bayar_id` 🔑 | teks | `BYR-{yyyymm}` |
-| `bulan` | teks | `YYYY-MM` (rekap harus FINAL) |
-| `nilai_total` 🔒 | integer | SUM(nominal) rekap FINAL |
-| `status` | enum | `DIAJUKAN` \| `SP2D_TERBIT` \| `DITRANSFER` \| `DIKONFIRMASI` \| `SELESAI` |
-| `no_spm` | teks | |
-| `tgl_spm` | tanggal | |
-| `no_sp2d` | teks | |
-| `tgl_sp2d` | tanggal | |
-| `konfirmasi_senat_at` | timestamp | diisi saat `bayar.confirm` |
-| `dibuat_oleh` | teks | user_id PPK |
-| `dibuat_pada` | timestamp | |
-| `diperbarui_pada` | timestamp | |
+### 9. TAGIHAN
 
-## 8. TAGIHAN
-
+Piutang gagal debet rekening taruna.
 Status: `TERTAGIH → LUNAS | DIHAPUSKAN | ESKALASI_MANUAL`.
 
-| Kolom | Tipe | Enum / Aturan |
-|-------|------|---------------|
-| `tagihan_id` 🔑 | teks | `TGH-{yyyymm}-{nit}` |
-| `bulan` | teks | `YYYY-MM` |
-| `nit` | teks | ref TARUNA |
-| `sebab` | teks | alasan gagal debet |
-| `nominal` 🔒 | integer | snapshot REKAP_BULANAN (FINAL) |
-| `status` | enum | `TERTAGIH` \| `LUNAS` \| `DIHAPUSKAN` \| `ESKALASI_MANUAL` |
-| `tgl_setor` | tanggal | diisi saat `tagihan.setor` |
-| `diverifikasi_oleh` | teks | user_id PPK |
-| `catatan_hapus` | teks | **wajib** saat `tagihan.waive` |
-| `dibuat_oleh` | teks | user_id |
-| `dibuat_pada` | timestamp | |
-| `diperbarui_pada` | timestamp | |
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| tagihan_id | string | kunci; format `TGH-{yyyymm}-{nit}` — unik per bulan+taruna |
+| bulan | string | `YYYY-MM` |
+| nit | FK → TARUNA | |
+| nominal 📸 | integer | snapshot dari REKAP_BULANAN (harus FINAL) saat tagihan dibuat |
+| sebab | enum | `GAGAL_DEBET` / `SALDO_KURANG` / `REKENING_BERMASALAH` |
+| status | enum | `TERTAGIH` / `LUNAS` / `DIHAPUSKAN` / `ESKALASI_MANUAL` |
+| tgl_setor | date | tanggal taruna setor ke rekening Senat |
+| diverifikasi_oleh | FK → PENGGUNA | PPK |
+| catatan_hapus | string | WAJIB terisi bila status `DIHAPUSKAN` |
 
-## 9. SURAT_PERINGATAN
+Bukti setor → LAMPIRAN `ref_type=TAGIHAN`, `jenis=BUKTI_SETOR`.
+Level SP aktif TIDAK disimpan di sini — dibaca `MAX(level)` dari SURAT_PERINGATAN.
 
-Append-only (protect warning-only). Satu baris per penerbitan SP.
+### 10. SURAT_PERINGATAN
 
-| Kolom | Tipe | Enum / Aturan |
-|-------|------|---------------|
-| `sp_id` 🔑 | teks | `SP-000001` |
-| `no_surat` | teks | `B-{urut}/PKPS/SP{level}/{romawi}/{tahun}` |
-| `tagihan_id` | teks | ref TAGIHAN |
-| `level` | enum | `1` \| `2` \| `3` |
-| `tgl_surat` | tanggal | |
-| `tenggat` | tanggal | today + CONFIG.SP.TENGGAT_HARI[level] |
-| `generated_by` | enum | `SISTEM` \| `MANUAL` |
-| `drive_file_id` | teks | PDF di FOLDER_SP |
-| `dibuat_pada` | timestamp | |
+Riwayat SP per tagihan — **append-only**; eskalasi = INSERT baris baru, bukan UPDATE.
 
-## 10. LAMPIRAN
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| sp_id | string | kunci; `SP-000001` |
+| tagihan_id | FK → TAGIHAN | |
+| level | integer | 1 / 2 / 3 |
+| no_surat | string | `B-{urut}/PKPS/SP{level}/{bulan-romawi}/{tahun}` |
+| tgl_terbit | date | |
+| tenggat | date | tgl_terbit + CONFIG.SP.TENGGAT_HARI[level] (default 7/7/3 hari kalender) |
+| ditandatangani_oleh | enum | dari CONFIG.SP.PENANDATANGAN (default: SP1–2 `PPK`, SP3 `KPA`) |
+| generated_by | enum | `SISTEM` (trigger eskalasi) / `MANUAL` (regenerate oleh PPK) |
 
-Polymorphic — satu tabel untuk semua berkas.
+PDF surat → LAMPIRAN `ref_type=SP`.
 
-| Kolom | Tipe | Enum / Aturan |
-|-------|------|---------------|
-| `lamp_id` 🔑 | teks | `LMP-000001` |
-| `ref_type` | enum | `PESANAN` \| `REALISASI` \| `TAGIHAN` \| `PEMBAYARAN` \| `SP` \| `STATUS_HARIAN` |
-| `ref_id` | teks | id entitas terkait |
-| `jenis` | enum | `FOTO` \| `BA` \| `BUKTI_SETOR` \| `SURAT` \| `INVOICE` \| `BUKTI_DEBET` \| `SP` |
-| `drive_file_id` | teks | |
-| `nama_file` | teks | |
-| `diunggah_oleh` | teks | user_id |
-| `diunggah_pada` | timestamp | |
+---
 
-## 11. AUDIT_LOG
+## C. PENDUKUNG
 
-Append-only (protect warning-only). Ditulis setiap aksi tulis & error.
+### 11. LAMPIRAN — satu-satunya rumah file (polymorphic)
 
-| Kolom | Tipe | Enum / Aturan |
-|-------|------|---------------|
-| `log_id` 🔑 | teks | `LOG-000001` |
-| `waktu` | timestamp | |
-| `user_id` | teks | `SISTEM` untuk aksi otomatis |
-| `aksi` | teks | mis. `pesanan.create`, `ERROR` |
-| `ref_type` | teks | |
-| `ref_id` | teks | |
-| `data_lama` | teks | JSON.stringify |
-| `data_baru` | teks | JSON.stringify |
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| lamp_id | string | kunci; `LMP-000001` |
+| ref_type | enum | `KONTRAK` / `STATUS_HARIAN` / `PESANAN` / `REALISASI` / `PEMBAYARAN` / `TAGIHAN` / `SP` |
+| ref_id | string | ID baris pada sheet ref_type |
+| jenis | enum | `FOTO` / `SURAT` / `BA` / `INVOICE` / `BUKTI_SETOR` / `BUKTI_DEBET` / `MENU_GIZI` / `NOTULEN` / `LAINNYA` |
+| drive_file_id | string | file di folder Drive e-BAMA/LAMPIRAN (PDF SP di e-BAMA/SURAT_PERINGATAN) |
+| nama_file | string | |
+| uploaded_by | FK → PENGGUNA | |
+| timestamp | datetime | |
 
-## 12. KONTRAK
+Batas ukuran unggah: 5 MB per file.
 
-Harga & porsi dasar perhitungan rekap.
+### 12. AUDIT_LOG — append-only, dilarang edit/hapus
 
-| Kolom | Tipe | Enum / Aturan |
-|-------|------|---------------|
-| `kontrak_id` 🔑 | teks | `KTR-000001` |
-| `no_kontrak` | teks | |
-| `penyedia_id` | teks | ref PENYEDIA |
-| `harga_per_porsi` | integer | rupiah |
-| `porsi_per_hari` | integer | mis. 3 (pagi/siang/malam) |
-| `tgl_mulai` | tanggal | |
-| `tgl_selesai` | tanggal | |
-| `status` | enum | `AKTIF` \| `NONAKTIF` |
-| `dibuat_pada` | timestamp | |
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| timestamp | datetime | |
+| user_id | FK → PENGGUNA | atau `SISTEM` untuk trigger |
+| aksi | string | nama action API atau `ERROR` / `ESKALASI` |
+| ref_type | string | |
+| ref_id | string | |
+| data_lama | string | JSON |
+| data_baru | string | JSON |
 
-## 13. PENYEDIA
+### 13. REKAP_BULANAN 📸 — materialized view
 
-| Kolom | Tipe | Enum / Aturan |
-|-------|------|---------------|
-| `penyedia_id` 🔑 | teks | `PYD-000001` |
-| `nama` | teks | |
-| `npwp` | teks | |
-| `rek_no` | teks | rekening penyedia (bukan taruna) |
-| `rek_bank` | teks | |
-| `alamat` | teks | |
-| `kontak` | teks | |
-| `status` | enum | `AKTIF` \| `NONAKTIF` |
-| `dibuat_pada` | timestamp | |
+Di-update **incremental** oleh `rekapUpdate(tanggal)` setiap REALISASI sah /
+STATUS_HARIAN masuk — TIDAK dihitung ulang sebulan penuh (hindari timeout GAS
+6 menit). Dibekukan saat FINAL (dasar SPM).
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| bulan | string | `YYYY-MM`; kunci gabungan (bulan, nit) |
+| nit | FK → TARUNA | |
+| hari_makan | integer | jumlah hari realisasi sah |
+| hari_tidak_makan | integer | dari STATUS_HARIAN |
+| nominal | integer | hari_makan × harga_per_porsi × porsi_per_hari (kontrak aktif) |
+| status | enum | `DRAFT` / `TERVERIFIKASI_PPK` / `FINAL` |
+| verif_by | FK → PENGGUNA | |
+| verif_at | datetime | |
+
+Setelah `FINAL`: semua update pada bulan tsb DITOLAK.
+
+---
+
+## Diagram relasi (ringkas)
+
+```
+PENYEDIA ─< KONTRAK ─< PESANAN ─< REALISASI ──▶ REKAP_BULANAN(📸 view)
+TARUNA ──< STATUS_HARIAN                              │
+TARUNA ──< TAGIHAN ─< SURAT_PERINGATAN                ├─▶ PEMBAYARAN
+                                                      └─▶ TAGIHAN.nominal
+LAMPIRAN (polymorphic) + AUDIT_LOG ── melintang semua tabel
+```
