@@ -138,6 +138,12 @@ Transisi ilegal → error eksplisit (mis. "Pesanan berstatus DRAFT, tidak bisa d
 
 Nilai di atas kebijakan internal — ubah lewat konfigurasi, bukan kode.
 
+**Pola override:** nilai di kode adalah DEFAULT. Bila Script Properties memuat
+kunci `SP_TENGGAT_HARI`, `SP_PENANDATANGAN`, atau `SP_JAM_TRIGGER` (JSON),
+nilai properties menggantikan default (merge per-kunci). Ubah via
+`setKebijakanSP(obj)` dari editor GAS. Semua modul membaca kebijakan lewat
+`getKebijakanSP()` — **dilarang** membaca `CONFIG.SP` langsung.
+
 ## Format nomor surat SP
 
 ```

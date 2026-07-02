@@ -1,6 +1,9 @@
 /**
  * 20_trigger.gs — Trigger terjadwal (eskalasi SP harian + backup mingguan)
  *
+ * Kebijakan SP (tenggat, JAM_TRIGGER) dibaca via getKebijakanSP() (00_config.gs).
+ * DILARANG membaca CONFIG.SP langsung.
+ *
  * Diisi pada TAHAP 4B (eskalasi) & TAHAP 8 (backup). Akan memuat:
  * - eskalasiTagihan()  : untuk tiap TAGIHAN TERTAGIH, level_aktif=MAX(level) SP;
  *                  bila today > tenggat SP aktif:

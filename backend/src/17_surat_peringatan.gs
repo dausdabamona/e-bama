@@ -2,8 +2,11 @@
  * 17_surat_peringatan.gs — Surat Peringatan (SP-1/2/3) + generate PDF
  *
  * Diisi pada TAHAP 4B. Akan memuat:
+ * Kebijakan SP (tenggat, penandatangan) dibaca via getKebijakanSP() (00_config.gs).
+ * DILARANG membaca CONFIG.SP langsung.
+ *
  * - spTerbitkan(tagihanId, level, session|null):
- *     1. Ambil tagihan + taruna + CONFIG.SP
+ *     1. Ambil tagihan + taruna + getKebijakanSP()
  *     2. no_surat = nextId('SP'+level) → B-{urut}/PKPS/SP{level}/{bulan-romawi}/{tahun}
  *     3. tenggat = today + CONFIG.SP.TENGGAT_HARI[level] (hari kalender)
  *     4. Generate PDF dari template Doc (TPL_SP1/2/3): replace placeholder
