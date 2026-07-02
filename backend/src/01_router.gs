@@ -15,15 +15,15 @@
  * Handler domain (taruna, pesanan, dst.) didaftarkan bertahap TAHAP 3–4.
  */
 var ACTION_MAP = {
-  // Auth
+  // Auth (TAHAP 2)
   'auth.login':       { handler: authLogin,      public: true },
   'auth.logout':      { handler: authLogout,     roles: [] },
-  'auth.change_pin':  { handler: authChangePin,  roles: [] },
+  'auth.change_pin':  { handler: authChangePin,  roles: [] }
 
-  // Master pengguna (Admin)
-  'pengguna.list':      { handler: penggunaList,     roles: ['ADMIN'] },
-  'pengguna.upsert':    { handler: penggunaUpsert,   roles: ['ADMIN'] },
-  'pengguna.reset_pin': { handler: penggunaResetPin, roles: ['ADMIN'] }
+  // Master pengguna (Admin) — didaftarkan pada TAHAP 7 (handler sudah ada di 02_auth.gs):
+  // 'pengguna.list':      { handler: penggunaList,     roles: ['ADMIN'] },
+  // 'pengguna.upsert':    { handler: penggunaUpsert,   roles: ['ADMIN'] },
+  // 'pengguna.reset_pin': { handler: penggunaResetPin, roles: ['ADMIN'] }
 };
 
 /** Health check. */
