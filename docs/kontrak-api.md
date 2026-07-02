@@ -37,6 +37,9 @@
 
 ### Master (Admin)
 
+Modul: `taruna.*` → `10_taruna.gs`; `penyedia.*` & `kontrak.*` → `05_master.gs`;
+`pengguna.*` → `02_auth.gs`.
+
 | Action | Role | Keterangan |
 |---|---|---|
 | `taruna.list` | semua login | filter `{status?, prodi?, tingkat?, kelas?}` |
