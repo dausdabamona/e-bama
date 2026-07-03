@@ -2,7 +2,8 @@
  * 21_cetak.gs — Cetak Form Manual SOP (Form 01-08, docs/format-dokumen.md)
  *
  * ACTION: cetak.form01 (SENAT, PEMBINA, PPK, ADMIN),
- *         cetak.form03 (PPK, ADMIN, PEMBINA)
+ *         cetak.form03 (PPK, ADMIN, PEMBINA),
+ *         cetak.form05 (PEMBINA, PPK, ADMIN)
  *
  * Setiap cetak.formNN adalah action GET-style (tanpa efek samping) — hanya
  * membaca & merangkai data untuk dirender+dicetak di frontend. Tidak ada
@@ -85,4 +86,48 @@ function cetakForm03(payload, session) {
   });
 
   return { bulan: bulan, per_status: perStatus, total: rows.length };
+}
+
+/**
+ * Form 05: BA Rekonsiliasi 3 Titik. Payload {tanggal}.
+ * Titik 1 = taruna AKTIF dikurangi STATUS_HARIAN pada tanggal itu (headcount
+ *   berhak makan, sama seperti perhitungan jml_taruna PESANAN — pakai
+ *   _hitungJmlTaruna_ yang sudah ada di 12_pesanan.gs, jangan hitung ulang).
+ * Titik 2 = PESANAN.jml_taruna pada tgl_makan = tanggal itu (headcount dipesan).
+ * Titik 3 = REALISASI.jml_taruna_makan pada tanggal itu — dipilih (BUKAN
+ *   porsi_diterima) supaya satuannya konsisten dengan Titik 1/2, yaitu
+ *   headcount taruna, bukan jumlah porsi/menu yang bisa berbeda kalau
+ *   porsi_per_hari > 1.
+ * Kolom "Penjelasan/Penyebab" SENGAJA tidak dihasilkan otomatis di sini —
+ * itu wajib diisi manual oleh Pembina di halaman cetak (state lokal frontend,
+ * tidak dikirim ke server).
+ */
+function cetakForm05(payload, session) {
+  var tgl = _wajibTgl_(payload && payload.tanggal, 'tanggal');
+  var titik1 = _hitungJmlTaruna_(tgl);
+  var pesanan = sheetRead(SHEETS.PESANAN, function (r) { return _tglStr_(r.tgl_makan) === tgl; })[0];
+  var titik2 = pesanan ? _int_(pesanan.jml_taruna, 'jml_taruna') : 0;
+  var realisasi = sheetRead(SHEETS.REALISASI, function (r) { return _tglStr_(r.tanggal) === tgl; })[0];
+  var titik3 = realisasi ? _int_(realisasi.jml_taruna_makan, 'jml_taruna_makan') : 0;
+  var selisih1_2 = titik1 - titik2;
+  var selisih2_3 = titik2 - titik3;
+  var cekOtomatis = {
+    label: 'Tidak ada taruna non-aktif/tidak berhak makan yang ikut menerima makan',
+    cocok: titik3 <= titik1
+  };
+
+  return {
+    tanggal: tgl,
+    titik1_taruna_berhak: titik1,
+    titik2_total_pesanan: titik2,
+    titik3_total_realisasi: titik3,
+    selisih_titik1_titik2: selisih1_2,
+    selisih_titik2_titik3: selisih2_3,
+    cocok: selisih1_2 === 0 && selisih2_3 === 0,
+    ada_pesanan: !!pesanan,
+    ada_realisasi: !!realisasi,
+    ketidaksesuaian: realisasi ? (realisasi.ketidaksesuaian || '') : '',
+    tindak_lanjut: realisasi ? (realisasi.tindak_lanjut || '') : '',
+    cek_otomatis: cekOtomatis
+  };
 }

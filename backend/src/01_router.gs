@@ -96,7 +96,8 @@ var ACTION_MAP = {
 
   // Cetak Form Manual SOP (TAHAP cetak)
   'cetak.form01':     { handler: cetakForm01, roles: ['SENAT', 'PEMBINA', 'PPK', 'ADMIN'] },
-  'cetak.form03':     { handler: cetakForm03, roles: ['PPK', 'ADMIN', 'PEMBINA'] }
+  'cetak.form03':     { handler: cetakForm03, roles: ['PPK', 'ADMIN', 'PEMBINA'] },
+  'cetak.form05':     { handler: cetakForm05, roles: ['PEMBINA', 'PPK', 'ADMIN'] }
 };
 
 /** Health check. */

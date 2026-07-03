@@ -22,7 +22,7 @@ const DAFTAR_FORM: DaftarForm[] = [
   { nomor: '02', nama: 'Daftar Hadir / Tanda Terima Makan' },
   { nomor: '03', nama: 'Rekap Taruna Tidak Menerima Makan (bulanan)', rute: '/cetak/form-03' },
   { nomor: '04', nama: 'Rekapitulasi Bulanan Porsi Makan' },
-  { nomor: '05', nama: 'BA Rekonsiliasi 3 Titik' },
+  { nomor: '05', nama: 'BA Rekonsiliasi 3 Titik', rute: '/cetak/form-05' },
   { nomor: '06', nama: 'Verifikasi & Rencana Pembayaran PPK' },
   { nomor: '07', nama: 'Usulan Penahanan & Pendebetan Bank' },
   { nomor: '08', nama: 'Usulan Pembayaran Luar Kampus (PKL/Magang/KPA)' }
