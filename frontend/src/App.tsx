@@ -7,6 +7,16 @@ import { HalamanAkun } from './pages/akun';
 import { HalamanAntrian } from './pages/antrian';
 import { DalamPengembangan } from './pages/dalam-pengembangan';
 import { HalamanLogin } from './pages/login';
+import { HalamanPesananList } from './pages/pesanan/pesanan-list';
+import { HalamanPesananBuat } from './pages/pesanan/pesanan-buat';
+import { HalamanPesananDetail } from './pages/pesanan/pesanan-detail';
+import { HalamanRealisasiList } from './pages/realisasi/realisasi-list';
+import { HalamanRealisasiBuat } from './pages/realisasi/realisasi-form';
+import { HalamanRealisasiDetail } from './pages/realisasi/realisasi-detail';
+import { HalamanVerifikasi } from './pages/verifikasi';
+import { HalamanStatusTaruna } from './pages/status-taruna/status-taruna';
+import { HalamanTagihanList } from './pages/tagihan/tagihan-list';
+import { HalamanTagihanDetail } from './pages/tagihan/tagihan-detail';
 
 /** Beranda: arahkan ke item nav pertama sesuai role. */
 function Beranda() {
@@ -25,17 +35,22 @@ export default function App() {
             <Route element={<WajibLogin><Layout /></WajibLogin>}>
               <Route path="/" element={<Beranda />} />
               {/* Senat */}
-              <Route path="/pesanan" element={<WajibLogin roles={['SENAT']}><DalamPengembangan judul="Pesanan" /></WajibLogin>} />
+              <Route path="/pesanan" element={<WajibLogin roles={['SENAT']}><HalamanPesananList /></WajibLogin>} />
+              <Route path="/pesanan/baru" element={<WajibLogin roles={['SENAT']}><HalamanPesananBuat /></WajibLogin>} />
+              <Route path="/pesanan/:id" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanPesananDetail /></WajibLogin>} />
               {/* Senat + Pembina */}
-              <Route path="/realisasi" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><DalamPengembangan judul="Realisasi" /></WajibLogin>} />
+              <Route path="/realisasi" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanRealisasiList /></WajibLogin>} />
+              <Route path="/realisasi/baru/:pesananId" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanRealisasiBuat /></WajibLogin>} />
+              <Route path="/realisasi/:id" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanRealisasiDetail /></WajibLogin>} />
               {/* Pembina */}
-              <Route path="/verifikasi" element={<WajibLogin roles={['PEMBINA']}><DalamPengembangan judul="Verifikasi Pesanan" /></WajibLogin>} />
-              <Route path="/status-taruna" element={<WajibLogin roles={['PEMBINA', 'ADMIN']}><DalamPengembangan judul="Status Taruna" /></WajibLogin>} />
+              <Route path="/verifikasi" element={<WajibLogin roles={['PEMBINA']}><HalamanVerifikasi /></WajibLogin>} />
+              <Route path="/status-taruna" element={<WajibLogin roles={['PEMBINA', 'ADMIN']}><HalamanStatusTaruna /></WajibLogin>} />
               {/* PPK */}
               <Route path="/rekap" element={<WajibLogin roles={['PPK']}><DalamPengembangan judul="Rekap Bulanan" /></WajibLogin>} />
               <Route path="/pembayaran" element={<WajibLogin roles={['PPK']}><DalamPengembangan judul="Pembayaran" /></WajibLogin>} />
               {/* Senat + PPK (+KPA lihat) */}
-              <Route path="/tagihan" element={<WajibLogin roles={['SENAT', 'PPK', 'KPA']}><DalamPengembangan judul="Tagihan" /></WajibLogin>} />
+              <Route path="/tagihan" element={<WajibLogin roles={['SENAT', 'PPK', 'KPA']}><HalamanTagihanList /></WajibLogin>} />
+              <Route path="/tagihan/:id" element={<WajibLogin roles={['SENAT', 'PPK', 'KPA']}><HalamanTagihanDetail /></WajibLogin>} />
               {/* PPK + KPA */}
               <Route path="/laporan" element={<WajibLogin roles={['PPK', 'KPA']}><DalamPengembangan judul="Laporan" /></WajibLogin>} />
               <Route path="/dashboard" element={<WajibLogin roles={['KPA']}><DalamPengembangan judul="Dashboard" /></WajibLogin>} />
