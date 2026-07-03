@@ -1,7 +1,12 @@
 // Klien GAS — POST text/plain berisi JSON {action, token, payload} (hindari preflight CORS).
 // Amplop balasan: {ok:true,data} | {ok:false,error}. Timeout 30 dtk, retry 1x error jaringan.
 
-const GAS_URL = import.meta.env.VITE_GAS_URL as string;
+// URL deployment GAS. Bisa dioverride via variabel VITE_GAS_URL (GitHub Actions /
+// .env lokal); bila kosong pakai URL produksi di bawah. URL ini bukan rahasia —
+// ia memang terkirim ke browser dan dilindungi token + role di sisi GAS.
+const GAS_URL_BAWAAN =
+  'https://script.google.com/macros/s/AKfycbwzex-jftGVjlwytSTriO8YP59bXhzfw7XvpJWvECNEnjdxHa65AUrX6KT4o3gmD0eQqA/exec';
+const GAS_URL = (import.meta.env.VITE_GAS_URL as string) || GAS_URL_BAWAAN;
 const TIMEOUT_MS = 30_000;
 
 export interface Amplop<T = unknown> {
