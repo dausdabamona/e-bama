@@ -1,5 +1,7 @@
-// /pengguna (Admin) — CRUD akun & reset PIN.
-import { useState } from 'react';
+// /pengguna (Admin) — lihat semua pengguna saat ini + CRUD lengkap & reset PIN.
+// "Hapus" = nonaktifkan (status NONAKTIF) — akun tidak dihapus permanen agar
+// riwayat AUDIT_LOG (FK ke user_id) tetap utuh.
+import { useMemo, useState } from 'react';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
@@ -20,6 +22,22 @@ export function HalamanPengguna() {
   const { toast } = useToast();
   const { data, memuat, galat, refresh } = useListCache<{ pengguna: Pengguna[] }>('pengguna.list', {});
   const [modal, setModal] = useState<Pengguna | 'baru' | null>(null);
+  const [filterRole, setFilterRole] = useState('');
+  const [cari, setCari] = useState('');
+  const [proses, setProses] = useState<string | null>(null);
+
+  const daftar = useMemo(() => {
+    return (data?.pengguna ?? [])
+      .filter((p) => !filterRole || p.role === filterRole)
+      .filter((p) => {
+        const q = cari.trim().toLowerCase();
+        return !q || p.nama.toLowerCase().includes(q) || p.user_id.toLowerCase().includes(q);
+      })
+      .sort((a, b) => a.role.localeCompare(b.role) || a.nama.localeCompare(b.nama));
+  }, [data, filterRole, cari]);
+
+  const jmlAktif = (data?.pengguna ?? []).filter((p) => p.status === 'AKTIF').length;
+  const jmlTotal = data?.pengguna.length ?? 0;
 
   async function resetPin(userId: string) {
     try {
@@ -30,6 +48,20 @@ export function HalamanPengguna() {
     }
   }
 
+  async function toggleStatus(p: Pengguna) {
+    const statusBaru = p.status === 'AKTIF' ? 'NONAKTIF' : 'AKTIF';
+    setProses(p.user_id);
+    try {
+      await api('pengguna.upsert', { user_id: p.user_id, nama: p.nama, role: p.role, status: statusBaru });
+      toast(`${p.nama} → ${statusBaru}.`, 'sukses');
+      refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
+    } finally {
+      setProses(null);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -37,11 +69,28 @@ export function HalamanPengguna() {
         <Button onClick={() => setModal('baru')}>+ Tambah</Button>
       </div>
 
+      {data && (
+        <Card className="text-sm text-gray-600">
+          <span className="font-semibold text-primary-dark">{jmlTotal}</span> pengguna terdaftar ·{' '}
+          <span className="font-semibold text-green-700">{jmlAktif} aktif</span> ·{' '}
+          <span className="font-semibold text-gray-500">{jmlTotal - jmlAktif} nonaktif</span>
+        </Card>
+      )}
+
+      <div className="flex gap-2">
+        <Input placeholder="Cari nama / ID…" value={cari} onChange={(e) => setCari(e.target.value)} className="flex-1" />
+        <select value={filterRole} onChange={(e) => setFilterRole(e.target.value)}
+          className="min-h-tap rounded-xl border border-gray-300 px-3 py-2.5 text-sm">
+          <option value="">Semua Role</option>
+          {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+        </select>
+      </div>
+
       {memuat && !data && <LoadingSpinner label="Memuat pengguna…" />}
       {galat && !data && <ErrorMessage pesan={galat} onRetry={refresh} />}
-      {data && data.pengguna.length === 0 && <EmptyState pesan="Belum ada pengguna." />}
+      {data && daftar.length === 0 && <EmptyState pesan="Tidak ada pengguna yang cocok." />}
 
-      {data?.pengguna.map((p) => (
+      {daftar.map((p) => (
         <Card key={p.user_id} className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <div>
@@ -54,6 +103,13 @@ export function HalamanPengguna() {
             <Button varian="garis" className="flex-1" onClick={() => setModal(p)}>Ubah</Button>
             <Button varian="garis" className="flex-1" onClick={() => void resetPin(p.user_id)}>Reset PIN</Button>
           </div>
+          <Button
+            varian={p.status === 'AKTIF' ? 'bahaya' : 'utama'}
+            onClick={() => void toggleStatus(p)}
+            disabled={proses === p.user_id}
+          >
+            {proses === p.user_id ? 'Memproses…' : p.status === 'AKTIF' ? 'Nonaktifkan' : 'Aktifkan Kembali'}
+          </Button>
         </Card>
       ))}
 
