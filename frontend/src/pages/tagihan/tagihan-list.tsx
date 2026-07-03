@@ -27,7 +27,7 @@ export function HalamanTagihanList() {
   const { session } = useAuth();
   const { data, memuat, galat, refresh } = useListCache<{ tagihan: Tagihan[] }>('tagihan.list', {});
   const ringkasanQ = useListCache<Ringkasan>('tagihan.summary', {});
-  const tampilRingkasan = session?.role === 'PPK' || session?.role === 'KPA';
+  const tampilRingkasan = session?.role === 'PPK' || session?.role === 'KPA' || session?.role === 'WADIR3';
 
   return (
     <div className="flex flex-col gap-4">

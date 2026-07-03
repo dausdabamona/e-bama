@@ -49,14 +49,15 @@ var ACTION_MAP = {
   'realisasi.create': { handler: realisasiCreate, roles: ['PEMBINA', 'SENAT'] },
   'realisasi.ttd':    { handler: realisasiTtd,   roles: ['PEMBINA', 'SENAT'] },
 
-  // Rekap bulanan (TAHAP 3)
-  'rekap.get':        { handler: rekapGet,       roles: ['PPK', 'KPA'] },
+  // Rekap bulanan (TAHAP 3 + gerbang Wadir 3)
+  'rekap.get':        { handler: rekapGet,       roles: ['PPK', 'KPA', 'WADIR3'] },
   'rekap.verify':     { handler: rekapVerify,    roles: ['PPK'] },
   'rekap.final':      { handler: rekapFinal,     roles: ['PPK'] },
+  'rekap.approve_wadir3': { handler: rekapApproveWadir3, roles: ['WADIR3'] },
 
   // Pembayaran (TAHAP 4A)
-  'bayar.list':       { handler: bayarList,      roles: ['PPK', 'KPA', 'SENAT'] },
-  'bayar.get':        { handler: bayarGet,       roles: ['PPK', 'KPA', 'SENAT'] },
+  'bayar.list':       { handler: bayarList,      roles: ['PPK', 'KPA', 'SENAT', 'WADIR3'] },
+  'bayar.get':        { handler: bayarGet,       roles: ['PPK', 'KPA', 'SENAT', 'WADIR3'] },
   'bayar.create':     { handler: bayarCreate,    roles: ['PPK'] },
   'bayar.update':     { handler: bayarUpdate,    roles: ['PPK'] },
   'bayar.confirm':    { handler: bayarConfirm,   roles: ['SENAT'] },
@@ -65,7 +66,7 @@ var ACTION_MAP = {
   // Tagihan gagal debet (TAHAP 4A)
   'tagihan.create':   { handler: tagihanCreate,  roles: ['SENAT', 'PPK'] },
   'tagihan.list':     { handler: tagihanList,    roles: [] },
-  'tagihan.summary':  { handler: tagihanSummary, roles: ['PPK', 'KPA'] },
+  'tagihan.summary':  { handler: tagihanSummary, roles: ['PPK', 'KPA', 'WADIR3'] },
   'tagihan.setor':    { handler: tagihanSetor,   roles: ['SENAT'] },
   'tagihan.verify':   { handler: tagihanVerify,  roles: ['PPK'] },
   'tagihan.waive':    { handler: tagihanWaive,   roles: ['PPK'] },
@@ -80,8 +81,8 @@ var ACTION_MAP = {
   'pengguna.reset_pin': { handler: penggunaResetPin, roles: ['ADMIN'] },
 
   // Laporan & Audit (TAHAP 7)
-  'laporan.bulanan':  { handler: laporanBulanan, roles: ['PPK', 'KPA'] },
-  'audit.list':       { handler: auditList,      roles: ['ADMIN', 'PPK', 'KPA'] }
+  'laporan.bulanan':  { handler: laporanBulanan, roles: ['PPK', 'KPA', 'WADIR3'] },
+  'audit.list':       { handler: auditList,      roles: ['ADMIN', 'PPK', 'KPA', 'WADIR3'] }
 };
 
 /** Health check. */

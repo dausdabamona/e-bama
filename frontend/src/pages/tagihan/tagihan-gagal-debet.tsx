@@ -29,7 +29,8 @@ export function HalamanTagihanGagalDebet() {
 
   const namaByNit = new Map((tarunaQ.data?.taruna ?? []).map((t) => [t.nit, t.nama]));
   const rekap = rekapQ.data?.rekap ?? [];
-  const belumFinal = rekap.length > 0 && rekap[0].status !== 'FINAL';
+  // FINAL atau DISETUJUI_WADIR3 sama-sama berarti nominal sudah beku
+  const belumFinal = rekap.length > 0 && rekap[0].status !== 'FINAL' && rekap[0].status !== 'DISETUJUI_WADIR3';
 
   function toggle(nit: string) {
     setTerpilih((s) => {

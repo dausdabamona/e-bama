@@ -22,7 +22,7 @@
 |---|---|---|
 | user_id | string | kunci; kode singkat, mis. `ppk01`, `senat01` |
 | nama | string | |
-| role | enum | `KPA` / `PPK` / `SENAT` / `PEMBINA` / `ADMIN` |
+| role | enum | `KPA` / `PPK` / `SENAT` / `PEMBINA` / `ADMIN` / `WADIR3` |
 | pin_hash | string | SHA-256(pin + SALT); SALT di Script Properties |
 | token | string | token sesi aktif (UUID) |
 | token_exp | datetime | kadaluarsa 24 jam sejak login |
@@ -226,6 +226,11 @@ Di-update **incremental** oleh `rekapUpdate(tanggal)` setiap REALISASI sah /
 STATUS_HARIAN masuk — TIDAK dihitung ulang sebulan penuh (hindari timeout GAS
 6 menit). Dibekukan saat FINAL (dasar SPM).
 
+> **Gerbang persetujuan Wadir 3:** setelah PPK memfinalkan (`FINAL` — angka
+> beku, dasar SPM), Wakil Direktur III harus menyetujui (`DISETUJUI_WADIR3`)
+> sebelum PPK boleh membuat PEMBAYARAN (`bayar.create`). Ini otorisasi
+> pencairan — bukan koreksi angka; nominal tidak berubah pada langkah ini.
+
 | Kolom | Tipe | Keterangan |
 |---|---|---|
 | bulan | string | `YYYY-MM`; kunci gabungan (bulan, nit) |
@@ -233,7 +238,7 @@ STATUS_HARIAN masuk — TIDAK dihitung ulang sebulan penuh (hindari timeout GAS
 | hari_makan | integer | jumlah hari realisasi sah |
 | hari_tidak_makan | integer | dari STATUS_HARIAN |
 | nominal | integer | hari_makan × harga_per_porsi × porsi_per_hari (kontrak aktif) |
-| status | enum | `DRAFT` / `TERVERIFIKASI_PPK` / `FINAL` |
+| status | enum | `DRAFT` / `TERVERIFIKASI_PPK` / `FINAL` / `DISETUJUI_WADIR3` |
 | verif_by | FK → PENGGUNA | |
 | verif_at | datetime | |
 

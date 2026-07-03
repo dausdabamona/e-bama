@@ -46,7 +46,7 @@ export function HalamanAkun() {
           {proses ? 'Memproses…' : 'Simpan PIN Baru'}
         </Button>
       </Card>
-      {(session?.role === 'ADMIN' || session?.role === 'PPK' || session?.role === 'KPA') && (
+      {(session?.role === 'ADMIN' || session?.role === 'PPK' || session?.role === 'KPA' || session?.role === 'WADIR3') && (
         <Link to="/audit"><Button varian="garis" className="w-full">📜 Lihat Audit Log</Button></Link>
       )}
       <Button varian="bahaya" onClick={() => void logout()}>Keluar</Button>

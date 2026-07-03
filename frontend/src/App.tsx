@@ -18,6 +18,7 @@ import { HalamanRealisasiList } from './pages/realisasi/realisasi-list';
 import { HalamanRealisasiBuat } from './pages/realisasi/realisasi-form';
 import { HalamanRealisasiDetail } from './pages/realisasi/realisasi-detail';
 import { HalamanRekap } from './pages/rekap/rekap';
+import { HalamanPersetujuanWadir3 } from './pages/rekap/persetujuan-wadir3';
 import { HalamanStatusTaruna } from './pages/status-taruna/status-taruna';
 import { HalamanTagihanList } from './pages/tagihan/tagihan-list';
 import { HalamanTagihanDetail } from './pages/tagihan/tagihan-detail';
@@ -55,20 +56,22 @@ export default function App() {
               <Route path="/status-taruna" element={<WajibLogin roles={['PEMBINA', 'ADMIN']}><HalamanStatusTaruna /></WajibLogin>} />
               {/* PPK */}
               <Route path="/rekap" element={<WajibLogin roles={['PPK']}><HalamanRekap /></WajibLogin>} />
-              <Route path="/pembayaran" element={<WajibLogin roles={['PPK', 'SENAT', 'KPA']}><HalamanPembayaran /></WajibLogin>} />
-              {/* Senat + PPK (+KPA lihat) */}
-              <Route path="/tagihan" element={<WajibLogin roles={['SENAT', 'PPK', 'KPA']}><HalamanTagihanList /></WajibLogin>} />
+              <Route path="/pembayaran" element={<WajibLogin roles={['PPK', 'SENAT', 'KPA', 'WADIR3']}><HalamanPembayaran /></WajibLogin>} />
+              {/* Senat + PPK (+KPA/Wadir3 lihat) */}
+              <Route path="/tagihan" element={<WajibLogin roles={['SENAT', 'PPK', 'KPA', 'WADIR3']}><HalamanTagihanList /></WajibLogin>} />
               <Route path="/tagihan/gagal-debet" element={<WajibLogin roles={['PPK']}><HalamanTagihanGagalDebet /></WajibLogin>} />
-              <Route path="/tagihan/:id" element={<WajibLogin roles={['SENAT', 'PPK', 'KPA']}><HalamanTagihanDetail /></WajibLogin>} />
-              {/* PPK + KPA */}
-              <Route path="/laporan" element={<WajibLogin roles={['PPK', 'KPA']}><HalamanLaporan /></WajibLogin>} />
-              <Route path="/dashboard" element={<WajibLogin roles={['KPA']}><HalamanDashboardKpa /></WajibLogin>} />
+              <Route path="/tagihan/:id" element={<WajibLogin roles={['SENAT', 'PPK', 'KPA', 'WADIR3']}><HalamanTagihanDetail /></WajibLogin>} />
+              {/* PPK + KPA + Wadir3 */}
+              <Route path="/laporan" element={<WajibLogin roles={['PPK', 'KPA', 'WADIR3']}><HalamanLaporan /></WajibLogin>} />
+              <Route path="/dashboard" element={<WajibLogin roles={['KPA', 'WADIR3']}><HalamanDashboardKpa /></WajibLogin>} />
+              {/* Wadir 3 */}
+              <Route path="/persetujuan-wadir3" element={<WajibLogin roles={['WADIR3']}><HalamanPersetujuanWadir3 /></WajibLogin>} />
               {/* Admin */}
               <Route path="/taruna" element={<WajibLogin roles={['ADMIN']}><HalamanTarunaList /></WajibLogin>} />
               <Route path="/taruna/impor" element={<WajibLogin roles={['ADMIN']}><HalamanTarunaImpor /></WajibLogin>} />
               <Route path="/pengguna" element={<WajibLogin roles={['ADMIN']}><HalamanPengguna /></WajibLogin>} />
-              {/* Admin, PPK, KPA */}
-              <Route path="/audit" element={<WajibLogin roles={['ADMIN', 'PPK', 'KPA']}><HalamanAudit /></WajibLogin>} />
+              {/* Admin, PPK, KPA, Wadir3 */}
+              <Route path="/audit" element={<WajibLogin roles={['ADMIN', 'PPK', 'KPA', 'WADIR3']}><HalamanAudit /></WajibLogin>} />
               {/* Semua role */}
               <Route path="/akun" element={<HalamanAkun />} />
               <Route path="/antrian" element={<HalamanAntrian />} />

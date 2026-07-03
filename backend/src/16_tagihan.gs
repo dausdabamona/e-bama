@@ -73,7 +73,11 @@ function tagihanCreate(payload, session) {
   if (!rekap.length) throw _fail_('Belum ada rekap untuk bulan ' + bulan + '.');
   var rekapNit = {};
   rekap.forEach(function (r) {
-    if (String(r.status) !== 'FINAL') throw _fail_('Rekap bulan ' + bulan + ' belum FINAL — tagihan butuh dasar nominal beku.');
+    // FINAL atau DISETUJUI_WADIR3 sama-sama berarti nominal sudah beku — status
+    // hanya maju (tidak pernah balik ke FINAL setelah disetujui Wadir 3).
+    if (r.status !== 'FINAL' && r.status !== 'DISETUJUI_WADIR3') {
+      throw _fail_('Rekap bulan ' + bulan + ' belum FINAL — tagihan butuh dasar nominal beku.');
+    }
     rekapNit[String(r.nit)] = r;
   });
 

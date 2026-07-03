@@ -148,3 +148,13 @@ function rekapFinal(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
   return _rekapSetStatus_(session, bulan, 'TERVERIFIKASI_PPK', 'FINAL', 'final');
 }
+
+/**
+ * FINAL → DISETUJUI_WADIR3 (Wadir 3): otorisasi pencairan pembayaran
+ * (ke rekening taruna via SP2D, lalu auto-debet ke penyedia) — bukan koreksi
+ * angka, nominal sudah beku sejak FINAL. Syarat wajib sebelum bayar.create.
+ */
+function rekapApproveWadir3(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  return _rekapSetStatus_(session, bulan, 'FINAL', 'DISETUJUI_WADIR3', 'approve_wadir3');
+}

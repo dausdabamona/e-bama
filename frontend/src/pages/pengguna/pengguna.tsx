@@ -16,7 +16,7 @@ import { useListCache } from '../../lib/use-list-cache';
 
 interface Pengguna { user_id: string; nama: string; role: string; status: string }
 
-const ROLES = ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN'];
+const ROLES = ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3'];
 
 export function HalamanPengguna() {
   const { toast } = useToast();

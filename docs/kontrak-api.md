@@ -87,21 +87,26 @@ Transisi ilegal → error eksplisit (mis. "Pesanan berstatus DRAFT, tidak bisa d
 
 | Action | Role | Keterangan |
 |---|---|---|
-| `rekap.get` | PPK, KPA | per bulan |
+| `rekap.get` | PPK, KPA, WADIR3 | per bulan |
 | `rekap.verify` | PPK | `DRAFT → TERVERIFIKASI_PPK` |
 | `rekap.final` | PPK | `→ FINAL` — beku, dasar SPM; update berikutnya ditolak |
+| `rekap.approve_wadir3` | WADIR3 | `FINAL → DISETUJUI_WADIR3` — otorisasi pencairan (bukan koreksi angka); syarat `bayar.create` |
 
 `rekapUpdate(tanggal)` internal (bukan action publik): incremental per hari, uang integer.
 
 ### Pembayaran (SOP no. 11–17) — mesin status `DIAJUKAN → SP2D_TERBIT → DITRANSFER → DIKONFIRMASI → SELESAI`
 
+> Pembayaran mencakup pencairan ke rekening taruna (SP2D dari KPPN) yang lalu
+> auto-debet ke rekening Senat → penyedia — satu mekanisme LS, satu approval
+> Wadir 3 di gerbang `rekap.approve_wadir3` mencakup keduanya.
+
 | Action | Role | Keterangan |
 |---|---|---|
-| `bayar.create` | PPK | syarat REKAP bulan tsb FINAL; `nilai_total` = SUM(nominal) snapshot |
+| `bayar.create` | PPK | syarat REKAP bulan tsb `DISETUJUI_WADIR3`; `nilai_total` = SUM(nominal) snapshot |
 | `bayar.update` | PPK | isi no_spm/tgl_spm, no_sp2d/tgl_sp2d — status naik sesuai urutan; lampiran surat blokir / bukti debet / invoice |
 | `bayar.confirm` | SENAT | `DITRANSFER → DIKONFIRMASI` (SOP 15–16) |
 | `bayar.close` | PPK | `→ SELESAI` (SOP 17) |
-| `bayar.list` / `bayar.get` | PPK, KPA, SENAT | |
+| `bayar.list` / `bayar.get` | PPK, KPA, SENAT, WADIR3 | |
 
 ### Tagihan Gagal Debet — status `TERTAGIH → LUNAS | DIHAPUSKAN | ESKALASI_MANUAL`
 
@@ -109,7 +114,7 @@ Transisi ilegal → error eksplisit (mis. "Pesanan berstatus DRAFT, tidak bisa d
 |---|---|---|
 | `tagihan.create` | SENAT, PPK | batch `{bulan, nit[], sebab}`; nominal snapshot dari REKAP FINAL; tolak duplikat bulan+nit; **langsung terbitkan SP-1** |
 | `tagihan.list` | semua login | sertakan `level_aktif` (MAX level SP) + `tenggat_aktif`; cache 60 detik, invalidate saat tulis |
-| `tagihan.summary` | PPK, KPA | `{per_level: {0..3: {jumlah, nominal}}, total_outstanding}` — dashboard piutang |
+| `tagihan.summary` | PPK, KPA, WADIR3 | `{per_level: {0..3: {jumlah, nominal}}, total_outstanding}` — dashboard piutang |
 | `tagihan.setor` | SENAT | bukti setor (`jenis=BUKTI_SETOR`) + tgl_setor; status tetap TERTAGIH |
 | `tagihan.verify` | PPK | syarat bukti setor ada → `LUNAS` |
 | `tagihan.waive` | PPK | `catatan_hapus` WAJIB → `DIHAPUSKAN` |
@@ -120,8 +125,8 @@ Transisi ilegal → error eksplisit (mis. "Pesanan berstatus DRAFT, tidak bisa d
 
 | Action | Role | Keterangan |
 |---|---|---|
-| `laporan.bulanan` | PPK, KPA | ringkasan rekap + realisasi + pembayaran + piutang per bulan (SOP 17–19); format menyesuaikan Laporan Bulanan BAMA |
-| `audit.list` | ADMIN, PPK, KPA | filter `{dari?, sampai?, user_id?, aksi?}`; dibatasi 500 baris terbaru |
+| `laporan.bulanan` | PPK, KPA, WADIR3 | ringkasan rekap + realisasi + pembayaran + piutang per bulan (SOP 17–19); format menyesuaikan Laporan Bulanan BAMA |
+| `audit.list` | ADMIN, PPK, KPA, WADIR3 | filter `{dari?, sampai?, user_id?, aksi?}`; dibatasi 500 baris terbaru |
 
 ## Proses internal terjadwal (bukan action HTTP)
 
