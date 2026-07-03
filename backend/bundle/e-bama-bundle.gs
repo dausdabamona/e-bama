@@ -1438,15 +1438,19 @@ function rekapApproveWadir3(payload, session) {
 /**
  * rekap.input_historis (PPK, Admin) — migrasi bulan yang SUDAH BERJALAN sebelum
  * e-BAMA ada (mis. Januari–Juni), TANPA Pesanan/Realisasi harian palsu.
- * Payload {bulan, harga_per_porsi, porsi_per_hari, baris:[{nit, hari_makan, hari_tidak_makan?}]}.
+ * Payload {bulan, biaya_per_hari, baris:[{nit, hari_makan, hari_tidak_makan?}]}.
+ * `biaya_per_hari` = satu angka Rp/hari per taruna (cermin dokumen kertas —
+ * bukan harga_per_porsi × porsi_per_hari, karena rate historis bisa beda per
+ * kelompok, mis. tingkat 3 beda dari tingkat 1–2). Panggil action ini SEKALI
+ * PER KELOMPOK RATE dalam bulan yang sama kalau ratenya tidak seragam — baris
+ * ditulis per-nit jadi aman dipanggil berkali-kali untuk bulan yang sama.
  * Ditulis batch (bukan per-baris) demi kuota GAS. Ditolak bila bulan itu sudah
  * punya baris berstatus selain DRAFT (mencegah menimpa rekap yang sedang berjalan
  * lewat alur normal). Jejak sumber tercatat di AUDIT_LOG, BUKAN kolom sheet baru.
  */
 function rekapInputHistoris(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
-  var harga = _int_(payload && payload.harga_per_porsi, 'harga_per_porsi');
-  var porsi = _int_(payload && payload.porsi_per_hari, 'porsi_per_hari');
+  var biayaPerHari = _int_(payload && payload.biaya_per_hari, 'biaya_per_hari');
   var baris = (payload && payload.baris) || [];
   if (!baris.length) throw _fail_('baris tidak boleh kosong.');
 
@@ -1482,7 +1486,7 @@ function rekapInputHistoris(payload, session) {
       if (!tarunaValid[nit]) throw _fail_('Taruna tidak ditemukan: ' + nit);
       var makan = _int_(b.hari_makan, 'hari_makan');
       var tidak = _int_(b.hari_tidak_makan || 0, 'hari_tidak_makan');
-      var nominal = Math.round(makan * harga * porsi);
+      var nominal = Math.round(makan * biayaPerHari);
 
       var nilai = {
         bulan: bulan, nit: nit, hari_makan: makan, hari_tidak_makan: tidak,
@@ -1501,7 +1505,7 @@ function rekapInputHistoris(payload, session) {
     }
 
     auditLog(session, 'rekap.input_historis', 'REKAP_BULANAN', bulan, null, {
-      baris: n, harga_per_porsi: harga, porsi_per_hari: porsi,
+      baris: n, biaya_per_hari: biayaPerHari,
       sumber: 'INPUT_HISTORIS_PRA_APLIKASI'
     });
     return { bulan: bulan, baris: n };

@@ -15,29 +15,30 @@ import { useListCache } from '../../lib/use-list-cache';
 interface Taruna { nit: string; nama: string; status: string }
 
 interface BarisPreview {
-  nit: string; nama: string; hariMakan: string; hariTidakMakan: string;
-  valid: boolean; pesan: string;
+  nit: string; nama: string; hariMakan: string; hariTidakMakan: string; nominalDokumen: string;
+  valid: boolean; pesan: string; peringatan: string;
 }
 
-const KOLOM = ['nit', 'hari_makan', 'hari_tidak_makan'];
+const KOLOM = ['nit', 'hari_makan', 'hari_tidak_makan', 'nominal'];
 
 export function HalamanRekapHistoris() {
   const nav = useNavigate();
   const { toast } = useToast();
   const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', {});
   const [bulan, setBulan] = useState(bulanIni());
-  const [harga, setHarga] = useState('');
-  const [porsi, setPorsi] = useState('3');
+  const [biayaPerHari, setBiayaPerHari] = useState('');
   const [baris, setBaris] = useState<BarisPreview[]>([]);
   const [proses, setProses] = useState(false);
 
   const namaByNit = new Map((tarunaQ.data?.taruna ?? []).map((t) => [t.nit, t.nama]));
+  const biayaValid = /^\d+$/.test(biayaPerHari) && Number(biayaPerHari) > 0;
 
   function validasiBaris(kolomIdx: Record<string, number>, row: string[]): BarisPreview {
     const ambil = (k: string) => (kolomIdx[k] !== undefined ? (row[kolomIdx[k]] ?? '').trim() : '');
     const nit = ambil('nit');
     const hariMakan = ambil('hari_makan');
     const hariTidakMakan = ambil('hari_tidak_makan') || '0';
+    const nominalDokumen = ambil('nominal');
     const nama = namaByNit.get(nit) ?? '';
 
     let pesan = '';
@@ -46,7 +47,18 @@ export function HalamanRekapHistoris() {
     else if (hariMakan === '' || !/^\d+$/.test(hariMakan)) pesan = 'hari_makan harus angka bulat.';
     else if (!/^\d+$/.test(hariTidakMakan)) pesan = 'hari_tidak_makan harus angka bulat.';
 
-    return { nit, nama, hariMakan, hariTidakMakan, valid: !pesan, pesan };
+    // Validasi silang opsional: kalau CSV menyertakan kolom nominal (dari dokumen
+    // kertas), cocokkan dengan hari_makan x biaya_per_hari yang diisi di atas.
+    let peringatan = '';
+    if (!pesan && nominalDokumen && biayaValid) {
+      const hitung = Math.round(Number(hariMakan) * Number(biayaPerHari));
+      const dariDokumen = Number(nominalDokumen.replace(/[^\d]/g, ''));
+      if (isFinite(dariDokumen) && dariDokumen !== hitung) {
+        peringatan = `Beda dari dokumen: hitung ${hitung}, dokumen ${dariDokumen}.`;
+      }
+    }
+
+    return { nit, nama, hariMakan, hariTidakMakan, nominalDokumen, valid: !pesan, pesan, peringatan };
   }
 
   async function pilihFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -60,7 +72,7 @@ export function HalamanRekapHistoris() {
     const kolomIdx: Record<string, number> = {};
     KOLOM.forEach((k) => { const i = header.indexOf(k); if (i >= 0) kolomIdx[k] = i; });
     if (kolomIdx.nit === undefined || kolomIdx.hari_makan === undefined) {
-      toast('Header CSV wajib memuat kolom: nit, hari_makan (opsional: hari_tidak_makan).', 'galat');
+      toast('Header CSV wajib memuat kolom: nit, hari_makan (opsional: hari_tidak_makan, nominal).', 'galat');
       return;
     }
     setBaris(semua.slice(1).map((row) => validasiBaris(kolomIdx, row)));
@@ -68,19 +80,16 @@ export function HalamanRekapHistoris() {
 
   const jmlValid = baris.filter((b) => b.valid).length;
   const jmlError = baris.length - jmlValid;
-  const hargaValid = /^\d+$/.test(harga) && Number(harga) > 0;
-  const porsiValid = /^\d+$/.test(porsi) && Number(porsi) > 0;
+  const jmlPeringatan = baris.filter((b) => b.valid && b.peringatan).length;
 
   async function impor() {
-    if (!hargaValid) { toast('Harga per porsi wajib diisi (angka rupiah bulat).', 'galat'); return; }
-    if (!porsiValid) { toast('Porsi per hari wajib diisi (angka bulat).', 'galat'); return; }
+    if (!biayaValid) { toast('Biaya per hari wajib diisi (angka rupiah bulat).', 'galat'); return; }
     if (jmlValid === 0) { toast('Tidak ada baris valid untuk diimpor.', 'galat'); return; }
     setProses(true);
     try {
       const hasil = await api<{ bulan: string; baris: number }>('rekap.input_historis', {
         bulan,
-        harga_per_porsi: Number(harga),
-        porsi_per_hari: Number(porsi),
+        biaya_per_hari: Number(biayaPerHari),
         baris: baris.filter((b) => b.valid).map((b) => ({
           nit: b.nit, hari_makan: Number(b.hariMakan), hari_tidak_makan: Number(b.hariTidakMakan)
         }))
@@ -108,15 +117,19 @@ export function HalamanRekapHistoris() {
       <Card className="flex flex-col gap-3">
         <label className="block text-sm font-medium text-gray-700">Bulan</label>
         <BulanPicker bulan={bulan} onChange={setBulan} />
-        <div className="flex gap-2">
-          <Input label="Harga per Porsi (Rp)" type="number" value={harga} onChange={(e) => setHarga(e.target.value)} />
-          <Input label="Porsi per Hari" type="number" value={porsi} onChange={(e) => setPorsi(e.target.value)} />
-        </div>
+        <Input label="Biaya per Hari (Rp/orang/hari)" type="number" value={biayaPerHari} onChange={(e) => setBiayaPerHari(e.target.value)} />
+        <p className="text-xs text-gray-400">
+          Satu angka Rp/hari per taruna (bukan harga per porsi × porsi) — kalau rate
+          beda per kelompok (mis. tingkat 3 beda dari tingkat 1–2), impor terpisah
+          per kelompok dengan biaya masing-masing; boleh diimpor berkali-kali untuk
+          bulan yang sama selama masih DRAFT.
+        </p>
       </Card>
 
       <Card className="flex flex-col gap-2">
         <p className="text-sm text-gray-500">
-          Kolom wajib: <code>nit, hari_makan</code>. Opsional: <code>hari_tidak_makan</code> (default 0).
+          Kolom wajib: <code>nit, hari_makan</code>. Opsional: <code>hari_tidak_makan</code> (default 0),{' '}
+          <code>nominal</code> (dari dokumen kertas — dipakai validasi silang saja, tidak dikirim ke server).
         </p>
         <input type="file" accept=".csv,text/csv" onChange={(e) => void pilihFile(e)}
           className="min-h-tap rounded-xl border border-gray-300 px-3 py-2.5 text-sm" />
@@ -124,9 +137,14 @@ export function HalamanRekapHistoris() {
 
       {baris.length > 0 && (
         <>
-          <Card className="flex items-center justify-between text-sm">
-            <span className="text-green-700">{jmlValid} baris valid</span>
-            <span className="text-red-600">{jmlError} baris bermasalah</span>
+          <Card className="flex flex-col gap-1 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-green-700">{jmlValid} baris valid</span>
+              <span className="text-red-600">{jmlError} baris bermasalah</span>
+            </div>
+            {jmlPeringatan > 0 && (
+              <span className="text-amber-700">⚠️ {jmlPeringatan} baris nominal beda dari dokumen — periksa Biaya per Hari.</span>
+            )}
           </Card>
 
           <Card className="max-h-96 overflow-y-auto overflow-x-auto">
@@ -141,12 +159,16 @@ export function HalamanRekapHistoris() {
               </thead>
               <tbody>
                 {baris.map((b, i) => (
-                  <tr key={i} className={`border-b border-gray-100 ${b.valid ? '' : 'bg-red-50'}`}>
+                  <tr key={i} className={`border-b border-gray-100 ${!b.valid ? 'bg-red-50' : b.peringatan ? 'bg-amber-50' : ''}`}>
                     <td className="py-1 pr-2">{b.nit}</td>
                     <td className="py-1 pr-2">{b.nama || '-'}</td>
                     <td className="py-1 pr-2 text-right">{b.hariMakan}</td>
                     <td className="py-1">
-                      {b.valid ? <span className="text-green-700">OK</span> : <span className="text-red-600">{b.pesan}</span>}
+                      {!b.valid
+                        ? <span className="text-red-600">{b.pesan}</span>
+                        : b.peringatan
+                          ? <span className="text-amber-700">{b.peringatan}</span>
+                          : <span className="text-green-700">OK</span>}
                     </td>
                   </tr>
                 ))}
