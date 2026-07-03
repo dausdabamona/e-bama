@@ -18,7 +18,41 @@ var ACTION_MAP = {
   // Auth (TAHAP 2)
   'auth.login':       { handler: authLogin,      public: true },
   'auth.logout':      { handler: authLogout,     roles: [] },
-  'auth.change_pin':  { handler: authChangePin,  roles: [] }
+  'auth.change_pin':  { handler: authChangePin,  roles: [] },
+
+  // Master (TAHAP 3)
+  'taruna.list':      { handler: tarunaList,     roles: [] },
+  'taruna.upsert':    { handler: tarunaUpsert,   roles: ['ADMIN'] },
+  'penyedia.list':    { handler: penyediaList,   roles: [] },
+  'penyedia.upsert':  { handler: penyediaUpsert, roles: ['ADMIN', 'PPK'] },
+  'kontrak.list':     { handler: kontrakList,    roles: [] },
+  'kontrak.upsert':   { handler: kontrakUpsert,  roles: ['PPK'] },
+  'kontrak.approve':  { handler: kontrakApprove, roles: ['PPK'] },
+
+  // Status harian (TAHAP 3)
+  'status.set':       { handler: statusSet,      roles: ['ADMIN', 'PEMBINA'] },
+  'status.batch':     { handler: statusBatch,    roles: ['ADMIN', 'PEMBINA'] },
+  'status.list':      { handler: statusList,     roles: [] },
+
+  // Pesanan (TAHAP 3)
+  'pesanan.list':     { handler: pesananList,    roles: [] },
+  'pesanan.get':      { handler: pesananGet,     roles: [] },
+  'pesanan.create':   { handler: pesananCreate,  roles: ['SENAT'] },
+  'pesanan.submit':   { handler: pesananSubmit,  roles: ['SENAT'] },
+  'pesanan.verify':   { handler: pesananVerify,  roles: ['PEMBINA'] },
+  'pesanan.return':   { handler: pesananReturn,  roles: ['PEMBINA'] },
+  'pesanan.kirim':    { handler: pesananKirim,   roles: ['SENAT'] },
+  'pesanan.revisi':   { handler: pesananRevisi,  roles: ['SENAT'] },
+
+  // Realisasi (TAHAP 3)
+  'realisasi.list':   { handler: realisasiList,  roles: [] },
+  'realisasi.create': { handler: realisasiCreate, roles: ['PEMBINA', 'SENAT'] },
+  'realisasi.ttd':    { handler: realisasiTtd,   roles: ['PEMBINA', 'SENAT'] },
+
+  // Rekap bulanan (TAHAP 3)
+  'rekap.get':        { handler: rekapGet,       roles: ['PPK', 'KPA'] },
+  'rekap.verify':     { handler: rekapVerify,    roles: ['PPK'] },
+  'rekap.final':      { handler: rekapFinal,     roles: ['PPK'] }
 
   // Master pengguna (Admin) — didaftarkan pada TAHAP 7 (handler sudah ada di 02_auth.gs):
   // 'pengguna.list':      { handler: penggunaList,     roles: ['ADMIN'] },
