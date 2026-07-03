@@ -148,10 +148,8 @@ luar sistem; diajukan ke PPK untuk diinput. Catatan murni, tanpa alur status.
 
 ### Cetak Form Manual SOP (Form 01–08)
 
-> Modul `backend/src/21_cetak.gs`. Form 01/02/03/04/05/06/07 **sudah ada di
-> `ACTION_MAP`**; Form 08 masih menunggu (desain sudah dikonfirmasi Firdaus —
-> tarif manual per kegiatan, jml hari dari STATUS_HARIAN — tinggal
-> implementasi). Peta form ↔
+> Modul `backend/src/21_cetak.gs`. Semua Form 01–08 **sudah ada di
+> `ACTION_MAP`**. Peta form ↔
 > sumber data lengkap: `docs/format-dokumen.md`. Pola tampilan cetak (React):
 > rujuk `frontend/src/pages/laporan/laporan-resmi.tsx` — satu action
 > GET-style per form → data bundel lengkap, halaman merender semua bagian
@@ -169,7 +167,7 @@ luar sistem; diajukan ke PPK untuk diinput. Catatan murni, tanpa alur status.
 | `cetak.form05` | PEMBINA, PPK, ADMIN | `{tanggal}` → `{titik1_taruna_berhak, titik2_total_pesanan, titik3_total_realisasi, selisih_titik1_titik2, selisih_titik2_titik3, cocok, cek_otomatis}` — BA Rekonsiliasi 3 Titik | ✅ diimplementasi |
 | `cetak.form06` | PPK, KPA, ADMIN | `{bulan}` → `{baris, total_taruna, total_hari_makan, total_nominal, nominal_terbilang, pejabat}` — Verifikasi & Rencana Pembayaran PPK; **ditolak bila REKAP_BULANAN bulan itu belum FINAL** | ✅ diimplementasi (`_terbilang_()` di `03_helpers.gs`) |
 | `cetak.form07` | **ADMIN, PPK SAJA** | `{bulan}` → `{pembayaran, baris:[{nit,nama,bank,no_rekening_lengkap,nama_pemilik,nominal,rekening_lengkap_ada}], total_nominal}` — Usulan Penahanan & Pendebetan Bank; sumber PEMBAYARAN+REKAP_BULANAN+`TARUNA_REKENING`; **ditolak bila belum ada PEMBAYARAN bulan itu**; setiap panggilan mencatat 1 baris AUDIT_LOG (NIT yang rekeningnya terbaca) | ✅ diimplementasi |
-| `cetak.form08` | **ADMIN, PPK SAJA** | `{bulan, kegiatan?}` → `{bulan, kegiatan, baris:[{nit,nama,bank,no_rekening_lengkap,kegiatan,total_hari,nilai_per_hari,nominal}], total}` — Usulan Pembayaran Luar Kampus | ⏸️ menunggu konfirmasi desain (sumber tarif per kegiatan/provinsi) |
+| `cetak.form08` | **ADMIN, PPK SAJA** | `{bulan, kegiatan?}` → `{bulan, kegiatan, baris:[{nit,nama,kegiatan,periode,bank,no_rekening_lengkap,nama_pemilik,rekening_lengkap_ada,jml_hari,total_hari_impor,hari_cocok,nilai_per_hari,nominal}], total_nominal}` — Usulan Pembayaran Luar Kampus; tarif dari `BANTUAN_LUAR_KAMPUS.nilai_per_hari`, `jml_hari` dihitung ulang dari STATUS_HARIAN (dikonfirmasi Firdaus) — bukan `total_hari` hasil impor CSV | ✅ diimplementasi |
 
 ### Rekening lengkap (`TARUNA_REKENING`) — akses terbatas ADMIN/PPK
 

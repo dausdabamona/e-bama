@@ -134,12 +134,11 @@ npm run deploy                # deploy ke GitHub Pages
 
 ## 7. Cetak Form Manual SOP
 
-> Rancangan + implementasi bertahap untuk 8 form resmi (`docs/format-dokumen.md`).
-> Form 01/03/05/06 dan skema `TARUNA_REKENING` (dasar Form 07) **sudah
-> diimplementasi**; Form 02/04/07/08 masih menunggu (lihat tabel status di
-> bawah). Kerjakan sebagai TAHAP tersendiri (satu tahap = satu sesi, per
-> Aturan Main Eksekusi) — jangan gabung form baru dengan perubahan skema di
-> sesi yang sama.
+> Implementasi bertahap untuk 8 form resmi (`docs/format-dokumen.md`) —
+> **semua 8 form sudah diimplementasi** (lihat tabel status di bawah).
+> Perubahan lebih lanjut ke form-form ini tetap dikerjakan sebagai TAHAP
+> tersendiri (satu tahap = satu sesi, per Aturan Main Eksekusi) — jangan
+> gabung perubahan form dengan perubahan skema di sesi yang sama.
 
 **Pola format cetak** (rujukan: `frontend/src/pages/laporan/laporan-resmi.tsx`):
 - Satu action `cetak.formNN` (GET-style) — payload kecil (id/bulan) → data
@@ -186,10 +185,11 @@ peta asal per form: `docs/format-dokumen.md`):
 | 05 | BA Rekonsiliasi 3 Titik | TARUNA, PESANAN, REALISASI | ✅ diimplementasi |
 | 06 | Verifikasi & Rencana Pembayaran PPK | PEMBAYARAN, REKAP_BULANAN | ✅ diimplementasi (`_terbilang_()` di `03_helpers.gs`) |
 | 07 | Usulan Penahanan & Pendebetan Bank | PEMBAYARAN, REKAP_BULANAN, **TARUNA_REKENING** | ✅ diimplementasi; **ADMIN/PPK saja**, halaman TIDAK di-cache Dexie |
-| 08 | Usulan Pembayaran Luar Kampus | BANTUAN_LUAR_KAMPUS, STATUS_HARIAN, **TARUNA_REKENING** | 🔜 desain sudah dikonfirmasi Firdaus (tarif manual per kegiatan, jml hari dari STATUS_HARIAN) — tinggal implementasi; **ADMIN/PPK saja** |
+| 08 | Usulan Pembayaran Luar Kampus | BANTUAN_LUAR_KAMPUS, STATUS_HARIAN, **TARUNA_REKENING** | ✅ diimplementasi — tarif dari `nilai_per_hari` (BANTUAN_LUAR_KAMPUS), jml hari dihitung ulang dari STATUS_HARIAN (dikonfirmasi Firdaus); **ADMIN/PPK saja**, halaman TIDAK di-cache Dexie |
 
-Desain Form 02/04/08 sudah dikonfirmasi Firdaus (lihat riwayat sesi) — bukan
-lagi asumsi sendiri.
+Semua 8 form sudah diimplementasi. Desain Form 02/04/08 sebelumnya sempat
+menunggu konfirmasi eksplisit Firdaus (lihat riwayat sesi) — bukan asumsi
+sendiri.
 
 ---
 

@@ -239,6 +239,7 @@ var ACTION_MAP = {
   'cetak.form05':     { handler: cetakForm05, roles: ['PEMBINA', 'PPK', 'ADMIN'] },
   'cetak.form06':     { handler: cetakForm06, roles: ['PPK', 'KPA', 'ADMIN'] },
   'cetak.form07':     { handler: cetakForm07, roles: ['ADMIN', 'PPK'] },
+  'cetak.form08':     { handler: cetakForm08, roles: ['ADMIN', 'PPK'] },
 
   // Rekening lengkap (TARUNA_REKENING) — TAHAP SENSITIF, lihat CLAUDE.md § 4/§ 7
   'rekening.lihat_lengkap': { handler: rekeningLihatLengkap, roles: ['ADMIN', 'PPK'] },
@@ -2523,7 +2524,8 @@ function pasangTriggerBackup() {
  *         cetak.form04 (SENAT, PEMBINA, PPK, ADMIN),
  *         cetak.form05 (PEMBINA, PPK, ADMIN),
  *         cetak.form06 (PPK, KPA, ADMIN),
- *         cetak.form07 (ADMIN, PPK SAJA — baca TARUNA_REKENING, lihat 22_rekening.gs)
+ *         cetak.form07 (ADMIN, PPK SAJA — baca TARUNA_REKENING, lihat 22_rekening.gs),
+ *         cetak.form08 (ADMIN, PPK SAJA — baca TARUNA_REKENING, lihat 22_rekening.gs)
  *
  * Setiap cetak.formNN adalah action GET-style (tanpa efek samping) — hanya
  * membaca & merangkai data untuk dirender+dicetak di frontend. Tidak ada
@@ -2854,6 +2856,78 @@ function cetakForm07(payload, session) {
       total_nominal: totalNominal,
       pejabat: PEJABAT
     };
+  });
+}
+
+/**
+ * Form 08: Usulan Pembayaran Luar Kampus (PKL/Magang/KPA/PTB). Payload
+ * {bulan, kegiatan?}. Keputusan desain (dikonfirmasi Firdaus):
+ * - Tarif harian TIDAK diinput manual per panggilan — dipakai
+ *   BANTUAN_LUAR_KAMPUS.nilai_per_hari yang sudah diimpor (rate bisa beda
+ *   per individu/wilayah, tidak ada sheet tarif-per-provinsi baru).
+ * - "Jumlah hari kegiatan luar kampus" = dihitung ULANG dari STATUS_HARIAN
+ *   (baris berstatus KEGIATAN_LUAR_KAMPUS per nit pada bulan itu), BUKAN
+ *   dipercaya dari BANTUAN_LUAR_KAMPUS.total_hari yang diimpor manual dari
+ *   dokumen kertas Ketua Jurusan/panitia — konsisten dengan cara Form 03/05
+ *   menghitung dari STATUS_HARIAN sebagai sumber kebenaran. total_hari hasil
+ *   impor tetap ditampilkan sebagai pembanding (hari_cocok), tapi nominal
+ *   yang dicetak memakai hasil hitung ulang ini.
+ * Sama seperti Form 07: menampilkan rekening lengkap → ADMIN/PPK saja,
+ * wajib AUDIT_LOG per panggilan.
+ */
+function cetakForm08(payload, session) {
+  _hanyaAdminPPK_(session);
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  var kegiatan = (payload && payload.kegiatan) ? String(payload.kegiatan).trim() : '';
+
+  return withLock(function () {
+    var blkRows = sheetRead(SHEETS.BANTUAN_LUAR_KAMPUS, function (r) {
+      return _bulanStr_(r.bulan) === bulan && (!kegiatan || String(r.kegiatan) === kegiatan);
+    });
+    if (!blkRows.length) {
+      throw _fail_('Belum ada data Bantuan Luar Kampus untuk bulan ' + bulan + (kegiatan ? (' kegiatan ' + kegiatan) : '') + '.');
+    }
+
+    // Hitung ulang jml hari dari STATUS_HARIAN — sumber kebenaran (dikonfirmasi Firdaus),
+    // bukan total_hari hasil impor CSV.
+    var hariStatusHarianByNit = {};
+    sheetRead(SHEETS.STATUS_HARIAN, function (r) {
+      return _bulanStr_(r.tanggal) === bulan && r.status === 'KEGIATAN_LUAR_KAMPUS';
+    }).forEach(function (r) {
+      var nit = String(r.nit);
+      hariStatusHarianByNit[nit] = (hariStatusHarianByNit[nit] || 0) + 1;
+    });
+
+    var tarunaByNit = {};
+    sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+
+    var nitList = blkRows.map(function (r) { return String(r.nit); });
+    var rekeningByNit = {};
+    sheetRead(SHEETS.TARUNA_REKENING, function (r) { return nitList.indexOf(String(r.nit)) >= 0; })
+      .forEach(function (r) { rekeningByNit[String(r.nit)] = r; });
+
+    var totalNominal = 0;
+    var baris = blkRows.map(function (r) {
+      var nit = String(r.nit);
+      var t = tarunaByNit[nit] || {};
+      var rek = rekeningByNit[nit];
+      var nilaiPerHari = _int_(r.nilai_per_hari, 'nilai_per_hari');
+      var totalHariImpor = _int_(r.total_hari, 'total_hari');
+      var jmlHari = hariStatusHarianByNit[nit] || 0;
+      var nominal = Math.round(jmlHari * nilaiPerHari);
+      totalNominal += nominal;
+      return {
+        nit: nit, nama: t.nama || '', kegiatan: r.kegiatan, periode: r.periode,
+        bank: rek ? rek.bank : '', no_rekening_lengkap: rek ? rek.no_rekening_lengkap : '',
+        nama_pemilik: rek ? rek.nama_pemilik : '', rekening_lengkap_ada: !!rek,
+        jml_hari: jmlHari, total_hari_impor: totalHariImpor, hari_cocok: jmlHari === totalHariImpor,
+        nilai_per_hari: nilaiPerHari, nominal: nominal
+      };
+    });
+
+    auditLog(session, 'cetak.form08', 'TARUNA_REKENING', nitList.join(','), null, { nit_list: nitList });
+
+    return { bulan: bulan, kegiatan: kegiatan, baris: baris, total_nominal: totalNominal, pejabat: PEJABAT };
   });
 }
 
