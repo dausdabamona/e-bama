@@ -22,7 +22,7 @@
 |---|---|---|
 | user_id | string | kunci; kode singkat, mis. `ppk01`, `senat01` |
 | nama | string | |
-| role | enum | `KPA` / `PPK` / `SENAT` / `PEMBINA` / `ADMIN` / `WADIR3` |
+| role | enum | `KPA` / `PPK` / `SENAT` / `PEMBINA` / `ADMIN` / `WADIR3` / `BAAK` |
 | pin_hash | string | SHA-256(pin + SALT); SALT di Script Properties |
 | token | string | token sesi aktif (UUID) |
 | token_exp | datetime | kadaluarsa 24 jam sejak login |

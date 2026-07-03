@@ -48,6 +48,11 @@ export const NAV_PER_ROLE: Record<Role, ItemNav[]> = {
     { ke: '/dashboard', label: 'Dashboard', ikon: '📈' },
     { ke: '/laporan', label: 'Laporan', ikon: '🖨️' },
     { ke: '/akun', label: 'Akun', ikon: '👤' }
+  ],
+  BAAK: [
+    { ke: '/taruna', label: 'Taruna', ikon: '🎓' },
+    { ke: '/status-taruna', label: 'Status', ikon: '📋' },
+    { ke: '/akun', label: 'Akun', ikon: '👤' }
   ]
 };
 

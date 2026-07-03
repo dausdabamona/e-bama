@@ -22,7 +22,7 @@ var ACTION_MAP = {
 
   // Master (TAHAP 3)
   'taruna.list':      { handler: tarunaList,     roles: [] },
-  'taruna.upsert':    { handler: tarunaUpsert,   roles: ['ADMIN'] },
+  'taruna.upsert':    { handler: tarunaUpsert,   roles: ['ADMIN', 'BAAK'] },
   'penyedia.list':    { handler: penyediaList,   roles: [] },
   'penyedia.upsert':  { handler: penyediaUpsert, roles: ['ADMIN', 'PPK'] },
   'kontrak.list':     { handler: kontrakList,    roles: [] },
@@ -34,8 +34,8 @@ var ACTION_MAP = {
   'menu.upsert':      { handler: menuUpsert,     roles: ['PPK'] },
 
   // Status harian (TAHAP 3)
-  'status.set':       { handler: statusSet,      roles: ['ADMIN', 'PEMBINA'] },
-  'status.batch':     { handler: statusBatch,    roles: ['ADMIN', 'PEMBINA'] },
+  'status.set':       { handler: statusSet,      roles: ['ADMIN', 'PEMBINA', 'BAAK'] },
+  'status.batch':     { handler: statusBatch,    roles: ['ADMIN', 'PEMBINA', 'BAAK'] },
   'status.list':      { handler: statusList,     roles: [] },
 
   // Pesanan (TAHAP 3)

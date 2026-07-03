@@ -1,4 +1,6 @@
-// /status-taruna (Pembina, Admin) — input status harian individual & massal per kelas.
+// /status-taruna (Pembina, Admin, BAAK) — input status harian individual &
+// massal per kelas; BAAK juga pakai ini untuk surat taruna keluar kampus
+// (PKL) & surat penarikan kembali, lampirkan lewat "Surat Pendukung".
 import { useMemo, useState } from 'react';
 import { ambilFotoInput, kompresFotoBase64 } from '../../lib/foto';
 import { aksiTulis } from '../../lib/sync';

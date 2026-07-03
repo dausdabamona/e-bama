@@ -53,13 +53,14 @@ var ROLES = {
   SENAT:   'SENAT',
   PEMBINA: 'PEMBINA',
   ADMIN:   'ADMIN',
-  WADIR3:  'WADIR3'
+  WADIR3:  'WADIR3',
+  BAAK:    'BAAK'
 };
 
 // ── Nilai enum per kolom (rujukan validasi dropdown & pengecekan handler) ────
 var ENUM = {
   AKTIF_STATUS:      ['AKTIF', 'NONAKTIF'],                 // PENGGUNA/TARUNA/PENYEDIA.status
-  ROLE:              ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3'],
+  ROLE:              ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK'],
   BANK:              ['BNI', 'BSI'],                        // TARUNA.bank
   KONTRAK_STATUS:    ['DRAFT', 'DISETUJUI_PPK'],
   HARI:              ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU', 'MINGGU'], // MENU_KONTRAK.hari
@@ -157,7 +158,7 @@ var ACTION_MAP = {
 
   // Master (TAHAP 3)
   'taruna.list':      { handler: tarunaList,     roles: [] },
-  'taruna.upsert':    { handler: tarunaUpsert,   roles: ['ADMIN'] },
+  'taruna.upsert':    { handler: tarunaUpsert,   roles: ['ADMIN', 'BAAK'] },
   'penyedia.list':    { handler: penyediaList,   roles: [] },
   'penyedia.upsert':  { handler: penyediaUpsert, roles: ['ADMIN', 'PPK'] },
   'kontrak.list':     { handler: kontrakList,    roles: [] },
@@ -169,8 +170,8 @@ var ACTION_MAP = {
   'menu.upsert':      { handler: menuUpsert,     roles: ['PPK'] },
 
   // Status harian (TAHAP 3)
-  'status.set':       { handler: statusSet,      roles: ['ADMIN', 'PEMBINA'] },
-  'status.batch':     { handler: statusBatch,    roles: ['ADMIN', 'PEMBINA'] },
+  'status.set':       { handler: statusSet,      roles: ['ADMIN', 'PEMBINA', 'BAAK'] },
+  'status.batch':     { handler: statusBatch,    roles: ['ADMIN', 'PEMBINA', 'BAAK'] },
   'status.list':      { handler: statusList,     roles: [] },
 
   // Pesanan (TAHAP 3)

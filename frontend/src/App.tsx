@@ -57,7 +57,7 @@ export default function App() {
               <Route path="/realisasi/:id" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanRealisasiDetail /></WajibLogin>} />
               {/* Pembina */}
               <Route path="/verifikasi" element={<WajibLogin roles={['PEMBINA']}><HalamanVerifikasi /></WajibLogin>} />
-              <Route path="/status-taruna" element={<WajibLogin roles={['PEMBINA', 'ADMIN']}><HalamanStatusTaruna /></WajibLogin>} />
+              <Route path="/status-taruna" element={<WajibLogin roles={['PEMBINA', 'ADMIN', 'BAAK']}><HalamanStatusTaruna /></WajibLogin>} />
               {/* PPK */}
               <Route path="/rekap" element={<WajibLogin roles={['PPK']}><HalamanRekap /></WajibLogin>} />
               <Route path="/rekap/historis" element={<WajibLogin roles={['PPK', 'ADMIN']}><HalamanRekapHistoris /></WajibLogin>} />
@@ -75,8 +75,8 @@ export default function App() {
               {/* Wadir 3 */}
               <Route path="/persetujuan-wadir3" element={<WajibLogin roles={['WADIR3']}><HalamanPersetujuanWadir3 /></WajibLogin>} />
               {/* Admin */}
-              <Route path="/taruna" element={<WajibLogin roles={['ADMIN']}><HalamanTarunaList /></WajibLogin>} />
-              <Route path="/taruna/impor" element={<WajibLogin roles={['ADMIN']}><HalamanTarunaImpor /></WajibLogin>} />
+              <Route path="/taruna" element={<WajibLogin roles={['ADMIN', 'BAAK']}><HalamanTarunaList /></WajibLogin>} />
+              <Route path="/taruna/impor" element={<WajibLogin roles={['ADMIN', 'BAAK']}><HalamanTarunaImpor /></WajibLogin>} />
               <Route path="/pengguna" element={<WajibLogin roles={['ADMIN']}><HalamanPengguna /></WajibLogin>} />
               {/* Admin, PPK, KPA, Wadir3 */}
               <Route path="/audit" element={<WajibLogin roles={['ADMIN', 'PPK', 'KPA', 'WADIR3']}><HalamanAudit /></WajibLogin>} />

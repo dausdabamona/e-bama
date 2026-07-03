@@ -43,7 +43,7 @@ Modul: `taruna.*` → `10_taruna.gs`; `penyedia.*`, `kontrak.*` & `menu.*` → `
 | Action | Role | Keterangan |
 |---|---|---|
 | `taruna.list` | semua login | filter `{status?, prodi?, tingkat?, kelas?}` |
-| `taruna.upsert` | ADMIN | tolak `rek_mask` yang memuat >4 digit angka (indikasi rekening lengkap) |
+| `taruna.upsert` | ADMIN, BAAK | tolak `rek_mask` yang memuat >4 digit angka (indikasi rekening lengkap); BAAK (Biro Administrasi Akademik & Kemahasiswaan) berdampingan dengan Admin — sumber otoritatif data NIT/akademik |
 | `penyedia.list` | semua login | |
 | `penyedia.upsert` | ADMIN, PPK | |
 | `kontrak.list` | semua login | |
@@ -59,8 +59,8 @@ Modul: `taruna.*` → `10_taruna.gs`; `penyedia.*`, `kontrak.*` & `menu.*` → `
 
 | Action | Role | Keterangan |
 |---|---|---|
-| `status.set` | ADMIN, PEMBINA | upsert per (tanggal, nit) |
-| `status.batch` | ADMIN, PEMBINA | input massal (mis. satu kelas pesiar) |
+| `status.set` | ADMIN, PEMBINA, BAAK | upsert per (tanggal, nit); BAAK dipakai untuk surat taruna keluar kampus (PKL) & surat penarikan kembali, lampirkan lewat `berkas` |
+| `status.batch` | ADMIN, PEMBINA, BAAK | input massal (mis. satu kelas pesiar) |
 | `status.list` | semua login | per rentang tanggal |
 
 ### Pesanan (SOP no. 5–7) — mesin status `DRAFT → DIAJUKAN → (DIKEMBALIKAN | DISETUJUI) → TERKIRIM`

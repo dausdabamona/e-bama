@@ -1,4 +1,4 @@
-// /taruna (Admin) — CRUD data taruna + tautan impor CSV.
+// /taruna (Admin, BAAK) — CRUD data taruna + tautan impor CSV.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Badge } from '../../components/ui/badge';
