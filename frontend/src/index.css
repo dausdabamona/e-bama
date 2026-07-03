@@ -9,9 +9,19 @@ html, body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Cetak laporan rapi A4: sembunyikan header & bottom-nav, hanya area cetak tampil */
+/*
+ * Cetak Form Manual SOP — aturan bersama dipakai Form 01-08 (rujukan
+ * frontend/src/components/cetak/*). Margin A4 portrait sesuai spesifikasi:
+ * atas 1.5cm, kanan 2cm, bawah 1.5cm, kiri 2.5cm (kiri lebih lebar utk jilid).
+ * Form 02 & 04 landscape: bungkus konten cetaknya dengan className
+ * "cetak-landscape" — pakai fitur "named page" CSS Paged Media (didukung
+ * Chrome/Edge; browser lain jatuh kembali ke default portrait).
+ */
 @media print {
-  @page { size: A4; margin: 16mm; }
+  @page { size: A4 portrait; margin: 1.5cm 2cm 1.5cm 2.5cm; }
+  @page cetak-landscape { size: A4 landscape; margin: 1.5cm 2cm 1.5cm 2.5cm; }
+  .cetak-landscape { page: cetak-landscape; }
+
   header, nav, aside { display: none !important; }
   main { padding: 0 !important; max-width: none !important; margin: 0 !important; }
   body, .bg-ivory { background: #fff !important; }

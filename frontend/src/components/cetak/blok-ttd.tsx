@@ -1,0 +1,49 @@
+// Blok tanda tangan cetak — dua varian:
+//   BlokTtd2Kolom      : dua pihak sejajar (mis. Direktur | PPK)
+//   BlokTtd3Berjenjang : tiga pihak berjenjang menurun (Form-01: Senat → Pembina → PPK)
+
+export interface TtdPihak {
+  label: string;      // mis. "Mengetahui/Menyetujui,"
+  jabatan: string;    // mis. "Direktur Poltek KP Sorong,"
+  nama?: string;      // kosong = blanko (garis kosong untuk ttd manual di kertas)
+  nip?: string;       // kosong = tampilkan "(...........................)"
+  tanggal?: string;   // sertakan prop ini (boleh string kosong) untuk memunculkan baris Tanggal/Jam
+}
+
+function TtdKolom({ pihak }: { pihak: TtdPihak }) {
+  return (
+    <div>
+      <p>{pihak.label}</p>
+      <p>{pihak.jabatan}</p>
+      <div className="mt-12 font-semibold">{pihak.nama || ' '}</div>
+      <p className="border-t border-black pt-0.5">
+        {pihak.nip ? `NIP ${pihak.nip}` : '(...........................)'}
+      </p>
+      {pihak.tanggal !== undefined && (
+        <p className="mt-1 text-gray-500">Tanggal/Jam: {pihak.tanggal || '……………………'}</p>
+      )}
+    </div>
+  );
+}
+
+export function BlokTtd2Kolom({ kiri, kanan }: { kiri: TtdPihak; kanan: TtdPihak }) {
+  return (
+    <div className="mt-8 grid grid-cols-2 gap-4 text-center text-xs">
+      <TtdKolom pihak={kiri} />
+      <TtdKolom pihak={kanan} />
+    </div>
+  );
+}
+
+/** Berjenjang: tiap pihak menjorok makin ke kanan, mencerminkan urutan alur (mis. Senat → Pembina → PPK). */
+export function BlokTtd3Berjenjang({ pihak1, pihak2, pihak3 }: {
+  pihak1: TtdPihak; pihak2: TtdPihak; pihak3: TtdPihak;
+}) {
+  return (
+    <div className="mt-8 flex flex-col gap-6 text-xs">
+      <div className="w-48"><TtdKolom pihak={pihak1} /></div>
+      <div className="ml-16 w-48"><TtdKolom pihak={pihak2} /></div>
+      <div className="ml-32 w-48"><TtdKolom pihak={pihak3} /></div>
+    </div>
+  );
+}

@@ -7,6 +7,7 @@ import { HalamanAkun } from './pages/akun';
 import { HalamanAntrian } from './pages/antrian';
 import { HalamanAudit } from './pages/audit/audit';
 import { HalamanBantuanLuarKampus } from './pages/blk/blk';
+import { HalamanCetakIndex } from './pages/cetak/cetak-index';
 import { HalamanDashboardKpa } from './pages/dashboard-kpa/dashboard-kpa';
 import { HalamanKontrak } from './pages/kontrak/kontrak';
 import { HalamanLaporan } from './pages/laporan/laporan';
@@ -83,6 +84,7 @@ export default function App() {
               {/* Semua role */}
               <Route path="/akun" element={<HalamanAkun />} />
               <Route path="/antrian" element={<HalamanAntrian />} />
+              <Route path="/cetak" element={<HalamanCetakIndex />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

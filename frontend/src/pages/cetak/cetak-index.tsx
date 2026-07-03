@@ -1,0 +1,76 @@
+// /cetak — daftar 8 Form Manual SOP (docs/format-dokumen.md). Halaman
+// placeholder: tombol per form belum ditautkan ke halaman isi (menyusul
+// tahap berikutnya) — cukup daftar + status "Segera hadir".
+// Bagian "Pratinjau Komponen Cetak" membuktikan KopSurat/BlokTtd/TabelCetak
+// bisa diimpor & dirender tanpa error (KopSurat hanya tampak saat print).
+import { Badge } from '../../components/ui/badge';
+import { Card } from '../../components/ui/card';
+import { BlokTtd2Kolom, BlokTtd3Berjenjang } from '../../components/cetak/blok-ttd';
+import { KopSurat } from '../../components/cetak/kop-surat';
+import { BarisCetak, SelCetak, TabelCetak } from '../../components/cetak/tabel-cetak';
+
+interface DaftarForm {
+  nomor: string;
+  nama: string;
+}
+
+const DAFTAR_FORM: DaftarForm[] = [
+  { nomor: '01', nama: 'Rencana & Persetujuan Pemesanan Makan Harian (H-1)' },
+  { nomor: '02', nama: 'Daftar Hadir / Tanda Terima Makan' },
+  { nomor: '03', nama: 'Rekap Taruna Tidak Menerima Makan (bulanan)' },
+  { nomor: '04', nama: 'Rekapitulasi Bulanan Porsi Makan' },
+  { nomor: '05', nama: 'BA Rekonsiliasi 3 Titik' },
+  { nomor: '06', nama: 'Verifikasi & Rencana Pembayaran PPK' },
+  { nomor: '07', nama: 'Usulan Penahanan & Pendebetan Bank' },
+  { nomor: '08', nama: 'Usulan Pembayaran Luar Kampus (PKL/Magang/KPA)' }
+];
+
+export function HalamanCetakIndex() {
+  return (
+    <div className="flex flex-col gap-4">
+      <h1 className="text-xl font-bold text-primary-dark">Cetak Form Manual SOP</h1>
+      <Card className="text-sm text-gray-600">
+        8 form resmi sesuai <code>docs/format-dokumen.md</code>. Isi tiap form
+        menyusul tahap berikutnya — halaman ini baru daftar + infrastruktur
+        komponen cetak bersama (kop surat, blok tanda tangan, tabel).
+      </Card>
+
+      <div className="flex flex-col gap-2">
+        {DAFTAR_FORM.map((f) => (
+          <Card key={f.nomor} className="flex items-center justify-between">
+            <div>
+              <p className="font-semibold">Form {f.nomor}</p>
+              <p className="text-sm text-gray-500">{f.nama}</p>
+            </div>
+            <Badge status="DRAFT">Segera hadir</Badge>
+          </Card>
+        ))}
+      </div>
+
+      <Card className="flex flex-col gap-3">
+        <p className="text-sm font-semibold text-gray-600">Pratinjau Komponen Cetak</p>
+        <p className="text-xs text-gray-400">
+          Kop surat hanya tampak saat print (coba Cetak/Print Preview di browser).
+        </p>
+        <KopSurat />
+        <TabelCetak headers={['NIT', 'Nama', 'Hari', 'Nominal']}>
+          <BarisCetak>
+            <SelCetak>2024001</SelCetak>
+            <SelCetak>Contoh Taruna</SelCetak>
+            <SelCetak>26</SelCetak>
+            <SelCetak>Rp1.560.000</SelCetak>
+          </BarisCetak>
+        </TabelCetak>
+        <BlokTtd2Kolom
+          kiri={{ label: 'Mengetahui/Menyetujui,', jabatan: 'Direktur Poltek KP Sorong,', nama: 'Contoh Nama', nip: '123456789' }}
+          kanan={{ label: 'Yang Melaporkan,', jabatan: 'Pejabat Pembuat Komitmen (PPK),' }}
+        />
+        <BlokTtd3Berjenjang
+          pihak1={{ label: 'Diajukan oleh,', jabatan: 'Senat' }}
+          pihak2={{ label: 'Diverifikasi oleh,', jabatan: 'Pembina' }}
+          pihak3={{ label: 'Diketahui oleh,', jabatan: 'PPK' }}
+        />
+      </Card>
+    </div>
+  );
+}
