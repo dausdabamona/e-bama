@@ -68,8 +68,8 @@ export default function App() {
               <Route path="/tagihan/gagal-debet" element={<WajibLogin roles={['PPK']}><HalamanTagihanGagalDebet /></WajibLogin>} />
               <Route path="/tagihan/:id" element={<WajibLogin roles={['SENAT', 'PPK', 'KPA', 'WADIR3']}><HalamanTagihanDetail /></WajibLogin>} />
               {/* PPK + KPA + Wadir3 */}
-              <Route path="/laporan" element={<WajibLogin roles={['PPK', 'KPA', 'WADIR3']}><HalamanLaporan /></WajibLogin>} />
-              <Route path="/laporan/resmi" element={<WajibLogin roles={['PPK', 'KPA', 'WADIR3']}><HalamanLaporanResmi /></WajibLogin>} />
+              <Route path="/laporan" element={<WajibLogin roles={['PPK', 'KPA', 'WADIR3', 'ADMIN']}><HalamanLaporan /></WajibLogin>} />
+              <Route path="/laporan/resmi" element={<WajibLogin roles={['PPK', 'KPA', 'WADIR3', 'ADMIN']}><HalamanLaporanResmi /></WajibLogin>} />
               <Route path="/luar-kampus" element={<WajibLogin roles={['PPK', 'ADMIN', 'KPA', 'WADIR3']}><HalamanBantuanLuarKampus /></WajibLogin>} />
               <Route path="/dashboard" element={<WajibLogin roles={['KPA', 'WADIR3']}><HalamanDashboardKpa /></WajibLogin>} />
               {/* Wadir 3 */}

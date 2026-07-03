@@ -222,8 +222,8 @@ var ACTION_MAP = {
   'pengguna.reset_pin': { handler: penggunaResetPin, roles: ['ADMIN'] },
 
   // Laporan & Audit (TAHAP 7)
-  'laporan.bulanan':  { handler: laporanBulanan, roles: ['PPK', 'KPA', 'WADIR3'] },
-  'laporan.resmi':    { handler: laporanResmi,   roles: ['PPK', 'KPA', 'WADIR3'] },
+  'laporan.bulanan':  { handler: laporanBulanan, roles: ['PPK', 'KPA', 'WADIR3', 'ADMIN'] },
+  'laporan.resmi':    { handler: laporanResmi,   roles: ['PPK', 'KPA', 'WADIR3', 'ADMIN'] },
 
   // Bantuan Luar Kampus (PKL/Magang/KPA/PTB) — TAHAP migrasi
   'blk.list':         { handler: blkList,   roles: ['PPK', 'ADMIN', 'KPA', 'WADIR3'] },
