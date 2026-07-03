@@ -52,7 +52,27 @@ var ACTION_MAP = {
   // Rekap bulanan (TAHAP 3)
   'rekap.get':        { handler: rekapGet,       roles: ['PPK', 'KPA'] },
   'rekap.verify':     { handler: rekapVerify,    roles: ['PPK'] },
-  'rekap.final':      { handler: rekapFinal,     roles: ['PPK'] }
+  'rekap.final':      { handler: rekapFinal,     roles: ['PPK'] },
+
+  // Pembayaran (TAHAP 4A)
+  'bayar.list':       { handler: bayarList,      roles: ['PPK', 'KPA', 'SENAT'] },
+  'bayar.get':        { handler: bayarGet,       roles: ['PPK', 'KPA', 'SENAT'] },
+  'bayar.create':     { handler: bayarCreate,    roles: ['PPK'] },
+  'bayar.update':     { handler: bayarUpdate,    roles: ['PPK'] },
+  'bayar.confirm':    { handler: bayarConfirm,   roles: ['SENAT'] },
+  'bayar.close':      { handler: bayarClose,     roles: ['PPK'] },
+
+  // Tagihan gagal debet (TAHAP 4A)
+  'tagihan.create':   { handler: tagihanCreate,  roles: ['SENAT', 'PPK'] },
+  'tagihan.list':     { handler: tagihanList,    roles: [] },
+  'tagihan.summary':  { handler: tagihanSummary, roles: ['PPK', 'KPA'] },
+  'tagihan.setor':    { handler: tagihanSetor,   roles: ['SENAT'] },
+  'tagihan.verify':   { handler: tagihanVerify,  roles: ['PPK'] },
+  'tagihan.waive':    { handler: tagihanWaive,   roles: ['PPK'] },
+  'tagihan.regenerate_sp': { handler: tagihanRegenerateSp, roles: ['PPK'] },
+
+  // Surat peringatan (TAHAP 4B)
+  'sp.list':          { handler: spList,         roles: [] }
 
   // Master pengguna (Admin) — didaftarkan pada TAHAP 7 (handler sudah ada di 02_auth.gs):
   // 'pengguna.list':      { handler: penggunaList,     roles: ['ADMIN'] },

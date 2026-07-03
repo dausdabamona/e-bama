@@ -182,7 +182,27 @@ var ACTION_MAP = {
   // Rekap bulanan (TAHAP 3)
   'rekap.get':        { handler: rekapGet,       roles: ['PPK', 'KPA'] },
   'rekap.verify':     { handler: rekapVerify,    roles: ['PPK'] },
-  'rekap.final':      { handler: rekapFinal,     roles: ['PPK'] }
+  'rekap.final':      { handler: rekapFinal,     roles: ['PPK'] },
+
+  // Pembayaran (TAHAP 4A)
+  'bayar.list':       { handler: bayarList,      roles: ['PPK', 'KPA', 'SENAT'] },
+  'bayar.get':        { handler: bayarGet,       roles: ['PPK', 'KPA', 'SENAT'] },
+  'bayar.create':     { handler: bayarCreate,    roles: ['PPK'] },
+  'bayar.update':     { handler: bayarUpdate,    roles: ['PPK'] },
+  'bayar.confirm':    { handler: bayarConfirm,   roles: ['SENAT'] },
+  'bayar.close':      { handler: bayarClose,     roles: ['PPK'] },
+
+  // Tagihan gagal debet (TAHAP 4A)
+  'tagihan.create':   { handler: tagihanCreate,  roles: ['SENAT', 'PPK'] },
+  'tagihan.list':     { handler: tagihanList,    roles: [] },
+  'tagihan.summary':  { handler: tagihanSummary, roles: ['PPK', 'KPA'] },
+  'tagihan.setor':    { handler: tagihanSetor,   roles: ['SENAT'] },
+  'tagihan.verify':   { handler: tagihanVerify,  roles: ['PPK'] },
+  'tagihan.waive':    { handler: tagihanWaive,   roles: ['PPK'] },
+  'tagihan.regenerate_sp': { handler: tagihanRegenerateSp, roles: ['PPK'] },
+
+  // Surat peringatan (TAHAP 4B)
+  'sp.list':          { handler: spList,         roles: [] }
 
   // Master pengguna (Admin) — didaftarkan pada TAHAP 7 (handler sudah ada di 02_auth.gs):
   // 'pengguna.list':      { handler: penggunaList,     roles: ['ADMIN'] },
@@ -1316,86 +1336,640 @@ function rekapFinal(payload, session) {
 // ▼▼▼ 15_pembayaran.gs ▼▼▼
 // ═══════════════════════════════════════════════════════════════════
 /**
- * 15_pembayaran.gs — Pembayaran LS ke penyedia (SOP 11–17)
- *   status: DIAJUKAN → SP2D_TERBIT → DITRANSFER → DIKONFIRMASI → SELESAI
+ * 15_pembayaran.gs — Pembayaran LS via KPPN (SOP no. 11–17)
+ * Mesin status: DIAJUKAN → SP2D_TERBIT → DITRANSFER → DIKONFIRMASI → SELESAI
  *
- * Diisi pada TAHAP 4A. Akan memuat:
- * - bayar.create (PPK)  : syarat REKAP_BULANAN bulan tsb FINAL;
- *                  nilai_total = SUM(nominal) rekap bulan tsb (SNAPSHOT)
- * - bayar.update (PPK)  : isi no_spm/tgl_spm → no_sp2d/tgl_sp2d menaikkan status berurutan;
- *                  lampiran surat blokir/bukti debet/invoice via lampiranSave
- * - bayar.confirm (Senat): DITRANSFER→DIKONFIRMASI (konfirmasi_senat_at)
- * - bayar.close (PPK)   : →SELESAI (SOP 17)
+ * ACTION: bayar.list, bayar.get (PPK, KPA, Senat),
+ *         bayar.create, bayar.update, bayar.close (PPK),
+ *         bayar.confirm (Senat)
  *
- * Setiap aksi tulis → withLock + auditLog. Uang selalu integer rupiah.
+ * nilai_total = SNAPSHOT SUM(nominal) REKAP_BULANAN FINAL — beku setelah ditulis.
+ * Lampiran (surat blokir, bukti debet, invoice) → LAMPIRAN ref_type=PEMBAYARAN.
+ * Setiap aksi tulis → withLock + auditLog. Uang integer rupiah.
  */
+
+/** Ambil pembayaran by id atau error. */
+function _bayar_(id) {
+  var b = sheetRead(SHEETS.PEMBAYARAN, function (r) { return String(r.bayar_id) === String(id); })[0];
+  if (!b) throw _fail_('Pembayaran tidak ditemukan: ' + id);
+  return b;
+}
+
+/** Kontrak DISETUJUI_PPK yang periodenya beririsan dengan bulan. */
+function _kontrakBulan_(bulan) {
+  var awal = bulan + '-01', akhir = bulan + '-31';
+  var rows = sheetRead(SHEETS.KONTRAK, function (r) {
+    return r.status === 'DISETUJUI_PPK' &&
+      _tglStr_(r.tgl_mulai) <= akhir && _tglStr_(r.tgl_akhir) >= awal;
+  });
+  if (!rows.length) throw _fail_('Tidak ada kontrak DISETUJUI_PPK untuk bulan ' + bulan + '.');
+  return rows[0];
+}
+
+/** Daftar pembayaran, filter {bulan?}. */
+function bayarList(payload, session) {
+  var bulan = payload && payload.bulan;
+  var rows = sheetRead(SHEETS.PEMBAYARAN, function (r) {
+    return !bulan || String(r.bulan) === bulan;
+  });
+  return { pembayaran: rows };
+}
+
+/** Detail pembayaran + lampiran. */
+function bayarGet(payload, session) {
+  var b = _bayar_(payload && payload.bayar_id);
+  return { pembayaran: b, lampiran: lampiranList('PEMBAYARAN', b.bayar_id) };
+}
+
+/** Buat pembayaran: syarat rekap bulan FINAL; nilai_total = SUM(nominal) snapshot. */
+function bayarCreate(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+
+  var rekap = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
+  if (!rekap.length) throw _fail_('Belum ada rekap untuk bulan ' + bulan + '.');
+  rekap.forEach(function (r) {
+    if (String(r.status) !== 'FINAL') {
+      throw _fail_('Rekap bulan ' + bulan + ' belum FINAL (ada baris ' + r.status + ') — finalkan dulu sebagai dasar SPM.');
+    }
+  });
+
+  var dobel = sheetRead(SHEETS.PEMBAYARAN, function (r) { return String(r.bulan) === bulan; })[0];
+  if (dobel) throw _fail_('Pembayaran bulan ' + bulan + ' sudah ada: ' + dobel.bayar_id);
+
+  var total = 0;
+  rekap.forEach(function (r) { total += _int_(r.nominal || 0, 'nominal'); });
+  var kontrak = _kontrakBulan_(bulan);
+
+  var obj = {
+    bayar_id: nextId('BYR'),
+    bulan: bulan,
+    kontrak_id: kontrak.kontrak_id,
+    nilai_total: total,          // SNAPSHOT — beku, momen penulisan di AUDIT_LOG
+    no_spm: '', tgl_spm: '', no_sp2d: '', tgl_sp2d: '',
+    konfirmasi_senat_at: '',
+    status: 'DIAJUKAN'
+  };
+  sheetAppend(SHEETS.PEMBAYARAN, obj);
+  auditLog(session, 'bayar.create', 'PEMBAYARAN', obj.bayar_id, null,
+    { bulan: bulan, nilai_total: total, kontrak_id: kontrak.kontrak_id });
+  return { pembayaran: obj };
+}
+
+/**
+ * Isi SPM/SP2D bertahap — status naik sesuai urutan:
+ * DIAJUKAN + no_sp2d terisi → SP2D_TERBIT; SP2D_TERBIT + ditransfer:true → DITRANSFER.
+ * Payload {bayar_id, no_spm?, tgl_spm?, no_sp2d?, tgl_sp2d?, ditransfer?, berkas?}.
+ */
+function bayarUpdate(payload, session) {
+  var b = _bayar_(payload && payload.bayar_id);
+  if (b.status === 'DIKONFIRMASI' || b.status === 'SELESAI') {
+    throw _fail_('Pembayaran berstatus ' + b.status + ' — tidak bisa diubah lagi.');
+  }
+
+  var patch = {};
+  if (payload.no_spm !== undefined) patch.no_spm = String(payload.no_spm);
+  if (payload.tgl_spm) patch.tgl_spm = _wajibTgl_(payload.tgl_spm, 'tgl_spm');
+  if (payload.no_sp2d !== undefined) patch.no_sp2d = String(payload.no_sp2d);
+  if (payload.tgl_sp2d) patch.tgl_sp2d = _wajibTgl_(payload.tgl_sp2d, 'tgl_sp2d');
+
+  // Kenaikan status berurutan
+  var statusBaru = b.status;
+  if (b.status === 'DIAJUKAN' && (patch.no_sp2d || b.no_sp2d)) statusBaru = 'SP2D_TERBIT';
+  if ((statusBaru === 'SP2D_TERBIT') && payload.ditransfer === true) statusBaru = 'DITRANSFER';
+  if (statusBaru !== b.status) patch.status = statusBaru;
+
+  if (Object.keys(patch).length) {
+    sheetUpdate(SHEETS.PEMBAYARAN, 'bayar_id', b.bayar_id, patch);
+    auditLog(session, 'bayar.update', 'PEMBAYARAN', b.bayar_id, { status: b.status }, patch);
+  }
+  if (payload.berkas && payload.berkas.base64) {
+    var jenis = payload.berkas.jenis || 'SURAT';
+    if (ENUM.LAMPIRAN_JENIS.indexOf(jenis) < 0) throw _fail_('jenis lampiran tidak valid.');
+    lampiranSave(session, 'PEMBAYARAN', b.bayar_id, jenis, payload.berkas.base64, payload.berkas.nama_file);
+  }
+  return { bayar_id: b.bayar_id, status: statusBaru };
+}
+
+/** Senat: DITRANSFER → DIKONFIRMASI (invoice diterima penyedia, SOP 15–16). */
+function bayarConfirm(payload, session) {
+  var b = _bayar_(payload && payload.bayar_id);
+  if (b.status !== 'DITRANSFER') {
+    throw _fail_('Pembayaran berstatus ' + b.status + ', tidak bisa dikonfirmasi (butuh DITRANSFER).');
+  }
+  sheetUpdate(SHEETS.PEMBAYARAN, 'bayar_id', b.bayar_id,
+    { status: 'DIKONFIRMASI', konfirmasi_senat_at: new Date() });
+  auditLog(session, 'bayar.confirm', 'PEMBAYARAN', b.bayar_id,
+    { status: b.status }, { status: 'DIKONFIRMASI' });
+  return { bayar_id: b.bayar_id, status: 'DIKONFIRMASI' };
+}
+
+/** PPK: DIKONFIRMASI → SELESAI (SOP 17). */
+function bayarClose(payload, session) {
+  var b = _bayar_(payload && payload.bayar_id);
+  if (b.status !== 'DIKONFIRMASI') {
+    throw _fail_('Pembayaran berstatus ' + b.status + ', tidak bisa ditutup (butuh DIKONFIRMASI).');
+  }
+  sheetUpdate(SHEETS.PEMBAYARAN, 'bayar_id', b.bayar_id, { status: 'SELESAI' });
+  auditLog(session, 'bayar.close', 'PEMBAYARAN', b.bayar_id, { status: b.status }, { status: 'SELESAI' });
+  return { bayar_id: b.bayar_id, status: 'SELESAI' };
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // ▼▼▼ 16_tagihan.gs ▼▼▼
 // ═══════════════════════════════════════════════════════════════════
 /**
- * 16_tagihan.gs — Tagihan gagal debet ke taruna
- *   status: TERTAGIH → LUNAS | DIHAPUSKAN | ESKALASI_MANUAL
+ * 16_tagihan.gs — Piutang gagal debet rekening taruna
+ * Status: TERTAGIH → LUNAS | DIHAPUSKAN | ESKALASI_MANUAL
  *
- * Diisi pada TAHAP 4A. Akan memuat:
- * - tagihan.create (Senat, PPK) : payload {bulan, nit[], sebab} batch;
- *                  nominal SNAPSHOT dari REKAP_BULANAN (harus FINAL);
- *                  tagihan_id TGH-{yyyymm}-{nit}; tolak duplikat bulan+nit;
- *                  LANGSUNG panggil spTerbitkan(tagihan_id, 1) — SP-1 terbit saat dicatat
- * - tagihan.list (semua role) : join ringan SURAT_PERINGATAN → level_aktif=MAX(level),
- *                  tenggat_aktif; cache 60 dtk, invalidate saat tulis
- * - tagihan.setor (Senat)  : upload bukti setor (jenis=BUKTI_SETOR), isi tgl_setor
- * - tagihan.verify (PPK)   : syarat bukti setor ada → LUNAS, diverifikasi_oleh
- * - tagihan.waive (PPK)    : catatan_hapus WAJIB → DIHAPUSKAN
- * - tagihan.summary (PPK, KPA) : {per_level:{0..3:{jumlah,nominal}}, total_outstanding}
+ * ACTION: tagihan.create (Senat, PPK), tagihan.list (semua login),
+ *         tagihan.summary (PPK, KPA), tagihan.setor (Senat),
+ *         tagihan.verify (PPK), tagihan.waive (PPK)
  *
- * Setiap aksi tulis → withLock + auditLog. nominal adalah snapshot.
+ * nominal = SNAPSHOT dari REKAP_BULANAN FINAL. tagihan_id = TGH-{yyyymm}-{nit}.
+ * Level SP aktif TIDAK disimpan — dibaca MAX(level) dari SURAT_PERINGATAN.
+ * tagihan.create LANGSUNG menerbitkan SP-1.
+ * Setiap aksi tulis → withLock + auditLog + invalidasi cache.
  */
+
+var _CACHE_TAGIHAN_ = 'tagihan_join_v1';
+
+/** Hapus cache daftar tagihan (dipanggil setiap aksi tulis tagihan/SP). */
+function _tagihanCacheClear_() {
+  CacheService.getScriptCache().remove(_CACHE_TAGIHAN_);
+}
+
+/** Ambil tagihan by id atau error. */
+function _tagihan_(id) {
+  var t = sheetRead(SHEETS.TAGIHAN, function (r) { return String(r.tagihan_id) === String(id); })[0];
+  if (!t) throw _fail_('Tagihan tidak ditemukan: ' + id);
+  return t;
+}
+
+/** Join tagihan + level_aktif/tenggat_aktif dari SURAT_PERINGATAN (cache 60 detik). */
+function _tagihanJoin_() {
+  var cache = CacheService.getScriptCache();
+  var hit = cache.get(_CACHE_TAGIHAN_);
+  if (hit) return JSON.parse(hit);
+
+  var spPerTagihan = {};
+  sheetRead(SHEETS.SURAT_PERINGATAN).forEach(function (s) {
+    var key = String(s.tagihan_id);
+    var lv = Number(s.level) || 0;
+    if (!spPerTagihan[key] || lv > spPerTagihan[key].level) {
+      spPerTagihan[key] = { level: lv, tenggat: _tglStr_(s.tenggat) };
+    }
+  });
+
+  var rows = sheetRead(SHEETS.TAGIHAN).map(function (t) {
+    var sp = spPerTagihan[String(t.tagihan_id)];
+    return {
+      tagihan_id: t.tagihan_id, bulan: String(t.bulan), nit: t.nit,
+      nominal: Number(t.nominal) || 0, sebab: t.sebab, status: t.status,
+      tgl_setor: _tglStr_(t.tgl_setor), diverifikasi_oleh: t.diverifikasi_oleh,
+      catatan_hapus: t.catatan_hapus,
+      level_aktif: sp ? sp.level : 0,
+      tenggat_aktif: sp ? sp.tenggat : ''
+    };
+  });
+  try { cache.put(_CACHE_TAGIHAN_, JSON.stringify(rows), 60); } catch (e) { /* cache >100KB → lewati */ }
+  return rows;
+}
+
+/**
+ * Catat gagal debet batch: {bulan, nit: [], sebab}.
+ * Syarat rekap FINAL; nominal snapshot; tolak duplikat; SP-1 langsung terbit.
+ */
+function tagihanCreate(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  var daftar = (payload && payload.nit) || [];
+  if (!daftar.length) throw _fail_('nit harus berupa daftar minimal 1 taruna.');
+  var sebab = String((payload && payload.sebab) || '');
+  if (ENUM.TAGIHAN_SEBAB.indexOf(sebab) < 0) {
+    throw _fail_('sebab harus salah satu: ' + ENUM.TAGIHAN_SEBAB.join(' / '));
+  }
+
+  var rekap = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
+  if (!rekap.length) throw _fail_('Belum ada rekap untuk bulan ' + bulan + '.');
+  var rekapNit = {};
+  rekap.forEach(function (r) {
+    if (String(r.status) !== 'FINAL') throw _fail_('Rekap bulan ' + bulan + ' belum FINAL — tagihan butuh dasar nominal beku.');
+    rekapNit[String(r.nit)] = r;
+  });
+
+  var yyyymm = bulan.replace('-', '');
+  var hasil = [];
+  daftar.forEach(function (nitRaw) {
+    var nit = String(nitRaw).trim();
+    var r = rekapNit[nit];
+    if (!r) throw _fail_('Taruna ' + nit + ' tidak ada di rekap bulan ' + bulan + '.');
+    var id = 'TGH-' + yyyymm + '-' + nit;
+    var dobel = sheetRead(SHEETS.TAGIHAN, function (x) { return String(x.tagihan_id) === id; })[0];
+    if (dobel) throw _fail_('Tagihan sudah ada: ' + id + ' (duplikat bulan+nit ditolak).');
+
+    var obj = {
+      tagihan_id: id, bulan: bulan, nit: nit,
+      nominal: _int_(r.nominal, 'nominal'),  // SNAPSHOT dari rekap FINAL
+      sebab: sebab, status: 'TERTAGIH',
+      tgl_setor: '', diverifikasi_oleh: '', catatan_hapus: ''
+    };
+    sheetAppend(SHEETS.TAGIHAN, obj);
+    auditLog(session, 'tagihan.create', 'TAGIHAN', id, null,
+      { bulan: bulan, nit: nit, nominal: obj.nominal, sebab: sebab });
+
+    // SP-1 terbit saat tagihan dicatat (lewati bila sudah ada — aman diulang)
+    var adaSp1 = sheetRead(SHEETS.SURAT_PERINGATAN, function (s) {
+      return String(s.tagihan_id) === id && Number(s.level) === 1;
+    })[0];
+    var sp = adaSp1 ? { sp_id: adaSp1.sp_id, no_surat: adaSp1.no_surat }
+                    : spTerbitkan(id, 1, session);
+    hasil.push({ tagihan_id: id, nominal: obj.nominal, sp1: sp });
+  });
+
+  _tagihanCacheClear_();
+  return { tagihan: hasil };
+}
+
+/** Daftar tagihan + level_aktif + tenggat_aktif. Filter {bulan?, status?}. */
+function tagihanList(payload, session) {
+  var f = payload || {};
+  var rows = _tagihanJoin_().filter(function (t) {
+    if (f.bulan && t.bulan !== f.bulan) return false;
+    if (f.status && t.status !== f.status) return false;
+    return true;
+  });
+  return { tagihan: rows };
+}
+
+/** Dashboard piutang: {per_level: {0..3:{jumlah,nominal}}, total_outstanding}. */
+function tagihanSummary(payload, session) {
+  var per = { 0: { jumlah: 0, nominal: 0 }, 1: { jumlah: 0, nominal: 0 },
+              2: { jumlah: 0, nominal: 0 }, 3: { jumlah: 0, nominal: 0 } };
+  var total = 0;
+  _tagihanJoin_().forEach(function (t) {
+    if (t.status !== 'TERTAGIH') return; // outstanding saja
+    var lv = Math.min(Math.max(t.level_aktif, 0), 3);
+    per[lv].jumlah++; per[lv].nominal += t.nominal;
+    total += t.nominal;
+  });
+  return { per_level: per, total_outstanding: total };
+}
+
+/** Senat lapor setoran: {tagihan_id, tgl_setor, berkas} — bukti WAJIB, status tetap TERTAGIH. */
+function tagihanSetor(payload, session) {
+  var t = _tagihan_(payload && payload.tagihan_id);
+  if (t.status !== 'TERTAGIH') throw _fail_('Tagihan berstatus ' + t.status + ', tidak menerima setoran.');
+  var tgl = _wajibTgl_(payload && payload.tgl_setor, 'tgl_setor');
+  if (!payload.berkas || !payload.berkas.base64) throw _fail_('Bukti setor wajib dilampirkan (berkas.base64).');
+
+  lampiranSave(session, 'TAGIHAN', t.tagihan_id, 'BUKTI_SETOR',
+    payload.berkas.base64, payload.berkas.nama_file || ('setor-' + t.tagihan_id + '.jpg'));
+  sheetUpdate(SHEETS.TAGIHAN, 'tagihan_id', t.tagihan_id, { tgl_setor: tgl });
+  auditLog(session, 'tagihan.setor', 'TAGIHAN', t.tagihan_id, null, { tgl_setor: tgl });
+  _tagihanCacheClear_();
+  return { tagihan_id: t.tagihan_id, tgl_setor: tgl, status: 'TERTAGIH' };
+}
+
+/** PPK verifikasi setoran: syarat bukti setor ada → LUNAS. */
+function tagihanVerify(payload, session) {
+  var t = _tagihan_(payload && payload.tagihan_id);
+  if (t.status !== 'TERTAGIH') throw _fail_('Tagihan berstatus ' + t.status + ', tidak bisa diverifikasi.');
+  var bukti = lampiranList('TAGIHAN', t.tagihan_id).filter(function (l) { return l.jenis === 'BUKTI_SETOR'; });
+  if (!bukti.length) throw _fail_('Belum ada bukti setor — verifikasi ditolak.');
+
+  sheetUpdate(SHEETS.TAGIHAN, 'tagihan_id', t.tagihan_id,
+    { status: 'LUNAS', diverifikasi_oleh: session.user_id });
+  auditLog(session, 'tagihan.verify', 'TAGIHAN', t.tagihan_id,
+    { status: t.status }, { status: 'LUNAS' });
+  _tagihanCacheClear_();
+  return { tagihan_id: t.tagihan_id, status: 'LUNAS' };
+}
+
+/** PPK hapus tagihan: catatan_hapus WAJIB → DIHAPUSKAN. */
+function tagihanWaive(payload, session) {
+  var t = _tagihan_(payload && payload.tagihan_id);
+  if (t.status !== 'TERTAGIH') throw _fail_('Tagihan berstatus ' + t.status + ', tidak bisa dihapuskan.');
+  var catatan = String((payload && payload.catatan_hapus) || '').trim();
+  if (!catatan) throw _fail_('catatan_hapus WAJIB diisi untuk penghapusan tagihan.');
+
+  sheetUpdate(SHEETS.TAGIHAN, 'tagihan_id', t.tagihan_id,
+    { status: 'DIHAPUSKAN', catatan_hapus: catatan });
+  auditLog(session, 'tagihan.waive', 'TAGIHAN', t.tagihan_id,
+    { status: t.status }, { status: 'DIHAPUSKAN', catatan_hapus: catatan });
+  _tagihanCacheClear_();
+  return { tagihan_id: t.tagihan_id, status: 'DIHAPUSKAN' };
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // ▼▼▼ 17_surat_peringatan.gs ▼▼▼
 // ═══════════════════════════════════════════════════════════════════
 /**
- * 17_surat_peringatan.gs — Surat Peringatan (SP-1/2/3) + generate PDF
+ * 17_surat_peringatan.gs — Surat Peringatan SP-1/2/3 + generate PDF
  *
- * Diisi pada TAHAP 4B. Akan memuat:
- * Kebijakan SP (tenggat, penandatangan) dibaca via getKebijakanSP() (00_config.gs).
- * DILARANG membaca CONFIG.SP langsung.
+ * Kebijakan (tenggat, penandatangan) via getKebijakanSP() — DILARANG baca CONFIG langsung.
+ * No surat: B-{urut}/PKPS/SP{level}/{bulan-romawi}/{tahun} — counter per level, tak pernah mundur.
+ * PDF: copy template Doc (TPL_SP1/2/3 di Script Properties) → replace placeholder →
+ *      export PDF ke FOLDER_SP → hapus copy → append SURAT_PERINGATAN + LAMPIRAN + AUDIT_LOG.
  *
- * - spTerbitkan(tagihanId, level, session|null):
- *     1. Ambil tagihan + taruna + getKebijakanSP()
- *     2. no_surat = nextId('SP'+level) → B-{urut}/PKPS/SP{level}/{bulan-romawi}/{tahun}
- *     3. tenggat = today + CONFIG.SP.TENGGAT_HARI[level] (hari kalender)
- *     4. Generate PDF dari template Doc (TPL_SP1/2/3): replace placeholder
- *        {{NO_SURAT}} {{TGL_SURAT}} {{NAMA}} {{NIT}} {{PRODI_TINGKAT}} {{BULAN}}
- *        {{NOMINAL}} {{NOMINAL_TERBILANG}} {{REK_SENAT}} {{TENGGAT}}
- *        {{PENANDATANGAN_NAMA}} {{PENANDATANGAN_NIP}}
- *        → export PDF ke FOLDER_SP → hapus copy Doc
- *     5. Append SURAT_PERINGATAN + LAMPIRAN(ref_type=SP) + AUDIT_LOG
- *        (generated_by = SISTEM bila session null, selain itu MANUAL)
- * - terbilang(n)             : angka → teks rupiah (fungsi sendiri)
- * - sp.list (role login)     : riwayat SP per tagihan
- * - tagihan.regenerate_sp (PPK): terbitkan ulang PDF level aktif (no_surat BARU, baris baru)
+ * ACTION: sp.list (semua login), tagihan.regenerate_sp (PPK)
+ * INTERNAL: spTerbitkan(tagihanId, level, session|null)
+ * SEKALI JALAN: buatTemplateSP() — buat 3 Doc template + simpan ID ke properties.
  */
+
+var _BULAN_ID_ = ['Januari','Februari','Maret','April','Mei','Juni',
+                  'Juli','Agustus','September','Oktober','November','Desember'];
+var _ROMAWI_ = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
+
+/** Format 'Rp1.234.567'. */
+function _rupiah_(n) {
+  return 'Rp' + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+/** '2026-07' → 'Juli 2026'; '2026-07-04' → '4 Juli 2026'. */
+function _tglIndo_(s) {
+  var t = _tglStr_(s);
+  var p = t.split('-');
+  if (p.length === 2) return _BULAN_ID_[Number(p[1]) - 1] + ' ' + p[0];
+  return Number(p[2]) + ' ' + _BULAN_ID_[Number(p[1]) - 1] + ' ' + p[0];
+}
+
+/** Terbilang bilangan bulat Bahasa Indonesia (tanpa 'rupiah'). */
+function terbilang(n) {
+  n = Math.floor(Number(n) || 0);
+  if (n === 0) return 'nol';
+  var satuan = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas'];
+  function t(x) {
+    if (x < 12) return satuan[x];
+    if (x < 20) return t(x - 10) + ' belas';
+    if (x < 100) return t(Math.floor(x / 10)) + ' puluh' + (x % 10 ? ' ' + t(x % 10) : '');
+    if (x < 200) return 'seratus' + (x % 100 ? ' ' + t(x % 100) : '');
+    if (x < 1000) return t(Math.floor(x / 100)) + ' ratus' + (x % 100 ? ' ' + t(x % 100) : '');
+    if (x < 2000) return 'seribu' + (x % 1000 ? ' ' + t(x % 1000) : '');
+    if (x < 1000000) return t(Math.floor(x / 1000)) + ' ribu' + (x % 1000 ? ' ' + t(x % 1000) : '');
+    if (x < 1000000000) return t(Math.floor(x / 1000000)) + ' juta' + (x % 1000000 ? ' ' + t(x % 1000000) : '');
+    return t(Math.floor(x / 1000000000)) + ' miliar' + (x % 1000000000 ? ' ' + t(x % 1000000000) : '');
+  }
+  return t(n);
+}
+
+/** Terbilang rupiah: 1234567 → 'satu juta dua ratus ... enam puluh tujuh rupiah'. */
+function terbilangRupiah(n) { return terbilang(n) + ' rupiah'; }
+
+/** Nomor surat: B-{urut}/PKPS/SP{level}/{romawi}/{tahun}. Counter per level. */
+function _noSuratSP_(level) {
+  var raw = nextId('NOSP' + level);                 // NOSP1-000007
+  var urut = parseInt(raw.split('-')[1], 10);
+  var now = new Date();
+  var romawi = _ROMAWI_[now.getMonth()];
+  return 'B-' + urut + '/PKPS/SP' + level + '/' + romawi + '/' + now.getFullYear();
+}
+
+/** Ganti satu placeholder {{KEY}} di body Doc. */
+function _ganti_(body, key, val) {
+  body.replaceText('\\{\\{' + key + '\\}\\}', String(val));
+}
+
+/**
+ * Terbitkan SP level 1/2/3 untuk sebuah tagihan.
+ * session null → generated_by SISTEM (trigger); selain itu MANUAL dicatat user.
+ * Mengembalikan {sp_id, no_surat, tenggat, drive_file_id}.
+ */
+function spTerbitkan(tagihanId, level, session) {
+  level = Number(level);
+  if ([1, 2, 3].indexOf(level) < 0) throw _fail_('Level SP harus 1, 2, atau 3.');
+  var t = _tagihan_(tagihanId);
+  var taruna = sheetRead(SHEETS.TARUNA, function (r) { return String(r.nit) === String(t.nit); })[0];
+  if (!taruna) throw _fail_('Taruna tidak ditemukan: ' + t.nit);
+
+  var sp = getKebijakanSP();
+  var p = PropertiesService.getScriptProperties();
+  var tplId = p.getProperty('TPL_SP' + level);
+  if (!tplId) throw _fail_('Template SP' + level + ' belum ada. Jalankan buatTemplateSP() sekali dari editor.');
+  var folderSpId = p.getProperty('FOLDER_SP');
+  if (!folderSpId) throw _fail_('FOLDER_SP belum ada. Jalankan setupFolderDrive().');
+
+  var rolePenandatangan = sp.PENANDATANGAN[String(level)];     // 'PPK' | 'KPA'
+  var pejabat = PEJABAT[rolePenandatangan];
+  var noSurat = _noSuratSP_(level);
+  var today = _todayStr_();
+  var tenggat = _tglStr_(new Date(Date.now() + Number(sp.TENGGAT_HARI[String(level)]) * 86400000));
+  var rekSenat = p.getProperty('REK_SENAT') || '(nomor rekening Senat — set Script Property REK_SENAT)';
+
+  // ── Generate PDF dari template ────────────────────────────────────────────
+  var namaFile = 'SP' + level + '_' + t.tagihan_id + '_' + today;
+  var copy = DriveApp.getFileById(tplId).makeCopy(namaFile);
+  var doc = DocumentApp.openById(copy.getId());
+  var body = doc.getBody();
+  _ganti_(body, 'NO_SURAT', noSurat);
+  _ganti_(body, 'TGL_SURAT', _tglIndo_(today));
+  _ganti_(body, 'NAMA', taruna.nama);
+  _ganti_(body, 'NIT', taruna.nit);
+  _ganti_(body, 'PRODI_TINGKAT', taruna.prodi + ' Tingkat ' + taruna.tingkat);
+  _ganti_(body, 'BULAN', _tglIndo_(String(t.bulan)));
+  _ganti_(body, 'NOMINAL', _rupiah_(t.nominal));
+  _ganti_(body, 'NOMINAL_TERBILANG', terbilangRupiah(t.nominal));
+  _ganti_(body, 'REK_SENAT', rekSenat);
+  _ganti_(body, 'TENGGAT', _tglIndo_(tenggat));
+  _ganti_(body, 'PENANDATANGAN_NAMA', pejabat.nama);
+  _ganti_(body, 'PENANDATANGAN_NIP', pejabat.nip);
+  doc.saveAndClose();
+
+  var pdf = DriveApp.getFolderById(folderSpId)
+    .createFile(copy.getAs('application/pdf')).setName(namaFile + '.pdf');
+  copy.setTrashed(true); // hapus copy Doc, simpan PDF saja
+
+  // ── Catat SURAT_PERINGATAN (append-only) + LAMPIRAN + AUDIT ───────────────
+  var spId = nextId('SP');
+  var generatedBy = session ? 'MANUAL' : 'SISTEM';
+  sheetAppend(SHEETS.SURAT_PERINGATAN, {
+    sp_id: spId, tagihan_id: t.tagihan_id, level: level, no_surat: noSurat,
+    tgl_terbit: today, tenggat: tenggat,
+    ditandatangani_oleh: rolePenandatangan, generated_by: generatedBy
+  });
+  sheetAppend(SHEETS.LAMPIRAN, {
+    lamp_id: nextId('LMP'), ref_type: 'SP', ref_id: spId, jenis: 'SURAT',
+    drive_file_id: pdf.getId(), nama_file: namaFile + '.pdf',
+    uploaded_by: session ? session.user_id : 'SISTEM', timestamp: new Date()
+  });
+  auditLog(session, 'sp.terbit', 'SP', spId, null, {
+    tagihan_id: t.tagihan_id, level: level, no_surat: noSurat,
+    tenggat: tenggat, generated_by: generatedBy
+  });
+  _tagihanCacheClear_();
+  return { sp_id: spId, no_surat: noSurat, tenggat: tenggat, drive_file_id: pdf.getId() };
+}
+
+/** Riwayat SP per tagihan (+ link PDF). */
+function spList(payload, session) {
+  var id = String((payload && payload.tagihan_id) || '').trim();
+  if (!id) throw _fail_('tagihan_id wajib diisi.');
+  var rows = sheetRead(SHEETS.SURAT_PERINGATAN, function (s) { return String(s.tagihan_id) === id; });
+  rows.forEach(function (s) {
+    s.tgl_terbit = _tglStr_(s.tgl_terbit);
+    s.tenggat = _tglStr_(s.tenggat);
+    var pdf = lampiranList('SP', s.sp_id)[0];
+    s.drive_file_id = pdf ? pdf.drive_file_id : '';
+  });
+  return { sp: rows };
+}
+
+/** PPK: terbitkan ulang PDF level aktif — no_surat BARU, baris baru, MANUAL. */
+function tagihanRegenerateSp(payload, session) {
+  var t = _tagihan_(payload && payload.tagihan_id);
+  var maxLevel = 0;
+  sheetRead(SHEETS.SURAT_PERINGATAN, function (s) { return String(s.tagihan_id) === String(t.tagihan_id); })
+    .forEach(function (s) { if (Number(s.level) > maxLevel) maxLevel = Number(s.level); });
+  if (!maxLevel) throw _fail_('Tagihan ini belum punya SP — tidak ada yang bisa diterbitkan ulang.');
+  var hasil = spTerbitkan(t.tagihan_id, maxLevel, session);
+  return { sp: hasil, level: maxLevel };
+}
+
+/**
+ * SEKALI JALAN dari editor: buat 3 Google Doc template SP di FOLDER_TEMPLATE
+ * berisi struktur surat + seluruh placeholder. Kop & redaksi dirapikan manual
+ * oleh Firdaus di Doc — kop mengikuti tata naskah satker.
+ * Idempotent: template yang sudah ada tidak dibuat ulang.
+ */
+function buatTemplateSP() {
+  var p = PropertiesService.getScriptProperties();
+  var folderId = p.getProperty('FOLDER_TEMPLATE');
+  if (!folderId) throw new Error('FOLDER_TEMPLATE belum ada. Jalankan setupFolderDrive() dulu.');
+  var folder = DriveApp.getFolderById(folderId);
+
+  var judulLevel = {
+    1: 'SURAT PERINGATAN PERTAMA (SP-1)',
+    2: 'SURAT PERINGATAN KEDUA (SP-2)',
+    3: 'SURAT PERINGATAN KETIGA (SP-3)'
+  };
+
+  [1, 2, 3].forEach(function (lv) {
+    var key = 'TPL_SP' + lv;
+    var adaId = p.getProperty(key);
+    if (adaId) {
+      try { DriveApp.getFileById(adaId); Logger.log(key + ' sudah ada, dilewati.'); return; }
+      catch (e) { /* file terhapus → buat ulang */ }
+    }
+    var doc = DocumentApp.create('TEMPLATE_SP' + lv + '_e-BAMA');
+    var body = doc.getBody();
+    body.appendParagraph('[KOP SURAT SATKER — rapikan sesuai tata naskah]')
+      .setHeading(DocumentApp.ParagraphHeading.NORMAL);
+    body.appendParagraph('');
+    body.appendParagraph(judulLevel[lv]).setHeading(DocumentApp.ParagraphHeading.HEADING2)
+      .setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+    body.appendParagraph('Nomor: {{NO_SURAT}}').setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+    body.appendParagraph('');
+    body.appendParagraph('Sorong, {{TGL_SURAT}}');
+    body.appendParagraph('');
+    body.appendParagraph('Kepada Yth.');
+    body.appendParagraph('{{NAMA}} (NIT {{NIT}})');
+    body.appendParagraph('{{PRODI_TINGKAT}}');
+    body.appendParagraph('di tempat');
+    body.appendParagraph('');
+    body.appendParagraph('Berdasarkan hasil pemantauan pembayaran Bantuan Uang Makan (BAMA) ' +
+      'bulan {{BULAN}}, tercatat kewajiban Saudara yang belum terselesaikan (gagal auto-debet) ' +
+      'sebesar {{NOMINAL}} ({{NOMINAL_TERBILANG}}).');
+    body.appendParagraph('');
+    body.appendParagraph('Sehubungan dengan itu, Saudara diminta menyetorkan kewajiban tersebut ke ' +
+      'rekening Senat {{REK_SENAT}} selambat-lambatnya tanggal {{TENGGAT}}.' +
+      (lv === 3 ? ' Apabila hingga tenggat tersebut tidak diselesaikan, penanganan dilanjutkan ' +
+      'di luar sistem sesuai ketentuan (sanksi akademik / pemanggilan).' : ''));
+    body.appendParagraph('');
+    body.appendParagraph('Demikian surat peringatan ini disampaikan untuk dilaksanakan.');
+    body.appendParagraph('');
+    body.appendParagraph('{{PENANDATANGAN_NAMA}}').setAlignment(DocumentApp.HorizontalAlignment.RIGHT);
+    body.appendParagraph('NIP {{PENANDATANGAN_NIP}}').setAlignment(DocumentApp.HorizontalAlignment.RIGHT);
+    doc.saveAndClose();
+
+    // Pindahkan ke FOLDER_TEMPLATE
+    var file = DriveApp.getFileById(doc.getId());
+    file.moveTo(folder);
+    p.setProperty(key, doc.getId());
+    Logger.log(key + ' dibuat: ' + doc.getId());
+  });
+  Logger.log('buatTemplateSP() selesai — rapikan kop & redaksi langsung di Doc.');
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // ▼▼▼ 20_trigger.gs ▼▼▼
 // ═══════════════════════════════════════════════════════════════════
 /**
- * 20_trigger.gs — Trigger terjadwal (eskalasi SP harian + backup mingguan)
+ * 20_trigger.gs — Trigger terjadwal: eskalasi SP harian
  *
- * Kebijakan SP (tenggat, JAM_TRIGGER) dibaca via getKebijakanSP() (00_config.gs).
- * DILARANG membaca CONFIG.SP langsung.
- *
- * Diisi pada TAHAP 4B (eskalasi) & TAHAP 8 (backup). Akan memuat:
- * - eskalasiTagihan()  : untuk tiap TAGIHAN TERTAGIH, level_aktif=MAX(level) SP;
- *                  bila today > tenggat SP aktif:
- *                    level 1 → spTerbitkan(2); level 2 → spTerbitkan(3);
- *                    level 3 → status ESKALASI_MANUAL + auditLog (penanganan luar sistem)
- *                  IDEMPOTEN: sudah ada SP level target → lewati (tidak dobel)
- * - pasangTrigger()    : hapus trigger lama, pasang time-driven harian jam CONFIG.SP.JAM_TRIGGER (WIT)
- * - buatTemplateSP()   : sekali jalan — buat 3 Google Doc template SP + simpan ID ke Script Properties
- * - backupMingguan()   : (TAHAP 8) copy spreadsheet ke folder e-BAMA/BACKUP mingguan
+ * Kebijakan (tenggat, JAM_TRIGGER) via getKebijakanSP() — DILARANG baca CONFIG langsung.
+ * - eskalasiTagihan() : dijalankan trigger harian; IDEMPOTEN (aman 2× sehari)
+ * - pasangTrigger()   : sekali jalan dari editor — pasang trigger harian
+ * - backupMingguan()  : diisi pada TAHAP 8 (copy spreadsheet ke e-BAMA/BACKUP)
+ */
+
+/**
+ * Eskalasi tagihan TERTAGIH yang melewati tenggat SP aktif:
+ *   level 1 → terbit SP-2 ; level 2 → terbit SP-3 ;
+ *   level 3 → status ESKALASI_MANUAL (penanganan di luar sistem:
+ *   sanksi akademik / pemanggilan — sistem hanya menandai).
+ * IDEMPOTEN: bila SP level target sudah ada → lewati (tidak terbit ganda).
+ */
+function eskalasiTagihan() {
+  var today = _todayStr_();
+  var hasil = { diperiksa: 0, sp2: 0, sp3: 0, eskalasi_manual: 0, lewati: 0 };
+
+  // Peta SP per tagihan: level maksimum + tenggatnya + set level yang sudah ada
+  var spMap = {};
+  sheetRead(SHEETS.SURAT_PERINGATAN).forEach(function (s) {
+    var key = String(s.tagihan_id);
+    if (!spMap[key]) spMap[key] = { max: 0, tenggat: '', ada: {} };
+    var lv = Number(s.level) || 0;
+    spMap[key].ada[lv] = true;
+    if (lv > spMap[key].max) {
+      spMap[key].max = lv;
+      spMap[key].tenggat = _tglStr_(s.tenggat);
+    }
+  });
+
+  sheetRead(SHEETS.TAGIHAN, function (r) { return r.status === 'TERTAGIH'; })
+    .forEach(function (t) {
+      hasil.diperiksa++;
+      var info = spMap[String(t.tagihan_id)];
+      if (!info || !info.max) { hasil.lewati++; return; }          // belum ada SP → bukan urusan eskalasi
+      if (today <= info.tenggat) { hasil.lewati++; return; }       // belum lewat tenggat
+
+      if (info.max === 1 && !info.ada[2]) {
+        spTerbitkan(t.tagihan_id, 2, null); hasil.sp2++;
+      } else if (info.max === 2 && !info.ada[3]) {
+        spTerbitkan(t.tagihan_id, 3, null); hasil.sp3++;
+      } else if (info.max >= 3) {
+        // Sudah SP-3 dan tetap lewat tenggat → tandai eskalasi manual (sekali saja)
+        sheetUpdate(SHEETS.TAGIHAN, 'tagihan_id', t.tagihan_id, { status: 'ESKALASI_MANUAL' });
+        auditLog(null, 'ESKALASI', 'TAGIHAN', t.tagihan_id,
+          { status: 'TERTAGIH' }, { status: 'ESKALASI_MANUAL', keterangan: 'Lewat tenggat SP-3 — penanganan di luar sistem' });
+        hasil.eskalasi_manual++;
+      } else {
+        hasil.lewati++; // SP level target sudah ada (idempoten)
+      }
+    });
+
+  if (hasil.sp2 || hasil.sp3 || hasil.eskalasi_manual) _tagihanCacheClear_();
+  Logger.log('eskalasiTagihan: ' + JSON.stringify(hasil));
+  return hasil;
+}
+
+/**
+ * Pasang trigger time-driven harian eskalasiTagihan() pada jam
+ * getKebijakanSP().JAM_TRIGGER (default 06.00 WIT — timeZone proyek Asia/Jayapura).
+ * Menghapus trigger lama fungsi yang sama dulu (tidak dobel).
+ */
+function pasangTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function (tr) {
+    if (tr.getHandlerFunction() === 'eskalasiTagihan') ScriptApp.deleteTrigger(tr);
+  });
+  var jam = Number(getKebijakanSP().JAM_TRIGGER);
+  ScriptApp.newTrigger('eskalasiTagihan')
+    .timeBased().everyDays(1).atHour(jam)
+    .create();
+  Logger.log('Trigger eskalasiTagihan terpasang: harian jam ' + jam + '.00 (Asia/Jayapura).');
+}
+
+/**
+ * backupMingguan() — DIISI PADA TAHAP 8:
+ * copy spreadsheet ke folder e-BAMA/BACKUP tiap minggu + trigger-nya.
  */
 
 // ═══════════════════════════════════════════════════════════════════

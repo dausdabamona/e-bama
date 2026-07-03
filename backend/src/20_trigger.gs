@@ -1,16 +1,80 @@
 /**
- * 20_trigger.gs — Trigger terjadwal (eskalasi SP harian + backup mingguan)
+ * 20_trigger.gs — Trigger terjadwal: eskalasi SP harian
  *
- * Kebijakan SP (tenggat, JAM_TRIGGER) dibaca via getKebijakanSP() (00_config.gs).
- * DILARANG membaca CONFIG.SP langsung.
- *
- * Diisi pada TAHAP 4B (eskalasi) & TAHAP 8 (backup). Akan memuat:
- * - eskalasiTagihan()  : untuk tiap TAGIHAN TERTAGIH, level_aktif=MAX(level) SP;
- *                  bila today > tenggat SP aktif:
- *                    level 1 → spTerbitkan(2); level 2 → spTerbitkan(3);
- *                    level 3 → status ESKALASI_MANUAL + auditLog (penanganan luar sistem)
- *                  IDEMPOTEN: sudah ada SP level target → lewati (tidak dobel)
- * - pasangTrigger()    : hapus trigger lama, pasang time-driven harian jam CONFIG.SP.JAM_TRIGGER (WIT)
- * - buatTemplateSP()   : sekali jalan — buat 3 Google Doc template SP + simpan ID ke Script Properties
- * - backupMingguan()   : (TAHAP 8) copy spreadsheet ke folder e-BAMA/BACKUP mingguan
+ * Kebijakan (tenggat, JAM_TRIGGER) via getKebijakanSP() — DILARANG baca CONFIG langsung.
+ * - eskalasiTagihan() : dijalankan trigger harian; IDEMPOTEN (aman 2× sehari)
+ * - pasangTrigger()   : sekali jalan dari editor — pasang trigger harian
+ * - backupMingguan()  : diisi pada TAHAP 8 (copy spreadsheet ke e-BAMA/BACKUP)
+ */
+
+/**
+ * Eskalasi tagihan TERTAGIH yang melewati tenggat SP aktif:
+ *   level 1 → terbit SP-2 ; level 2 → terbit SP-3 ;
+ *   level 3 → status ESKALASI_MANUAL (penanganan di luar sistem:
+ *   sanksi akademik / pemanggilan — sistem hanya menandai).
+ * IDEMPOTEN: bila SP level target sudah ada → lewati (tidak terbit ganda).
+ */
+function eskalasiTagihan() {
+  var today = _todayStr_();
+  var hasil = { diperiksa: 0, sp2: 0, sp3: 0, eskalasi_manual: 0, lewati: 0 };
+
+  // Peta SP per tagihan: level maksimum + tenggatnya + set level yang sudah ada
+  var spMap = {};
+  sheetRead(SHEETS.SURAT_PERINGATAN).forEach(function (s) {
+    var key = String(s.tagihan_id);
+    if (!spMap[key]) spMap[key] = { max: 0, tenggat: '', ada: {} };
+    var lv = Number(s.level) || 0;
+    spMap[key].ada[lv] = true;
+    if (lv > spMap[key].max) {
+      spMap[key].max = lv;
+      spMap[key].tenggat = _tglStr_(s.tenggat);
+    }
+  });
+
+  sheetRead(SHEETS.TAGIHAN, function (r) { return r.status === 'TERTAGIH'; })
+    .forEach(function (t) {
+      hasil.diperiksa++;
+      var info = spMap[String(t.tagihan_id)];
+      if (!info || !info.max) { hasil.lewati++; return; }          // belum ada SP → bukan urusan eskalasi
+      if (today <= info.tenggat) { hasil.lewati++; return; }       // belum lewat tenggat
+
+      if (info.max === 1 && !info.ada[2]) {
+        spTerbitkan(t.tagihan_id, 2, null); hasil.sp2++;
+      } else if (info.max === 2 && !info.ada[3]) {
+        spTerbitkan(t.tagihan_id, 3, null); hasil.sp3++;
+      } else if (info.max >= 3) {
+        // Sudah SP-3 dan tetap lewat tenggat → tandai eskalasi manual (sekali saja)
+        sheetUpdate(SHEETS.TAGIHAN, 'tagihan_id', t.tagihan_id, { status: 'ESKALASI_MANUAL' });
+        auditLog(null, 'ESKALASI', 'TAGIHAN', t.tagihan_id,
+          { status: 'TERTAGIH' }, { status: 'ESKALASI_MANUAL', keterangan: 'Lewat tenggat SP-3 — penanganan di luar sistem' });
+        hasil.eskalasi_manual++;
+      } else {
+        hasil.lewati++; // SP level target sudah ada (idempoten)
+      }
+    });
+
+  if (hasil.sp2 || hasil.sp3 || hasil.eskalasi_manual) _tagihanCacheClear_();
+  Logger.log('eskalasiTagihan: ' + JSON.stringify(hasil));
+  return hasil;
+}
+
+/**
+ * Pasang trigger time-driven harian eskalasiTagihan() pada jam
+ * getKebijakanSP().JAM_TRIGGER (default 06.00 WIT — timeZone proyek Asia/Jayapura).
+ * Menghapus trigger lama fungsi yang sama dulu (tidak dobel).
+ */
+function pasangTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function (tr) {
+    if (tr.getHandlerFunction() === 'eskalasiTagihan') ScriptApp.deleteTrigger(tr);
+  });
+  var jam = Number(getKebijakanSP().JAM_TRIGGER);
+  ScriptApp.newTrigger('eskalasiTagihan')
+    .timeBased().everyDays(1).atHour(jam)
+    .create();
+  Logger.log('Trigger eskalasiTagihan terpasang: harian jam ' + jam + '.00 (Asia/Jayapura).');
+}
+
+/**
+ * backupMingguan() — DIISI PADA TAHAP 8:
+ * copy spreadsheet ke folder e-BAMA/BACKUP tiap minggu + trigger-nya.
  */
