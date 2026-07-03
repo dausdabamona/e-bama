@@ -72,12 +72,16 @@ var ACTION_MAP = {
   'tagihan.regenerate_sp': { handler: tagihanRegenerateSp, roles: ['PPK'] },
 
   // Surat peringatan (TAHAP 4B)
-  'sp.list':          { handler: spList,         roles: [] }
+  'sp.list':          { handler: spList,         roles: [] },
 
-  // Master pengguna (Admin) — didaftarkan pada TAHAP 7 (handler sudah ada di 02_auth.gs):
-  // 'pengguna.list':      { handler: penggunaList,     roles: ['ADMIN'] },
-  // 'pengguna.upsert':    { handler: penggunaUpsert,   roles: ['ADMIN'] },
-  // 'pengguna.reset_pin': { handler: penggunaResetPin, roles: ['ADMIN'] }
+  // Master pengguna (TAHAP 7 — Admin)
+  'pengguna.list':      { handler: penggunaList,     roles: ['ADMIN'] },
+  'pengguna.upsert':    { handler: penggunaUpsert,   roles: ['ADMIN'] },
+  'pengguna.reset_pin': { handler: penggunaResetPin, roles: ['ADMIN'] },
+
+  // Laporan & Audit (TAHAP 7)
+  'laporan.bulanan':  { handler: laporanBulanan, roles: ['PPK', 'KPA'] },
+  'audit.list':       { handler: auditList,      roles: ['ADMIN', 'PPK', 'KPA'] }
 };
 
 /** Health check. */

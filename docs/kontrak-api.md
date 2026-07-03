@@ -120,8 +120,8 @@ Transisi ilegal → error eksplisit (mis. "Pesanan berstatus DRAFT, tidak bisa d
 
 | Action | Role | Keterangan |
 |---|---|---|
-| `laporan.bulanan` | PPK, KPA | ringkasan realisasi + pembayaran + piutang per bulan (SOP 17–19); format menyesuaikan Laporan Bulanan BAMA |
-| `audit.list` | PPK, KPA | filter tanggal/pengguna/aksi |
+| `laporan.bulanan` | PPK, KPA | ringkasan rekap + realisasi + pembayaran + piutang per bulan (SOP 17–19); format menyesuaikan Laporan Bulanan BAMA |
+| `audit.list` | ADMIN, PPK, KPA | filter `{dari?, sampai?, user_id?, aksi?}`; dibatasi 500 baris terbaru |
 
 ## Proses internal terjadwal (bukan action HTTP)
 
