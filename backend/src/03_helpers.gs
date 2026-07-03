@@ -175,3 +175,32 @@ function lampiranList(refType, refId) {
     return String(r.ref_type) === String(refType) && String(r.ref_id) === String(refId);
   });
 }
+
+// ── Terbilang (angka → teks Indonesia) ───────────────────────────────────────
+// Dipakai Form 06 (nominal pembayaran wajib tercetak dalam huruf). Diimplementasikan
+// di backend (bukan frontend) supaya satu-satunya sumber logika terbilang konsisten
+// dipakai form cetak lain di masa depan tanpa duplikasi kode di kedua sisi.
+var _SATUAN_TERBILANG_ = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas'];
+
+/** Rekursif: ubah bilangan bulat non-negatif → teks Indonesia (tanpa akhiran "rupiah"). */
+function _terbilang_(n) {
+  n = Math.floor(Math.abs(n));
+  if (n < 12) return _SATUAN_TERBILANG_[n];
+  if (n < 20) return _terbilang_(n - 10) + ' belas';
+  if (n < 100) return _terbilang_(Math.floor(n / 10)) + ' puluh' + (n % 10 !== 0 ? ' ' + _terbilang_(n % 10) : '');
+  if (n < 200) return 'seratus' + (n - 100 !== 0 ? ' ' + _terbilang_(n - 100) : '');
+  if (n < 1000) return _terbilang_(Math.floor(n / 100)) + ' ratus' + (n % 100 !== 0 ? ' ' + _terbilang_(n % 100) : '');
+  if (n < 2000) return 'seribu' + (n - 1000 !== 0 ? ' ' + _terbilang_(n - 1000) : '');
+  if (n < 1000000) return _terbilang_(Math.floor(n / 1000)) + ' ribu' + (n % 1000 !== 0 ? ' ' + _terbilang_(n % 1000) : '');
+  if (n < 1000000000) return _terbilang_(Math.floor(n / 1000000)) + ' juta' + (n % 1000000 !== 0 ? ' ' + _terbilang_(n % 1000000) : '');
+  if (n < 1000000000000) return _terbilang_(Math.floor(n / 1000000000)) + ' miliar' + (n % 1000000000 !== 0 ? ' ' + _terbilang_(n % 1000000000) : '');
+  return _terbilang_(Math.floor(n / 1000000000000)) + ' triliun' + (n % 1000000000000 !== 0 ? ' ' + _terbilang_(n % 1000000000000) : '');
+}
+
+/** Bungkus _terbilang_ jadi kalimat nominal rupiah baku, huruf awal kapital. */
+function _terbilangRupiah_(n) {
+  n = Math.round(Number(n) || 0);
+  var teks = n === 0 ? 'nol' : (n < 0 ? 'minus ' + _terbilang_(n) : _terbilang_(n));
+  teks = teks + ' rupiah';
+  return teks.charAt(0).toUpperCase() + teks.slice(1);
+}

@@ -233,7 +233,8 @@ var ACTION_MAP = {
   // Cetak Form Manual SOP (TAHAP cetak)
   'cetak.form01':     { handler: cetakForm01, roles: ['SENAT', 'PEMBINA', 'PPK', 'ADMIN'] },
   'cetak.form03':     { handler: cetakForm03, roles: ['PPK', 'ADMIN', 'PEMBINA'] },
-  'cetak.form05':     { handler: cetakForm05, roles: ['PEMBINA', 'PPK', 'ADMIN'] }
+  'cetak.form05':     { handler: cetakForm05, roles: ['PEMBINA', 'PPK', 'ADMIN'] },
+  'cetak.form06':     { handler: cetakForm06, roles: ['PPK', 'KPA', 'ADMIN'] }
 };
 
 /** Health check. */
@@ -587,6 +588,35 @@ function lampiranList(refType, refId) {
   return sheetRead(SHEETS.LAMPIRAN, function (r) {
     return String(r.ref_type) === String(refType) && String(r.ref_id) === String(refId);
   });
+}
+
+// ── Terbilang (angka → teks Indonesia) ───────────────────────────────────────
+// Dipakai Form 06 (nominal pembayaran wajib tercetak dalam huruf). Diimplementasikan
+// di backend (bukan frontend) supaya satu-satunya sumber logika terbilang konsisten
+// dipakai form cetak lain di masa depan tanpa duplikasi kode di kedua sisi.
+var _SATUAN_TERBILANG_ = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas'];
+
+/** Rekursif: ubah bilangan bulat non-negatif → teks Indonesia (tanpa akhiran "rupiah"). */
+function _terbilang_(n) {
+  n = Math.floor(Math.abs(n));
+  if (n < 12) return _SATUAN_TERBILANG_[n];
+  if (n < 20) return _terbilang_(n - 10) + ' belas';
+  if (n < 100) return _terbilang_(Math.floor(n / 10)) + ' puluh' + (n % 10 !== 0 ? ' ' + _terbilang_(n % 10) : '');
+  if (n < 200) return 'seratus' + (n - 100 !== 0 ? ' ' + _terbilang_(n - 100) : '');
+  if (n < 1000) return _terbilang_(Math.floor(n / 100)) + ' ratus' + (n % 100 !== 0 ? ' ' + _terbilang_(n % 100) : '');
+  if (n < 2000) return 'seribu' + (n - 1000 !== 0 ? ' ' + _terbilang_(n - 1000) : '');
+  if (n < 1000000) return _terbilang_(Math.floor(n / 1000)) + ' ribu' + (n % 1000 !== 0 ? ' ' + _terbilang_(n % 1000) : '');
+  if (n < 1000000000) return _terbilang_(Math.floor(n / 1000000)) + ' juta' + (n % 1000000 !== 0 ? ' ' + _terbilang_(n % 1000000) : '');
+  if (n < 1000000000000) return _terbilang_(Math.floor(n / 1000000000)) + ' miliar' + (n % 1000000000 !== 0 ? ' ' + _terbilang_(n % 1000000000) : '');
+  return _terbilang_(Math.floor(n / 1000000000000)) + ' triliun' + (n % 1000000000000 !== 0 ? ' ' + _terbilang_(n % 1000000000000) : '');
+}
+
+/** Bungkus _terbilang_ jadi kalimat nominal rupiah baku, huruf awal kapital. */
+function _terbilangRupiah_(n) {
+  n = Math.round(Number(n) || 0);
+  var teks = n === 0 ? 'nol' : (n < 0 ? 'minus ' + _terbilang_(n) : _terbilang_(n));
+  teks = teks + ' rupiah';
+  return teks.charAt(0).toUpperCase() + teks.slice(1);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -2468,7 +2498,8 @@ function pasangTriggerBackup() {
  *
  * ACTION: cetak.form01 (SENAT, PEMBINA, PPK, ADMIN),
  *         cetak.form03 (PPK, ADMIN, PEMBINA),
- *         cetak.form05 (PEMBINA, PPK, ADMIN)
+ *         cetak.form05 (PEMBINA, PPK, ADMIN),
+ *         cetak.form06 (PPK, KPA, ADMIN)
  *
  * Setiap cetak.formNN adalah action GET-style (tanpa efek samping) — hanya
  * membaca & merangkai data untuk dirender+dicetak di frontend. Tidak ada
@@ -2594,6 +2625,51 @@ function cetakForm05(payload, session) {
     ketidaksesuaian: realisasi ? (realisasi.ketidaksesuaian || '') : '',
     tindak_lanjut: realisasi ? (realisasi.tindak_lanjut || '') : '',
     cek_otomatis: cekOtomatis
+  };
+}
+
+/**
+ * Form 06: Verifikasi & Rencana Pembayaran PPK (bulanan). Payload {bulan}.
+ * HANYA boleh dicetak dari REKAP_BULANAN berstatus FINAL — nominal FINAL
+ * sudah beku (§5 CLAUDE.md), jadi angka yang tercetak tidak akan berubah lagi.
+ * Kalau bulan itu belum ada rekap sama sekali, atau ada baris yang BUKAN
+ * FINAL, tolak dengan pesan jelas (jangan cetak angka yang masih bisa berubah).
+ * Checklist 8 dokumen kelengkapan SENGAJA disederhanakan jadi checkbox manual
+ * di frontend pada tahap ini (belum ada sumber data terstruktur utk itu).
+ */
+function cetakForm06(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  var rows = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
+  if (!rows.length) throw _fail_('Belum ada rekap untuk bulan ' + bulan + ' — Form 06 hanya bisa dicetak setelah rekap dibuat dan FINAL.');
+
+  var belumFinal = rows.filter(function (r) { return String(r.status) !== 'FINAL'; });
+  if (belumFinal.length) {
+    throw _fail_('Rekap bulan ' + bulan + ' belum FINAL (masih berstatus ' + belumFinal[0].status + ') — ' +
+      'Form 06 hanya boleh dicetak dari rekap yang sudah FINAL supaya angka yang tercetak tidak berubah lagi. ' +
+      'Selesaikan rekap.verify dan rekap.final terlebih dahulu.');
+  }
+
+  var tarunaByNit = {};
+  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+
+  var totalHariMakan = 0, totalNominal = 0;
+  var baris = rows.map(function (r) {
+    var t = tarunaByNit[String(r.nit)] || {};
+    var nominal = _int_(r.nominal, 'nominal');
+    var hariMakan = _int_(r.hari_makan, 'hari_makan');
+    totalHariMakan += hariMakan;
+    totalNominal += nominal;
+    return { nit: String(r.nit), nama: t.nama || '', hari_makan: hariMakan, nominal: nominal };
+  });
+
+  return {
+    bulan: bulan,
+    baris: baris,
+    total_taruna: baris.length,
+    total_hari_makan: totalHariMakan,
+    total_nominal: totalNominal,
+    nominal_terbilang: _terbilangRupiah_(totalNominal),
+    pejabat: PEJABAT
   };
 }
 

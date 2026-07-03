@@ -3,7 +3,8 @@
  *
  * ACTION: cetak.form01 (SENAT, PEMBINA, PPK, ADMIN),
  *         cetak.form03 (PPK, ADMIN, PEMBINA),
- *         cetak.form05 (PEMBINA, PPK, ADMIN)
+ *         cetak.form05 (PEMBINA, PPK, ADMIN),
+ *         cetak.form06 (PPK, KPA, ADMIN)
  *
  * Setiap cetak.formNN adalah action GET-style (tanpa efek samping) — hanya
  * membaca & merangkai data untuk dirender+dicetak di frontend. Tidak ada
@@ -129,5 +130,50 @@ function cetakForm05(payload, session) {
     ketidaksesuaian: realisasi ? (realisasi.ketidaksesuaian || '') : '',
     tindak_lanjut: realisasi ? (realisasi.tindak_lanjut || '') : '',
     cek_otomatis: cekOtomatis
+  };
+}
+
+/**
+ * Form 06: Verifikasi & Rencana Pembayaran PPK (bulanan). Payload {bulan}.
+ * HANYA boleh dicetak dari REKAP_BULANAN berstatus FINAL — nominal FINAL
+ * sudah beku (§5 CLAUDE.md), jadi angka yang tercetak tidak akan berubah lagi.
+ * Kalau bulan itu belum ada rekap sama sekali, atau ada baris yang BUKAN
+ * FINAL, tolak dengan pesan jelas (jangan cetak angka yang masih bisa berubah).
+ * Checklist 8 dokumen kelengkapan SENGAJA disederhanakan jadi checkbox manual
+ * di frontend pada tahap ini (belum ada sumber data terstruktur utk itu).
+ */
+function cetakForm06(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  var rows = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
+  if (!rows.length) throw _fail_('Belum ada rekap untuk bulan ' + bulan + ' — Form 06 hanya bisa dicetak setelah rekap dibuat dan FINAL.');
+
+  var belumFinal = rows.filter(function (r) { return String(r.status) !== 'FINAL'; });
+  if (belumFinal.length) {
+    throw _fail_('Rekap bulan ' + bulan + ' belum FINAL (masih berstatus ' + belumFinal[0].status + ') — ' +
+      'Form 06 hanya boleh dicetak dari rekap yang sudah FINAL supaya angka yang tercetak tidak berubah lagi. ' +
+      'Selesaikan rekap.verify dan rekap.final terlebih dahulu.');
+  }
+
+  var tarunaByNit = {};
+  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+
+  var totalHariMakan = 0, totalNominal = 0;
+  var baris = rows.map(function (r) {
+    var t = tarunaByNit[String(r.nit)] || {};
+    var nominal = _int_(r.nominal, 'nominal');
+    var hariMakan = _int_(r.hari_makan, 'hari_makan');
+    totalHariMakan += hariMakan;
+    totalNominal += nominal;
+    return { nit: String(r.nit), nama: t.nama || '', hari_makan: hariMakan, nominal: nominal };
+  });
+
+  return {
+    bulan: bulan,
+    baris: baris,
+    total_taruna: baris.length,
+    total_hari_makan: totalHariMakan,
+    total_nominal: totalNominal,
+    nominal_terbilang: _terbilangRupiah_(totalNominal),
+    pejabat: PEJABAT
   };
 }

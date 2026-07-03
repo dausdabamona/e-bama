@@ -1,5 +1,6 @@
 // /rekap (PPK) — tabel rekap bulanan, Verifikasi → Finalkan (konfirmasi ganda), ekspor CSV.
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { BulanPicker, bulanIni } from '../../components/bulan-picker';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
@@ -122,6 +123,11 @@ export function HalamanRekap() {
           )}
           {status === 'TERVERIFIKASI_PPK' && (
             <Button varian="bahaya" onClick={() => setTampilFinal(true)}>Finalkan Rekap</Button>
+          )}
+          {status === 'FINAL' && (
+            <Link to={`/cetak/form-06/${bulan}`}>
+              <Button varian="garis" className="w-full">🖨️ Cetak Form 06</Button>
+            </Link>
           )}
         </div>
       )}
