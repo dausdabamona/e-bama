@@ -81,7 +81,7 @@ Taruna yang TIDAK berhak makan pada tanggal tertentu (SOP: Peringatan no. 2).
 | status_id | string | kunci; `STH-000001` |
 | tanggal | date | |
 | nit | FK → TARUNA | unik per (tanggal, nit) — upsert |
-| status | enum | `PESIAR` / `CUTI` / `SAKIT_RUMAH` / `PENUNDAAN_STUDI` |
+| status | enum | `PESIAR` / `CUTI` / `SAKIT_RUMAH` / `PENUNDAAN_STUDI` / `KEGIATAN_LUAR_KAMPUS` (PKL/Magang/KPA — Form-03) |
 | input_by | FK → PENGGUNA | |
 | timestamp | datetime | |
 
@@ -89,8 +89,11 @@ Surat pendukung → LAMPIRAN `ref_type=STATUS_HARIAN`.
 
 ### 6. PESANAN
 
-Pre-Order H-1, satu pesanan per hari (SOP no. 5–7).
-Mesin status: `DRAFT → DIAJUKAN → (DIKEMBALIKAN | DISETUJUI) → TERKIRIM`.
+Pre-Order H-1, satu pesanan per hari (SOP no. 5–8, selaras Form-01).
+Mesin status: `DRAFT → DIAJUKAN → (DIKEMBALIKAN | DISETUJUI_PEMBINA) →
+(DIKEMBALIKAN | DISETUJUI_PPK) → TERKIRIM`.
+Rantai Form-01: Senat merencanakan → Pembina memverifikasi → PPK menyetujui →
+Senat menyampaikan ke penyedia paling lambat H-1.
 
 | Kolom | Tipe | Keterangan |
 |---|---|---|
@@ -100,11 +103,13 @@ Mesin status: `DRAFT → DIAJUKAN → (DIKEMBALIKAN | DISETUJUI) → TERKIRIM`.
 | jml_taruna 📸 | integer | snapshot: taruna AKTIF − STATUS_HARIAN tgl tsb; boleh dikoreksi manual dengan catatan wajib |
 | menu | string | |
 | catatan | string | wajib diisi bila jml_taruna ≠ hitungan otomatis |
-| status | enum | `DRAFT` / `DIAJUKAN` / `DIKEMBALIKAN` / `DISETUJUI` / `TERKIRIM` |
+| status | enum | `DRAFT` / `DIAJUKAN` / `DIKEMBALIKAN` / `DISETUJUI_PEMBINA` / `DISETUJUI_PPK` / `TERKIRIM` |
 | created_by | FK → PENGGUNA | Senat |
 | verif_by | FK → PENGGUNA | Pembina |
 | verif_at | datetime | |
 | revisi_dari | FK → PESANAN | terisi bila pesanan ini revisi setelah TERKIRIM (SOP 7b); wajib lampiran BA perubahan |
+| appr_by | FK → PENGGUNA | PPK yang menyetujui (Form-01) — kolom di UJUNG agar sheet lama tidak bergeser |
+| appr_at | datetime | |
 
 ### 7. REALISASI
 
