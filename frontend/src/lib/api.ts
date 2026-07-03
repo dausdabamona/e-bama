@@ -5,7 +5,7 @@
 // .env lokal); bila kosong pakai URL produksi di bawah. URL ini bukan rahasia —
 // ia memang terkirim ke browser dan dilindungi token + role di sisi GAS.
 const GAS_URL_BAWAAN =
-  'https://script.google.com/macros/s/AKfycbzMf3xwF4nB0_68QFoUQf2v_wwUDuxRLrfbdqPo0aIwSrTw8c0ymwM0pXLH-sBWAbGDoQ/exec';
+  'https://script.google.com/macros/s/AKfycbxZCunM7UEWeUSfjF5V-MG0VKOILwvACrrAxoPWt11a4hNfTQlKzH6UHLgRuDKEB0M-Ww/exec';
 const GAS_URL = (import.meta.env.VITE_GAS_URL as string) || GAS_URL_BAWAAN;
 const TIMEOUT_MS = 30_000;
 
