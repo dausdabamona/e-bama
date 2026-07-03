@@ -3,7 +3,9 @@
 // tahap berikutnya) — cukup daftar + status "Segera hadir".
 // Bagian "Pratinjau Komponen Cetak" membuktikan KopSurat/BlokTtd/TabelCetak
 // bisa diimpor & dirender tanpa error (KopSurat hanya tampak saat print).
+import { Link } from 'react-router-dom';
 import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { BlokTtd2Kolom, BlokTtd3Berjenjang } from '../../components/cetak/blok-ttd';
 import { KopSurat } from '../../components/cetak/kop-surat';
@@ -12,12 +14,13 @@ import { BarisCetak, SelCetak, TabelCetak } from '../../components/cetak/tabel-c
 interface DaftarForm {
   nomor: string;
   nama: string;
+  rute?: string;
 }
 
 const DAFTAR_FORM: DaftarForm[] = [
   { nomor: '01', nama: 'Rencana & Persetujuan Pemesanan Makan Harian (H-1)' },
   { nomor: '02', nama: 'Daftar Hadir / Tanda Terima Makan' },
-  { nomor: '03', nama: 'Rekap Taruna Tidak Menerima Makan (bulanan)' },
+  { nomor: '03', nama: 'Rekap Taruna Tidak Menerima Makan (bulanan)', rute: '/cetak/form-03' },
   { nomor: '04', nama: 'Rekapitulasi Bulanan Porsi Makan' },
   { nomor: '05', nama: 'BA Rekonsiliasi 3 Titik' },
   { nomor: '06', nama: 'Verifikasi & Rencana Pembayaran PPK' },
@@ -42,7 +45,9 @@ export function HalamanCetakIndex() {
               <p className="font-semibold">Form {f.nomor}</p>
               <p className="text-sm text-gray-500">{f.nama}</p>
             </div>
-            <Badge status="DRAFT">Segera hadir</Badge>
+            {f.rute
+              ? <Link to={f.rute}><Button varian="garis">Buka</Button></Link>
+              : <Badge status="DRAFT">Segera hadir</Badge>}
           </Card>
         ))}
       </div>
