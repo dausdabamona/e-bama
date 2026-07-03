@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tema terang teal-ivory; mobile-first 320px; tanpa overflow horizontal */
+html, body {
+  background-color: #FFFDF7;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
