@@ -3,7 +3,9 @@ name: Deploy GitHub Pages
 
 on:
   push:
-    branches: [main]
+    # claude/... adalah branch default repo — environment github-pages hanya
+    # mengizinkan deploy dari branch default, maka keduanya didaftarkan
+    branches: [main, 'claude/ebama-gsheet-github-pages-l1k7t0']
     paths: ['frontend/**', '.github/workflows/deploy.yml']
   workflow_dispatch:
 
