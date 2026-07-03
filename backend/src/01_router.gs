@@ -88,6 +88,10 @@ var ACTION_MAP = {
   // Laporan & Audit (TAHAP 7)
   'laporan.bulanan':  { handler: laporanBulanan, roles: ['PPK', 'KPA', 'WADIR3'] },
   'laporan.resmi':    { handler: laporanResmi,   roles: ['PPK', 'KPA', 'WADIR3'] },
+
+  // Bantuan Luar Kampus (PKL/Magang/KPA/PTB) — TAHAP migrasi
+  'blk.list':         { handler: blkList,   roles: ['PPK', 'ADMIN', 'KPA', 'WADIR3'] },
+  'blk.import':       { handler: blkImport, roles: ['PPK', 'ADMIN'] },
   'audit.list':       { handler: auditList,      roles: ['ADMIN', 'PPK', 'KPA', 'WADIR3'] }
 };
 

@@ -1,4 +1,4 @@
-# Skema Database e-BAMA — Google Spreadsheet (14 Sheet)
+# Skema Database e-BAMA — Google Spreadsheet (15 Sheet)
 
 > **Satu sumber kebenaran skema.** Perubahan skema hanya lewat revisi file ini,
 > bukan langsung di kode. Nama sheet dan kolom: `snake_case`, dikunci di
@@ -253,11 +253,12 @@ STATUS_HARIAN masuk — TIDAK dihitung ulang sebulan penuh (hindari timeout GAS
 > sebelum e-BAMA aktif (mis. Januari–Juni), baris diisi langsung lewat
 > `rekap.input_historis` (PPK/Admin) — BUKAN dengan membuat Pesanan/Realisasi
 > harian palsu bertanggal mundur (`pesanan.kirim` memang menolak tanggal yang
-> sudah lewat). `harga_per_porsi`/`porsi_per_hari` untuk bulan historis diinput
-> manual saat itu (tidak selalu merujuk KONTRAK yang ada di sistem). Jejak
-> sumbernya di AUDIT_LOG (`sumber: INPUT_HISTORIS_PRA_APLIKASI`), bukan kolom
-> sheet tersendiri. Setelah masuk, bulan itu lanjut alur normal: verifikasi →
-> final → persetujuan Wadir 3 → pembayaran.
+> sudah lewat). `biaya_per_hari` (Rp/hari, satu angka per panggilan — bisa beda
+> per kelompok kalau rate historis tidak seragam) diinput manual saat itu,
+> tidak selalu merujuk KONTRAK yang ada di sistem. Jejak sumbernya di
+> AUDIT_LOG (`sumber: INPUT_HISTORIS_PRA_APLIKASI`), bukan kolom sheet
+> tersendiri. Setelah masuk, bulan itu lanjut alur normal: verifikasi → final
+> → persetujuan Wadir 3 → pembayaran.
 
 | Kolom | Tipe | Keterangan |
 |---|---|---|
@@ -271,6 +272,37 @@ STATUS_HARIAN masuk — TIDAK dihitung ulang sebulan penuh (hindari timeout GAS
 | verif_at | datetime | |
 
 Setelah `FINAL`: semua update pada bulan tsb DITOLAK.
+
+### 15. BANTUAN_LUAR_KAMPUS
+
+Bantuan biaya makan tunai untuk taruna yang sedang PKL/Magang/KPA/PTB di luar
+kampus — mekanisme **berbeda** dari Dalam Kampus (bukan lewat kontrak
+penyedia/rekening Senat; transfer tunai langsung, `nilai_per_hari` bisa
+**beda per individu per wilayah penempatan**, bukan satu rate untuk semua).
+
+Ketua Jurusan & panitia PKL/KPA yang menyusun rekapnya di luar sistem; hasilnya
+diajukan ke PPK untuk diinput di sini. **Catatan murni** (tanpa alur status
+verifikasi/final seperti REKAP_BULANAN) — cukup diimpor lewat CSV format yang
+sama seperti dokumen rekap yang sudah biasa dipakai (kolom NIT, Kegiatan,
+Periode Pembayaran, Total Hari, Nilai/Hari, Pembayaran_ke).
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| bantuan_id | string | kunci; `BLK-000001` |
+| nit | FK → TARUNA | |
+| kegiatan | string | jenis kegiatan luar kampus, bebas (mis. `PKL2`, `PKL3`, `PTB`, `KPA`) — TIDAK dikunci enum karena jenisnya bisa bertambah |
+| bulan | string | `YYYY-MM`, dipilih PPK/Admin saat impor — dipakai filter laporan (bukan hasil parse otomatis dari periode) |
+| periode | string | teks periode pembayaran apa adanya dari dokumen sumber (mis. "9 s/d 31 Maret 2026") |
+| total_hari | integer | |
+| nilai_per_hari | integer | rupiah per individu — BISA beda antar taruna dalam kegiatan & bulan yang sama |
+| nominal 📸 | integer | snapshot = total_hari × nilai_per_hari saat diimpor |
+| pembayaran_ke | integer | nomor tahap pembayaran (1, 2, 3, dst.) |
+| keterangan | string | opsional, mis. nama file sumber untuk jejak migrasi |
+
+Kunci gabungan (nit, kegiatan, bulan, pembayaran_ke) — upsert, aman diimpor
+ulang. Nomor rekening taruna **TIDAK** disalin dari dokumen sumber (dokumen
+kertas Ketua Jurusan/panitia sering memuat rekening lengkap — DILARANG masuk
+sistem, lihat aturan `rek_mask` di sheet TARUNA).
 
 ---
 

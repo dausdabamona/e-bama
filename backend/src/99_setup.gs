@@ -6,7 +6,7 @@
  *      Lewati bila skrip terikat (bound) langsung ke spreadsheet.
  *   1) setupSemua()        → jalankan ketiga langkah sekaligus (disarankan)
  *    atau satu per satu:
- *   2) setupDatabase()     → buat 14 sheet + header + validasi + format + proteksi
+ *   2) setupDatabase()     → buat 15 sheet + header + validasi + format + proteksi
  *   3) seedAwal()          → 5 akun contoh (PIN default 123456, di-hash SHA-256+SALT)
  *   4) setupFolderDrive()  → folder Drive e-BAMA/{LAMPIRAN,SURAT_PERINGATAN,TEMPLATE}
  *
@@ -107,6 +107,11 @@ function _skema_() {
     [SHEETS.REKAP_BULANAN, [
       ['bulan','s'], ['nit','s'], ['hari_makan','i'], ['hari_tidak_makan','i'],
       ['nominal','i'], ['status', E.REKAP_STATUS], ['verif_by','s'], ['verif_at','dt']
+    ]],
+    [SHEETS.BANTUAN_LUAR_KAMPUS, [
+      ['bantuan_id','s'], ['nit','s'], ['kegiatan','s'], ['bulan','s'], ['periode','s'],
+      ['total_hari','i'], ['nilai_per_hari','i'], ['nominal','i'], ['pembayaran_ke','i'],
+      ['keterangan','s']
     ]]
   ];
 }
@@ -127,7 +132,7 @@ function setupSemua() {
 }
 
 /**
- * setupDatabase() — buat/segarkan 14 sheet sesuai skema. Idempotent.
+ * setupDatabase() — buat/segarkan 15 sheet sesuai skema. Idempotent.
  */
 function setupDatabase() {
   var ss = _getSpreadsheet_();

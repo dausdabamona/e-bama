@@ -6,6 +6,7 @@ import { ToastProvider } from './components/ui/toast';
 import { HalamanAkun } from './pages/akun';
 import { HalamanAntrian } from './pages/antrian';
 import { HalamanAudit } from './pages/audit/audit';
+import { HalamanBantuanLuarKampus } from './pages/blk/blk';
 import { HalamanDashboardKpa } from './pages/dashboard-kpa/dashboard-kpa';
 import { HalamanKontrak } from './pages/kontrak/kontrak';
 import { HalamanLaporan } from './pages/laporan/laporan';
@@ -69,6 +70,7 @@ export default function App() {
               {/* PPK + KPA + Wadir3 */}
               <Route path="/laporan" element={<WajibLogin roles={['PPK', 'KPA', 'WADIR3']}><HalamanLaporan /></WajibLogin>} />
               <Route path="/laporan/resmi" element={<WajibLogin roles={['PPK', 'KPA', 'WADIR3']}><HalamanLaporanResmi /></WajibLogin>} />
+              <Route path="/luar-kampus" element={<WajibLogin roles={['PPK', 'ADMIN', 'KPA', 'WADIR3']}><HalamanBantuanLuarKampus /></WajibLogin>} />
               <Route path="/dashboard" element={<WajibLogin roles={['KPA', 'WADIR3']}><HalamanDashboardKpa /></WajibLogin>} />
               {/* Wadir 3 */}
               <Route path="/persetujuan-wadir3" element={<WajibLogin roles={['WADIR3']}><HalamanPersetujuanWadir3 /></WajibLogin>} />

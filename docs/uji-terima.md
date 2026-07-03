@@ -9,7 +9,7 @@
 
 | # | Langkah | Hasil | Tanggal | Paraf |
 |---|---|---|---|---|
-| 0.1 | `setupDatabase()` + `seedAwal()` sudah pernah dijalankan (14 sheet + 5 akun) | ☐ | | |
+| 0.1 | `setupDatabase()` + `seedAwal()` sudah pernah dijalankan (15 sheet + 5 akun) | ☐ | | |
 | 0.2 | Login `admin01` → **Pengguna** → **+ Tambah** → buat `wadir301` (role WADIR3) | ☐ | | |
 | 0.3 | Login `admin01` → **Taruna** → **Impor CSV** 20 taruna dummy (pakai `scripts/template-impor-taruna.csv`, ganti NIT/nama) | ☐ | | |
 | 0.4 | Cek: 0 baris ditolak karena rekening — semua `rek_mask` 4 digit | ☐ | | |
