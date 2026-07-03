@@ -231,6 +231,7 @@ var ACTION_MAP = {
   'audit.list':       { handler: auditList,      roles: ['ADMIN', 'PPK', 'KPA', 'WADIR3'] },
 
   // Cetak Form Manual SOP (TAHAP cetak)
+  'cetak.form01':     { handler: cetakForm01, roles: ['SENAT', 'PEMBINA', 'PPK', 'ADMIN'] },
   'cetak.form03':     { handler: cetakForm03, roles: ['PPK', 'ADMIN', 'PEMBINA'] }
 };
 
@@ -2464,13 +2465,54 @@ function pasangTriggerBackup() {
 /**
  * 21_cetak.gs — Cetak Form Manual SOP (Form 01-08, docs/format-dokumen.md)
  *
- * ACTION: cetak.form03 (PPK, ADMIN, PEMBINA)
+ * ACTION: cetak.form01 (SENAT, PEMBINA, PPK, ADMIN),
+ *         cetak.form03 (PPK, ADMIN, PEMBINA)
  *
  * Setiap cetak.formNN adalah action GET-style (tanpa efek samping) — hanya
  * membaca & merangkai data untuk dirender+dicetak di frontend. Tidak ada
  * withLock/AUDIT_LOG di sini KECUALI form yang membaca data sensitif
  * (rekening lengkap, lihat cetak.form07/form08 di tahap lanjutan).
  */
+
+/**
+ * Form 01: Rencana & Persetujuan Pemesanan Makan Harian (H-1). Payload {tgl_makan}.
+ * Skema TIDAK memisahkan porsi per waktu makan (KONTRAK.porsi_per_hari cuma
+ * angka agregat, bukan Sarapan/Siang/Malam terpisah) — sengaja TIDAK
+ * mengarang rincian per waktu; frontend menampilkan total porsi harian saja
+ * dan mencatat keterbatasan ini di halaman cetak.
+ */
+function cetakForm01(payload, session) {
+  var tgl = _wajibTgl_(payload && payload.tgl_makan, 'tgl_makan');
+  var pesanan = sheetRead(SHEETS.PESANAN, function (r) { return _tglStr_(r.tgl_makan) === tgl; })[0];
+  if (!pesanan) throw _fail_('Belum ada pesanan untuk tanggal ' + tgl + '.');
+
+  var kontrak = sheetRead(SHEETS.KONTRAK, function (r) { return String(r.kontrak_id) === String(pesanan.kontrak_id); })[0];
+  var namaPengguna = {};
+  sheetRead(SHEETS.PENGGUNA).forEach(function (p) { namaPengguna[String(p.user_id)] = p.nama; });
+  var statusHarianHari = sheetRead(SHEETS.STATUS_HARIAN, function (r) { return _tglStr_(r.tanggal) === tgl; });
+
+  return {
+    pesanan: {
+      pesanan_id: pesanan.pesanan_id,
+      tgl_makan: _tglStr_(pesanan.tgl_makan),
+      jml_taruna: _int_(pesanan.jml_taruna, 'jml_taruna'),
+      menu: pesanan.menu,
+      catatan: pesanan.catatan,
+      status: pesanan.status
+    },
+    kontrak: kontrak ? {
+      kontrak_id: kontrak.kontrak_id,
+      harga_per_porsi: _int_(kontrak.harga_per_porsi, 'harga_per_porsi'),
+      porsi_per_hari: _int_(kontrak.porsi_per_hari, 'porsi_per_hari')
+    } : null,
+    jml_status_harian: statusHarianHari.length,
+    dibuat_oleh_nama: namaPengguna[String(pesanan.created_by)] || pesanan.created_by || '',
+    diverifikasi_oleh_nama: namaPengguna[String(pesanan.verif_by)] || pesanan.verif_by || '',
+    verif_at: (pesanan.verif_at instanceof Date)
+      ? Utilities.formatDate(pesanan.verif_at, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss')
+      : String(pesanan.verif_at || '')
+  };
+}
 
 /**
  * Form 03: Rekap Taruna Tidak Menerima Makan (bulanan). Payload {bulan}.

@@ -1,6 +1,6 @@
 // /pesanan/:id — detail + timeline status, kirim H-1, revisi (upload BA)
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/auth-context';
 import { ambilFotoInput, kompresFotoBase64 } from '../../lib/foto';
 import { aksiTulis } from '../../lib/sync';
@@ -122,6 +122,9 @@ export function HalamanPesananDetail() {
       )}
 
       <div className="flex flex-col gap-2">
+        <Link to={`/cetak/form-01/${p.tgl_makan}`}>
+          <Button varian="garis" className="w-full">🖨️ Cetak Form 01</Button>
+        </Link>
         {bisaSubmit && (
           <Button onClick={() => void submit()} disabled={proses}>Ajukan ke Pembina</Button>
         )}

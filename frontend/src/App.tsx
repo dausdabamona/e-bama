@@ -8,6 +8,7 @@ import { HalamanAntrian } from './pages/antrian';
 import { HalamanAudit } from './pages/audit/audit';
 import { HalamanBantuanLuarKampus } from './pages/blk/blk';
 import { HalamanCetakIndex } from './pages/cetak/cetak-index';
+import { HalamanCetakForm01 } from './pages/cetak/form-01';
 import { HalamanCetakForm03 } from './pages/cetak/form-03';
 import { HalamanDashboardKpa } from './pages/dashboard-kpa/dashboard-kpa';
 import { HalamanKontrak } from './pages/kontrak/kontrak';
@@ -86,6 +87,8 @@ export default function App() {
               <Route path="/akun" element={<HalamanAkun />} />
               <Route path="/antrian" element={<HalamanAntrian />} />
               <Route path="/cetak" element={<HalamanCetakIndex />} />
+              <Route path="/cetak/form-01" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm01 /></WajibLogin>} />
+              <Route path="/cetak/form-01/:tgl" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm01 /></WajibLogin>} />
               <Route path="/cetak/form-03" element={<WajibLogin roles={['PPK', 'ADMIN', 'PEMBINA']}><HalamanCetakForm03 /></WajibLogin>} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

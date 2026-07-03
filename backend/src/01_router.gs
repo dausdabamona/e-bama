@@ -95,6 +95,7 @@ var ACTION_MAP = {
   'audit.list':       { handler: auditList,      roles: ['ADMIN', 'PPK', 'KPA', 'WADIR3'] },
 
   // Cetak Form Manual SOP (TAHAP cetak)
+  'cetak.form01':     { handler: cetakForm01, roles: ['SENAT', 'PEMBINA', 'PPK', 'ADMIN'] },
   'cetak.form03':     { handler: cetakForm03, roles: ['PPK', 'ADMIN', 'PEMBINA'] }
 };
 

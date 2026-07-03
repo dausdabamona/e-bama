@@ -18,7 +18,7 @@ interface DaftarForm {
 }
 
 const DAFTAR_FORM: DaftarForm[] = [
-  { nomor: '01', nama: 'Rencana & Persetujuan Pemesanan Makan Harian (H-1)' },
+  { nomor: '01', nama: 'Rencana & Persetujuan Pemesanan Makan Harian (H-1)', rute: '/cetak/form-01' },
   { nomor: '02', nama: 'Daftar Hadir / Tanda Terima Makan' },
   { nomor: '03', nama: 'Rekap Taruna Tidak Menerima Makan (bulanan)', rute: '/cetak/form-03' },
   { nomor: '04', nama: 'Rekapitulasi Bulanan Porsi Makan' },
