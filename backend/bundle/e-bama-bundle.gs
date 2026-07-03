@@ -1,8 +1,8 @@
 /**
  * e-bama-bundle.gs — SEMUA kode backend e-BAMA dalam SATU file.
  * DIBUAT OTOMATIS dari backend/src/*.gs — jangan edit manual; edit sumbernya.
- * Cara pakai: di GAS hapus semua file .gs lama (sisakan tes.gs),
- * buat satu file 'e_bama_bundle.gs', tempel seluruh isi file ini, Ctrl+S.
+ * CATATAN: sejak clasp dipakai, file individual di src/*.gs adalah sumber
+ * utama yang di-push ke GAS. Bundle ini disimpan sebagai cadangan/referensi.
  */
 
 // ═══════════════════════════════════════════════════════════════════
@@ -50,13 +50,14 @@ var ROLES = {
   PPK:     'PPK',
   SENAT:   'SENAT',
   PEMBINA: 'PEMBINA',
-  ADMIN:   'ADMIN'
+  ADMIN:   'ADMIN',
+  WADIR3:  'WADIR3'
 };
 
 // ── Nilai enum per kolom (rujukan validasi dropdown & pengecekan handler) ────
 var ENUM = {
   AKTIF_STATUS:      ['AKTIF', 'NONAKTIF'],                 // PENGGUNA/TARUNA/PENYEDIA.status
-  ROLE:              ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN'],
+  ROLE:              ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3'],
   BANK:              ['BNI', 'BSI'],                        // TARUNA.bank
   KONTRAK_STATUS:    ['DRAFT', 'DISETUJUI_PPK'],
   STATUS_HARIAN:     ['PESIAR', 'CUTI', 'SAKIT_RUMAH', 'PENUNDAAN_STUDI', 'KEGIATAN_LUAR_KAMPUS'],
@@ -64,7 +65,8 @@ var ENUM = {
   PEMBAYARAN_STATUS: ['DIAJUKAN', 'SP2D_TERBIT', 'DITRANSFER', 'DIKONFIRMASI', 'SELESAI'],
   TAGIHAN_STATUS:    ['TERTAGIH', 'LUNAS', 'DIHAPUSKAN', 'ESKALASI_MANUAL'],
   TAGIHAN_SEBAB:     ['GAGAL_DEBET', 'SALDO_KURANG', 'REKENING_BERMASALAH'],
-  REKAP_STATUS:      ['DRAFT', 'TERVERIFIKASI_PPK', 'FINAL'],
+  // DISETUJUI_WADIR3: gerbang otorisasi pencairan sebelum bayar.create (bukan koreksi angka)
+  REKAP_STATUS:      ['DRAFT', 'TERVERIFIKASI_PPK', 'FINAL', 'DISETUJUI_WADIR3'],
   SP_TTD:            ['PPK', 'KPA'],                        // SURAT_PERINGATAN.ditandatangani_oleh
   SP_GENERATED:      ['SISTEM', 'MANUAL'],
   LAMPIRAN_REFTYPE:  ['KONTRAK', 'STATUS_HARIAN', 'PESANAN', 'REALISASI',
@@ -179,14 +181,15 @@ var ACTION_MAP = {
   'realisasi.create': { handler: realisasiCreate, roles: ['PEMBINA', 'SENAT'] },
   'realisasi.ttd':    { handler: realisasiTtd,   roles: ['PEMBINA', 'SENAT'] },
 
-  // Rekap bulanan (TAHAP 3)
-  'rekap.get':        { handler: rekapGet,       roles: ['PPK', 'KPA'] },
+  // Rekap bulanan (TAHAP 3 + gerbang Wadir 3)
+  'rekap.get':        { handler: rekapGet,       roles: ['PPK', 'KPA', 'WADIR3'] },
   'rekap.verify':     { handler: rekapVerify,    roles: ['PPK'] },
   'rekap.final':      { handler: rekapFinal,     roles: ['PPK'] },
+  'rekap.approve_wadir3': { handler: rekapApproveWadir3, roles: ['WADIR3'] },
 
   // Pembayaran (TAHAP 4A)
-  'bayar.list':       { handler: bayarList,      roles: ['PPK', 'KPA', 'SENAT'] },
-  'bayar.get':        { handler: bayarGet,       roles: ['PPK', 'KPA', 'SENAT'] },
+  'bayar.list':       { handler: bayarList,      roles: ['PPK', 'KPA', 'SENAT', 'WADIR3'] },
+  'bayar.get':        { handler: bayarGet,       roles: ['PPK', 'KPA', 'SENAT', 'WADIR3'] },
   'bayar.create':     { handler: bayarCreate,    roles: ['PPK'] },
   'bayar.update':     { handler: bayarUpdate,    roles: ['PPK'] },
   'bayar.confirm':    { handler: bayarConfirm,   roles: ['SENAT'] },
@@ -195,7 +198,7 @@ var ACTION_MAP = {
   // Tagihan gagal debet (TAHAP 4A)
   'tagihan.create':   { handler: tagihanCreate,  roles: ['SENAT', 'PPK'] },
   'tagihan.list':     { handler: tagihanList,    roles: [] },
-  'tagihan.summary':  { handler: tagihanSummary, roles: ['PPK', 'KPA'] },
+  'tagihan.summary':  { handler: tagihanSummary, roles: ['PPK', 'KPA', 'WADIR3'] },
   'tagihan.setor':    { handler: tagihanSetor,   roles: ['SENAT'] },
   'tagihan.verify':   { handler: tagihanVerify,  roles: ['PPK'] },
   'tagihan.waive':    { handler: tagihanWaive,   roles: ['PPK'] },
@@ -210,8 +213,8 @@ var ACTION_MAP = {
   'pengguna.reset_pin': { handler: penggunaResetPin, roles: ['ADMIN'] },
 
   // Laporan & Audit (TAHAP 7)
-  'laporan.bulanan':  { handler: laporanBulanan, roles: ['PPK', 'KPA'] },
-  'audit.list':       { handler: auditList,      roles: ['ADMIN', 'PPK', 'KPA'] }
+  'laporan.bulanan':  { handler: laporanBulanan, roles: ['PPK', 'KPA', 'WADIR3'] },
+  'audit.list':       { handler: auditList,      roles: ['ADMIN', 'PPK', 'KPA', 'WADIR3'] }
 };
 
 /** Health check. */
@@ -1339,6 +1342,16 @@ function rekapFinal(payload, session) {
   return _rekapSetStatus_(session, bulan, 'TERVERIFIKASI_PPK', 'FINAL', 'final');
 }
 
+/**
+ * FINAL → DISETUJUI_WADIR3 (Wadir 3): otorisasi pencairan pembayaran
+ * (ke rekening taruna via SP2D, lalu auto-debet ke penyedia) — bukan koreksi
+ * angka, nominal sudah beku sejak FINAL. Syarat wajib sebelum bayar.create.
+ */
+function rekapApproveWadir3(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  return _rekapSetStatus_(session, bulan, 'FINAL', 'DISETUJUI_WADIR3', 'approve_wadir3');
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // ▼▼▼ 15_pembayaran.gs ▼▼▼
 // ═══════════════════════════════════════════════════════════════════
@@ -1388,15 +1401,16 @@ function bayarGet(payload, session) {
   return { pembayaran: b, lampiran: lampiranList('PEMBAYARAN', b.bayar_id) };
 }
 
-/** Buat pembayaran: syarat rekap bulan FINAL; nilai_total = SUM(nominal) snapshot. */
+/** Buat pembayaran: syarat rekap bulan DISETUJUI_WADIR3; nilai_total = SUM(nominal) snapshot. */
 function bayarCreate(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
 
   var rekap = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
   if (!rekap.length) throw _fail_('Belum ada rekap untuk bulan ' + bulan + '.');
   rekap.forEach(function (r) {
-    if (String(r.status) !== 'FINAL') {
-      throw _fail_('Rekap bulan ' + bulan + ' belum FINAL (ada baris ' + r.status + ') — finalkan dulu sebagai dasar SPM.');
+    if (String(r.status) !== 'DISETUJUI_WADIR3') {
+      throw _fail_('Rekap bulan ' + bulan + ' belum disetujui Wadir 3 (status sekarang ' + r.status +
+        ') — finalkan (PPK) lalu minta persetujuan Wadir 3 dulu sebelum membuat pembayaran.');
     }
   });
 
@@ -1559,7 +1573,11 @@ function tagihanCreate(payload, session) {
   if (!rekap.length) throw _fail_('Belum ada rekap untuk bulan ' + bulan + '.');
   var rekapNit = {};
   rekap.forEach(function (r) {
-    if (String(r.status) !== 'FINAL') throw _fail_('Rekap bulan ' + bulan + ' belum FINAL — tagihan butuh dasar nominal beku.');
+    // FINAL atau DISETUJUI_WADIR3 sama-sama berarti nominal sudah beku — status
+    // hanya maju (tidak pernah balik ke FINAL setelah disetujui Wadir 3).
+    if (r.status !== 'FINAL' && r.status !== 'DISETUJUI_WADIR3') {
+      throw _fail_('Rekap bulan ' + bulan + ' belum FINAL — tagihan butuh dasar nominal beku.');
+    }
     rekapNit[String(r.nit)] = r;
   });
 
