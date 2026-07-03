@@ -39,15 +39,17 @@ export function HalamanKontrak() {
       {penyediaQ.memuat && !penyediaQ.data && <LoadingSpinner />}
       {penyediaQ.galat && !penyediaQ.data && <ErrorMessage pesan={penyediaQ.galat} onRetry={penyediaQ.refresh} />}
       {penyediaQ.data && (penyediaQ.data.penyedia ?? []).length === 0 && <EmptyState pesan="Belum ada penyedia." />}
-      {penyediaQ.data?.penyedia?.map((p) => (
-        <Card key={p.penyedia_id} className="flex items-center justify-between active:bg-primary-light/30" onClick={() => setModalPenyedia(p)}>
-          <div>
-            <p className="font-semibold">{p.nama}</p>
-            <p className="text-sm text-gray-500">{p.kontak}</p>
-          </div>
-          <Badge status={p.status} />
-        </Card>
-      ))}
+      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-4 xl:grid-cols-3">
+        {penyediaQ.data?.penyedia?.map((p) => (
+          <Card key={p.penyedia_id} className="flex items-center justify-between active:bg-primary-light/30" onClick={() => setModalPenyedia(p)}>
+            <div>
+              <p className="font-semibold">{p.nama}</p>
+              <p className="text-sm text-gray-500">{p.kontak}</p>
+            </div>
+            <Badge status={p.status} />
+          </Card>
+        ))}
+      </div>
 
       {/* ── Kontrak ──────────────────────────────────────────────────── */}
       <div className="mt-2 flex items-center justify-between">
@@ -57,34 +59,36 @@ export function HalamanKontrak() {
       {kontrakQ.memuat && !kontrakQ.data && <LoadingSpinner />}
       {kontrakQ.galat && !kontrakQ.data && <ErrorMessage pesan={kontrakQ.galat} onRetry={kontrakQ.refresh} />}
       {kontrakQ.data && (kontrakQ.data.kontrak ?? []).length === 0 && <EmptyState pesan="Belum ada kontrak." />}
-      {kontrakQ.data?.kontrak?.map((k) => (
-        <Card key={k.kontrak_id} className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-semibold">{namaPenyedia.get(k.penyedia_id) ?? k.penyedia_id}</p>
-              <p className="text-sm text-gray-500">
-                {formatRupiah(k.harga_per_porsi)}/porsi · {k.porsi_per_hari}× sehari
-              </p>
-              <p className="text-xs text-gray-400">{k.tgl_mulai} s.d. {k.tgl_akhir}</p>
+      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-4 xl:grid-cols-3">
+        {kontrakQ.data?.kontrak?.map((k) => (
+          <Card key={k.kontrak_id} className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-semibold">{namaPenyedia.get(k.penyedia_id) ?? k.penyedia_id}</p>
+                <p className="text-sm text-gray-500">
+                  {formatRupiah(k.harga_per_porsi)}/porsi · {k.porsi_per_hari}× sehari
+                </p>
+                <p className="text-xs text-gray-400">{k.tgl_mulai} s.d. {k.tgl_akhir}</p>
+              </div>
+              <Badge status={k.status} />
             </div>
-            <Badge status={k.status} />
-          </div>
-          {k.status === 'DRAFT' && (
+            {k.status === 'DRAFT' && (
+              <div className="flex gap-2">
+                <Button varian="garis" className="flex-1" onClick={() => setModalKontrak(k)}>Ubah</Button>
+                <ButtonSetujui kontrakId={k.kontrak_id} onSukses={kontrakQ.refresh} />
+              </div>
+            )}
             <div className="flex gap-2">
-              <Button varian="garis" className="flex-1" onClick={() => setModalKontrak(k)}>Ubah</Button>
-              <ButtonSetujui kontrakId={k.kontrak_id} onSukses={kontrakQ.refresh} />
+              <Button varian="garis" className="flex-1" onClick={() => setLampiranKontrakId(k.kontrak_id)}>
+                📎 Lampiran
+              </Button>
+              <Button varian="garis" className="flex-1" onClick={() => setMenuKontrakId(k.kontrak_id)}>
+                🍽️ Menu
+              </Button>
             </div>
-          )}
-          <div className="flex gap-2">
-            <Button varian="garis" className="flex-1" onClick={() => setLampiranKontrakId(k.kontrak_id)}>
-              📎 Lampiran
-            </Button>
-            <Button varian="garis" className="flex-1" onClick={() => setMenuKontrakId(k.kontrak_id)}>
-              🍽️ Menu
-            </Button>
-          </div>
-        </Card>
-      ))}
+          </Card>
+        ))}
+      </div>
 
       {modalPenyedia && (
         <ModalPenyedia

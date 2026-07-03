@@ -28,9 +28,9 @@ export function HalamanPesananList() {
 
       {memuat && !data && <LoadingSpinner label="Memuat pesanan…" />}
       {galat && !data && <ErrorMessage pesan={galat} onRetry={refresh} />}
-      {data && data.pesanan.length === 0 && <EmptyState pesan="Belum ada pesanan bulan ini." />}
+      {data && (data.pesanan ?? []).length === 0 && <EmptyState pesan="Belum ada pesanan bulan ini." />}
 
-      {data?.pesanan
+      {(data?.pesanan ?? [])
         .slice()
         .sort((a, b) => b.tgl_makan.localeCompare(a.tgl_makan))
         .map((p) => (

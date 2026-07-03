@@ -35,18 +35,20 @@ export function HalamanTarunaList() {
       {galat && !data && <ErrorMessage pesan={galat} onRetry={refresh} />}
       {data && data.taruna.length === 0 && <EmptyState pesan="Belum ada data taruna." />}
 
-      {data?.taruna
-        .slice()
-        .sort((a, b) => a.nama.localeCompare(b.nama))
-        .map((t) => (
-          <Card key={t.nit} className="flex items-center justify-between active:bg-primary-light/30" onClick={() => setModal(t)}>
-            <div>
-              <p className="font-semibold">{t.nama}</p>
-              <p className="text-sm text-gray-500">{t.nit} · {t.prodi} · Tk.{t.tingkat} · {t.kelas}</p>
-            </div>
-            <Badge status={t.status} />
-          </Card>
-        ))}
+      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-4 xl:grid-cols-3">
+        {(data?.taruna ?? [])
+          .slice()
+          .sort((a, b) => a.nama.localeCompare(b.nama))
+          .map((t) => (
+            <Card key={t.nit} className="flex items-center justify-between active:bg-primary-light/30" onClick={() => setModal(t)}>
+              <div>
+                <p className="font-semibold">{t.nama}</p>
+                <p className="text-sm text-gray-500">{t.nit} · {t.prodi} · Tk.{t.tingkat} · {t.kelas}</p>
+              </div>
+              <Badge status={t.status} />
+            </Card>
+          ))}
+      </div>
 
       {modal && (
         <ModalForm

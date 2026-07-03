@@ -162,20 +162,22 @@ export function HalamanStatusTaruna() {
       {statusQ.memuat && !statusQ.data && <LoadingSpinner />}
       {statusQ.galat && !statusQ.data && <ErrorMessage pesan={statusQ.galat} onRetry={statusQ.refresh} />}
       {statusQ.data?.status?.length === 0 && <EmptyState pesan="Tidak ada status tercatat." />}
-      {(statusQ.data?.status ?? [])
-        .slice().sort((a, b) => b.tanggal.localeCompare(a.tanggal))
-        .map((s) => {
-          const t = daftarTaruna.find((x) => x.nit === s.nit);
-          return (
-            <Card key={s.status_id} className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">{t?.nama ?? s.nit}</p>
-                <p className="text-xs text-gray-400">{s.tanggal}</p>
-              </div>
-              <Badge status="DIKEMBALIKAN">{s.status.replace(/_/g, ' ')}</Badge>
-            </Card>
-          );
-        })}
+      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-4 xl:grid-cols-3">
+        {(statusQ.data?.status ?? [])
+          .slice().sort((a, b) => b.tanggal.localeCompare(a.tanggal))
+          .map((s) => {
+            const t = daftarTaruna.find((x) => x.nit === s.nit);
+            return (
+              <Card key={s.status_id} className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">{t?.nama ?? s.nit}</p>
+                  <p className="text-xs text-gray-400">{s.tanggal}</p>
+                </div>
+                <Badge status="DIKEMBALIKAN">{s.status.replace(/_/g, ' ')}</Badge>
+              </Card>
+            );
+          })}
+      </div>
     </div>
   );
 }

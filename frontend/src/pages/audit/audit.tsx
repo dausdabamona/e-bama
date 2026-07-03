@@ -53,15 +53,17 @@ export function HalamanAudit() {
       {galat && !data && <ErrorMessage pesan={galat} onRetry={refresh} />}
       {data && (data.log ?? []).length === 0 && <EmptyState pesan="Tidak ada log pada rentang ini." />}
 
-      {data?.log?.map((l, i) => (
-        <Card key={i} className="text-sm">
-          <div className="flex items-center justify-between">
-            <span className="font-mono font-semibold">{l.aksi}</span>
-            <span className="text-xs text-gray-400">{l.timestamp}</span>
-          </div>
-          <p className="text-xs text-gray-500">{l.user_id} · {l.ref_type} {l.ref_id}</p>
-        </Card>
-      ))}
+      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-4 xl:grid-cols-3">
+        {data?.log?.map((l, i) => (
+          <Card key={i} className="text-sm">
+            <div className="flex items-center justify-between">
+              <span className="font-mono font-semibold">{l.aksi}</span>
+              <span className="text-xs text-gray-400">{l.timestamp}</span>
+            </div>
+            <p className="text-xs text-gray-500">{l.user_id} · {l.ref_type} {l.ref_id}</p>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }

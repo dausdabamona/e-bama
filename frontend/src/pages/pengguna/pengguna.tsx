@@ -90,28 +90,30 @@ export function HalamanPengguna() {
       {galat && !data && <ErrorMessage pesan={galat} onRetry={refresh} />}
       {data && daftar.length === 0 && <EmptyState pesan="Tidak ada pengguna yang cocok." />}
 
-      {daftar.map((p) => (
-        <Card key={p.user_id} className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-semibold">{p.nama}</p>
-              <p className="text-sm text-gray-500">{p.user_id} · {p.role}</p>
+      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-4 xl:grid-cols-3">
+        {daftar.map((p) => (
+          <Card key={p.user_id} className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-semibold">{p.nama}</p>
+                <p className="text-sm text-gray-500">{p.user_id} · {p.role}</p>
+              </div>
+              <Badge status={p.status} />
             </div>
-            <Badge status={p.status} />
-          </div>
-          <div className="flex gap-2">
-            <Button varian="garis" className="flex-1" onClick={() => setModal(p)}>Ubah</Button>
-            <Button varian="garis" className="flex-1" onClick={() => void resetPin(p.user_id)}>Reset PIN</Button>
-          </div>
-          <Button
-            varian={p.status === 'AKTIF' ? 'bahaya' : 'utama'}
-            onClick={() => void toggleStatus(p)}
-            disabled={proses === p.user_id}
-          >
-            {proses === p.user_id ? 'Memproses…' : p.status === 'AKTIF' ? 'Nonaktifkan' : 'Aktifkan Kembali'}
-          </Button>
-        </Card>
-      ))}
+            <div className="flex gap-2">
+              <Button varian="garis" className="flex-1" onClick={() => setModal(p)}>Ubah</Button>
+              <Button varian="garis" className="flex-1" onClick={() => void resetPin(p.user_id)}>Reset PIN</Button>
+            </div>
+            <Button
+              varian={p.status === 'AKTIF' ? 'bahaya' : 'utama'}
+              onClick={() => void toggleStatus(p)}
+              disabled={proses === p.user_id}
+            >
+              {proses === p.user_id ? 'Memproses…' : p.status === 'AKTIF' ? 'Nonaktifkan' : 'Aktifkan Kembali'}
+            </Button>
+          </Card>
+        ))}
+      </div>
 
       {modal && (
         <ModalForm

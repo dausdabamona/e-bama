@@ -59,30 +59,32 @@ export function HalamanTagihanList() {
 
       {memuat && !data && <LoadingSpinner label="Memuat tagihan…" />}
       {galat && !data && <ErrorMessage pesan={galat} onRetry={refresh} />}
-      {data && data.tagihan.length === 0 && <EmptyState pesan="Tidak ada tagihan." />}
+      {data && (data.tagihan ?? []).length === 0 && <EmptyState pesan="Tidak ada tagihan." />}
 
-      {data?.tagihan
-        .slice()
-        .sort((a, b) => b.bulan.localeCompare(a.bulan))
-        .map((t) => (
-          <Link key={t.tagihan_id} to={`/tagihan/${t.tagihan_id}`}>
-            <Card className="flex items-center justify-between active:bg-primary-light/30">
-              <div>
-                <p className="font-semibold">{t.nit} — {t.bulan}</p>
-                <p className="text-sm text-gray-500">{formatRupiah(t.nominal)}</p>
-                <p className="text-xs text-gray-400">{t.sebab.replace(/_/g, ' ')}</p>
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <Badge status={t.status} />
-                {t.status === 'TERTAGIH' && t.level_aktif > 0 && (
-                  <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
-                    {labelLevel(t.level_aktif)}
-                  </span>
-                )}
-              </div>
-            </Card>
-          </Link>
-        ))}
+      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-4 xl:grid-cols-3">
+        {(data?.tagihan ?? [])
+          .slice()
+          .sort((a, b) => b.bulan.localeCompare(a.bulan))
+          .map((t) => (
+            <Link key={t.tagihan_id} to={`/tagihan/${t.tagihan_id}`}>
+              <Card className="flex items-center justify-between active:bg-primary-light/30">
+                <div>
+                  <p className="font-semibold">{t.nit} — {t.bulan}</p>
+                  <p className="text-sm text-gray-500">{formatRupiah(t.nominal)}</p>
+                  <p className="text-xs text-gray-400">{t.sebab.replace(/_/g, ' ')}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <Badge status={t.status} />
+                  {t.status === 'TERTAGIH' && t.level_aktif > 0 && (
+                    <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
+                      {labelLevel(t.level_aktif)}
+                    </span>
+                  )}
+                </div>
+              </Card>
+            </Link>
+          ))}
+      </div>
     </div>
   );
 }
