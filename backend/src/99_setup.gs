@@ -67,11 +67,9 @@ function _skema_() {
       ['input_by','s'], ['timestamp','dt']
     ]],
     [SHEETS.PESANAN, [
-      // appr_by/appr_at (persetujuan PPK, Form-01) di UJUNG agar sheet lama tidak bergeser
       ['pesanan_id','s'], ['tgl_makan','d'], ['kontrak_id','s'], ['jml_taruna','i'],
       ['menu','s'], ['catatan','s'], ['status', E.PESANAN_STATUS],
-      ['created_by','s'], ['verif_by','s'], ['verif_at','dt'], ['revisi_dari','s'],
-      ['appr_by','s'], ['appr_at','dt']
+      ['created_by','s'], ['verif_by','s'], ['verif_at','dt'], ['revisi_dari','s']
     ]],
     [SHEETS.REALISASI, [
       ['real_id','s'], ['pesanan_id','s'], ['tanggal','d'], ['porsi_diterima','i'],

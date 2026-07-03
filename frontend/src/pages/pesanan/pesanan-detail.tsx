@@ -18,8 +18,7 @@ import { urlDrive, type Lampiran, type Pesanan } from './tipe';
 const TIMELINE: { status: Pesanan['status']; label: string }[] = [
   { status: 'DRAFT', label: 'Dibuat Senat' },
   { status: 'DIAJUKAN', label: 'Diajukan' },
-  { status: 'DISETUJUI_PEMBINA', label: 'Disetujui Pembina' },
-  { status: 'DISETUJUI_PPK', label: 'Disetujui PPK' },
+  { status: 'DISETUJUI', label: 'Disetujui Pembina' },
   { status: 'TERKIRIM', label: 'Terkirim ke Penyedia' }
 ];
 
@@ -40,7 +39,7 @@ export function HalamanPesananDetail() {
 
   const p = data.pesanan;
   const bisaSubmit = p.status === 'DRAFT' && p.created_by === session?.user_id;
-  const bisaKirim = p.status === 'DISETUJUI_PPK';
+  const bisaKirim = p.status === 'DISETUJUI';
   const bisaRevisi = p.status === 'TERKIRIM';
   const idxTimeline = TIMELINE.findIndex((t) => t.status === p.status);
 

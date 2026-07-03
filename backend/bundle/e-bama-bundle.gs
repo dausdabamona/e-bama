@@ -60,7 +60,7 @@ var ENUM = {
   BANK:              ['BNI', 'BSI'],                        // TARUNA.bank
   KONTRAK_STATUS:    ['DRAFT', 'DISETUJUI_PPK'],
   STATUS_HARIAN:     ['PESIAR', 'CUTI', 'SAKIT_RUMAH', 'PENUNDAAN_STUDI', 'KEGIATAN_LUAR_KAMPUS'],
-  PESANAN_STATUS:    ['DRAFT', 'DIAJUKAN', 'DIKEMBALIKAN', 'DISETUJUI_PEMBINA', 'DISETUJUI_PPK', 'TERKIRIM'],
+  PESANAN_STATUS:    ['DRAFT', 'DIAJUKAN', 'DIKEMBALIKAN', 'DISETUJUI', 'TERKIRIM'],
   PEMBAYARAN_STATUS: ['DIAJUKAN', 'SP2D_TERBIT', 'DITRANSFER', 'DIKONFIRMASI', 'SELESAI'],
   TAGIHAN_STATUS:    ['TERTAGIH', 'LUNAS', 'DIHAPUSKAN', 'ESKALASI_MANUAL'],
   TAGIHAN_SEBAB:     ['GAGAL_DEBET', 'SALDO_KURANG', 'REKENING_BERMASALAH'],
@@ -170,8 +170,7 @@ var ACTION_MAP = {
   'pesanan.create':   { handler: pesananCreate,  roles: ['SENAT'] },
   'pesanan.submit':   { handler: pesananSubmit,  roles: ['SENAT'] },
   'pesanan.verify':   { handler: pesananVerify,  roles: ['PEMBINA'] },
-  'pesanan.approve':  { handler: pesananApprove, roles: ['PPK'] },
-  'pesanan.return':   { handler: pesananReturn,  roles: ['PEMBINA', 'PPK'] },
+  'pesanan.return':   { handler: pesananReturn,  roles: ['PEMBINA'] },
   'pesanan.kirim':    { handler: pesananKirim,   roles: ['SENAT'] },
   'pesanan.revisi':   { handler: pesananRevisi,  roles: ['SENAT'] },
 
@@ -885,16 +884,16 @@ function statusList(payload, session) {
 // ▼▼▼ 12_pesanan.gs ▼▼▼
 // ═══════════════════════════════════════════════════════════════════
 /**
- * 12_pesanan.gs — Pesanan makan Pre-Order H-1 (SOP no. 5–8, Form-01)
- * Mesin status: DRAFT → DIAJUKAN → (DIKEMBALIKAN | DISETUJUI_PEMBINA)
- *               → (DIKEMBALIKAN | DISETUJUI_PPK) → TERKIRIM
- * Rantai Form-01: Senat merencanakan → Pembina memverifikasi → PPK menyetujui
- *               → Senat menyampaikan ke penyedia paling lambat H-1.
+ * 12_pesanan.gs — Pesanan makan Pre-Order H-1 (SOP no. 5–7)
+ * Mesin status: DRAFT → DIAJUKAN → (DIKEMBALIKAN | DISETUJUI) → TERKIRIM
+ *
+ * Catatan koreksi: PPK TIDAK menyetujui pesanan harian — PPK menyetujui
+ * REKAP_BULANAN (lihat 14_rekap.gs). Pembina adalah satu-satunya verifikator
+ * pesanan sebelum dikirim ke penyedia.
  *
  * ACTION: pesanan.list, pesanan.get (semua login),
  *         pesanan.create/submit/kirim/revisi (Senat),
- *         pesanan.verify (Pembina), pesanan.approve (PPK),
- *         pesanan.return (Pembina, PPK)
+ *         pesanan.verify/return (Pembina)
  *
  * jml_taruna = SNAPSHOT (taruna AKTIF − STATUS_HARIAN tgl tsb); koreksi manual
  * wajib catatan. Transisi ilegal → error eksplisit.
@@ -968,8 +967,7 @@ function pesananCreate(payload, session) {
     catatan: catatan,
     status: 'DRAFT',
     created_by: session.user_id,
-    verif_by: '', verif_at: '', revisi_dari: '',
-    appr_by: '', appr_at: ''
+    verif_by: '', verif_at: '', revisi_dari: ''
   };
   sheetAppend(SHEETS.PESANAN, obj);
   auditLog(session, 'pesanan.create', 'PESANAN', obj.pesanan_id, null,
@@ -1000,39 +998,27 @@ function pesananSubmit(payload, session) {
   return { pesanan_id: p.pesanan_id, status: 'DIAJUKAN' };
 }
 
-/** DIAJUKAN → DISETUJUI_PEMBINA (Pembina, SOP no. 6). */
+/** DIAJUKAN → DISETUJUI (Pembina, SOP no. 6). */
 function pesananVerify(payload, session) {
   var id = payload && payload.pesanan_id;
-  _pesananTransisi_(session, id, 'DIAJUKAN', 'DISETUJUI_PEMBINA', 'verify',
+  _pesananTransisi_(session, id, 'DIAJUKAN', 'DISETUJUI', 'verify',
     { verif_by: session.user_id, verif_at: new Date() });
-  return { pesanan_id: id, status: 'DISETUJUI_PEMBINA' };
+  return { pesanan_id: id, status: 'DISETUJUI' };
 }
 
-/** DISETUJUI_PEMBINA → DISETUJUI_PPK (PPK, SOP no. 7 / Form-01). */
-function pesananApprove(payload, session) {
-  var id = payload && payload.pesanan_id;
-  _pesananTransisi_(session, id, 'DISETUJUI_PEMBINA', 'DISETUJUI_PPK', 'approve',
-    { appr_by: session.user_id, appr_at: new Date() });
-  return { pesanan_id: id, status: 'DISETUJUI_PPK' };
-}
-
-/**
- * Pengembalian (alasan wajib):
- * Pembina: DIAJUKAN → DIKEMBALIKAN; PPK: DISETUJUI_PEMBINA → DIKEMBALIKAN.
- */
+/** DIAJUKAN → DIKEMBALIKAN (Pembina, alasan wajib). */
 function pesananReturn(payload, session) {
   var id = payload && payload.pesanan_id;
   var alasan = String((payload && payload.alasan) || '').trim();
   if (!alasan) throw _fail_('alasan pengembalian wajib diisi.');
-  var dariStatus = (session.role === 'PPK') ? 'DISETUJUI_PEMBINA' : 'DIAJUKAN';
   var p = _pesanan_(id);
   // Skema tidak punya kolom alasan tersendiri → catat di catatan + AUDIT_LOG
-  var catatan = (p.catatan ? p.catatan + ' | ' : '') + 'DIKEMBALIKAN (' + session.role + '): ' + alasan;
-  _pesananTransisi_(session, id, dariStatus, 'DIKEMBALIKAN', 'return', { catatan: catatan });
+  var catatan = (p.catatan ? p.catatan + ' | ' : '') + 'DIKEMBALIKAN: ' + alasan;
+  _pesananTransisi_(session, id, 'DIAJUKAN', 'DIKEMBALIKAN', 'return', { catatan: catatan });
   return { pesanan_id: id, status: 'DIKEMBALIKAN' };
 }
 
-/** DISETUJUI_PPK → TERKIRIM (Senat), hanya ≤ H-1 dari tgl_makan. */
+/** DISETUJUI → TERKIRIM (Senat), hanya ≤ H-1 dari tgl_makan. */
 function pesananKirim(payload, session) {
   var id = payload && payload.pesanan_id;
   var p = _pesanan_(id);
@@ -1040,7 +1026,7 @@ function pesananKirim(payload, session) {
     throw _fail_('Pengiriman hanya boleh H-1 atau lebih awal dari tgl_makan. ' +
       'Untuk perubahan setelah terkirim gunakan pesanan.revisi dengan BA perubahan.');
   }
-  _pesananTransisi_(session, id, 'DISETUJUI_PPK', 'TERKIRIM', 'kirim', null);
+  _pesananTransisi_(session, id, 'DISETUJUI', 'TERKIRIM', 'kirim', null);
   return { pesanan_id: id, status: 'TERKIRIM' };
 }
 
@@ -2061,11 +2047,9 @@ function _skema_() {
       ['input_by','s'], ['timestamp','dt']
     ]],
     [SHEETS.PESANAN, [
-      // appr_by/appr_at (persetujuan PPK, Form-01) di UJUNG agar sheet lama tidak bergeser
       ['pesanan_id','s'], ['tgl_makan','d'], ['kontrak_id','s'], ['jml_taruna','i'],
       ['menu','s'], ['catatan','s'], ['status', E.PESANAN_STATUS],
-      ['created_by','s'], ['verif_by','s'], ['verif_at','dt'], ['revisi_dari','s'],
-      ['appr_by','s'], ['appr_at','dt']
+      ['created_by','s'], ['verif_by','s'], ['verif_at','dt'], ['revisi_dari','s']
     ]],
     [SHEETS.REALISASI, [
       ['real_id','s'], ['pesanan_id','s'], ['tanggal','d'], ['porsi_diterima','i'],

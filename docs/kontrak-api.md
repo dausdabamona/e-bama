@@ -59,16 +59,17 @@ Modul: `taruna.*` → `10_taruna.gs`; `penyedia.*` & `kontrak.*` → `05_master.
 | `status.batch` | ADMIN, PEMBINA | input massal (mis. satu kelas pesiar) |
 | `status.list` | semua login | per rentang tanggal |
 
-### Pesanan (SOP no. 5–8, Form-01) — mesin status `DRAFT → DIAJUKAN → (DIKEMBALIKAN | DISETUJUI_PEMBINA) → (DIKEMBALIKAN | DISETUJUI_PPK) → TERKIRIM`
+### Pesanan (SOP no. 5–7) — mesin status `DRAFT → DIAJUKAN → (DIKEMBALIKAN | DISETUJUI) → TERKIRIM`
+
+> PPK menyetujui `REKAP_BULANAN`, bukan pesanan harian — lihat bagian Rekap Bulanan.
 
 | Action | Role | Keterangan |
 |---|---|---|
 | `pesanan.create` | SENAT | tgl_makan unik; `jml_taruna` otomatis (AKTIF − STATUS_HARIAN), koreksi manual wajib catatan; simpan snapshot |
 | `pesanan.submit` | SENAT | `DRAFT → DIAJUKAN`; hanya pembuat |
-| `pesanan.verify` | PEMBINA | `DIAJUKAN → DISETUJUI_PEMBINA` (SOP no. 6) |
-| `pesanan.approve` | PPK | `DISETUJUI_PEMBINA → DISETUJUI_PPK` (SOP no. 7 / Form-01) — isi appr_by, appr_at |
-| `pesanan.return` | PEMBINA, PPK | Pembina: `DIAJUKAN → DIKEMBALIKAN`; PPK: `DISETUJUI_PEMBINA → DIKEMBALIKAN`; alasan wajib |
-| `pesanan.kirim` | SENAT | `DISETUJUI_PPK → TERKIRIM`; hanya ≤ H-1 dari tgl_makan; lewat itu tolak → arahkan ke `pesanan.revisi` |
+| `pesanan.verify` | PEMBINA | `DIAJUKAN → DISETUJUI` (SOP no. 6) |
+| `pesanan.return` | PEMBINA | `DIAJUKAN → DIKEMBALIKAN`; alasan wajib |
+| `pesanan.kirim` | SENAT | `DISETUJUI → TERKIRIM`; hanya ≤ H-1 dari tgl_makan; lewat itu tolak → arahkan ke `pesanan.revisi` |
 | `pesanan.revisi` | SENAT | pesanan baru ber-`revisi_dari` (SOP 7b); wajib lampiran BA perubahan |
 | `pesanan.list` / `pesanan.get` | semua login | |
 

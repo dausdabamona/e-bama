@@ -6,13 +6,11 @@ export interface Pesanan {
   jml_taruna: number;
   menu: string;
   catatan: string;
-  status: 'DRAFT' | 'DIAJUKAN' | 'DIKEMBALIKAN' | 'DISETUJUI_PEMBINA' | 'DISETUJUI_PPK' | 'TERKIRIM';
+  status: 'DRAFT' | 'DIAJUKAN' | 'DIKEMBALIKAN' | 'DISETUJUI' | 'TERKIRIM';
   created_by: string;
   verif_by: string;
   verif_at: string;
   revisi_dari: string;
-  appr_by: string;
-  appr_at: string;
 }
 
 export interface Lampiran {

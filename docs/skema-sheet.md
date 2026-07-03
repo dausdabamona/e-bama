@@ -89,11 +89,14 @@ Surat pendukung → LAMPIRAN `ref_type=STATUS_HARIAN`.
 
 ### 6. PESANAN
 
-Pre-Order H-1, satu pesanan per hari (SOP no. 5–8, selaras Form-01).
-Mesin status: `DRAFT → DIAJUKAN → (DIKEMBALIKAN | DISETUJUI_PEMBINA) →
-(DIKEMBALIKAN | DISETUJUI_PPK) → TERKIRIM`.
-Rantai Form-01: Senat merencanakan → Pembina memverifikasi → PPK menyetujui →
-Senat menyampaikan ke penyedia paling lambat H-1.
+Pre-Order H-1, satu pesanan per hari (SOP no. 5–7).
+Mesin status: `DRAFT → DIAJUKAN → (DIKEMBALIKAN | DISETUJUI) → TERKIRIM`.
+
+> **Koreksi (dikonfirmasi pemilik produk):** PPK **tidak** menyetujui pesanan
+> harian — PPK menyetujui `REKAP_BULANAN` (lihat sheet 13). Pembina adalah
+> satu-satunya verifikator pesanan sebelum dikirim ke penyedia. Form-01
+> mencantumkan tanda tangan PPK sebagai bagian arsip administratif, bukan
+> gerbang persetujuan sistem per-hari.
 
 | Kolom | Tipe | Keterangan |
 |---|---|---|
@@ -103,13 +106,11 @@ Senat menyampaikan ke penyedia paling lambat H-1.
 | jml_taruna 📸 | integer | snapshot: taruna AKTIF − STATUS_HARIAN tgl tsb; boleh dikoreksi manual dengan catatan wajib |
 | menu | string | |
 | catatan | string | wajib diisi bila jml_taruna ≠ hitungan otomatis |
-| status | enum | `DRAFT` / `DIAJUKAN` / `DIKEMBALIKAN` / `DISETUJUI_PEMBINA` / `DISETUJUI_PPK` / `TERKIRIM` |
+| status | enum | `DRAFT` / `DIAJUKAN` / `DIKEMBALIKAN` / `DISETUJUI` / `TERKIRIM` |
 | created_by | FK → PENGGUNA | Senat |
 | verif_by | FK → PENGGUNA | Pembina |
 | verif_at | datetime | |
 | revisi_dari | FK → PESANAN | terisi bila pesanan ini revisi setelah TERKIRIM (SOP 7b); wajib lampiran BA perubahan |
-| appr_by | FK → PENGGUNA | PPK yang menyetujui (Form-01) — kolom di UJUNG agar sheet lama tidak bergeser |
-| appr_at | datetime | |
 
 ### 7. REALISASI
 
