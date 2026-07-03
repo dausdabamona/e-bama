@@ -1,6 +1,6 @@
 // /kontrak (PPK) — CRUD Penyedia & Kontrak + unggah lampiran (menu & nilai
 // gizi, BA penunjukan, notulen rapat) sebagai dokumen pendukung kontrak.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
@@ -15,7 +15,7 @@ import { ambilBerkasInput, berkasKeBase64 } from '../../lib/berkas';
 import { useListCache } from '../../lib/use-list-cache';
 import { urlDrive, type Lampiran } from '../pesanan/tipe';
 import { formatRupiah } from '../tagihan/tipe';
-import { JENIS_LAMPIRAN_KONTRAK, validasiNpwpMask, type Kontrak, type Penyedia } from './tipe';
+import { HARI, JENIS_LAMPIRAN_KONTRAK, MENU_SOP_DEFAULT, validasiNpwpMask, type Kontrak, type MenuHari, type Penyedia } from './tipe';
 
 export function HalamanKontrak() {
   const penyediaQ = useListCache<{ penyedia: Penyedia[] }>('penyedia.list', {});
@@ -23,6 +23,7 @@ export function HalamanKontrak() {
   const [modalPenyedia, setModalPenyedia] = useState<Penyedia | 'baru' | null>(null);
   const [modalKontrak, setModalKontrak] = useState<Kontrak | 'baru' | null>(null);
   const [lampiranKontrakId, setLampiranKontrakId] = useState<string | null>(null);
+  const [menuKontrakId, setMenuKontrakId] = useState<string | null>(null);
 
   const namaPenyedia = new Map((penyediaQ.data?.penyedia ?? []).map((p) => [p.penyedia_id, p.nama]));
 
@@ -68,15 +69,18 @@ export function HalamanKontrak() {
             </div>
             <Badge status={k.status} />
           </div>
-          <div className="flex gap-2">
-            {k.status === 'DRAFT' && (
+          {k.status === 'DRAFT' && (
+            <div className="flex gap-2">
               <Button varian="garis" className="flex-1" onClick={() => setModalKontrak(k)}>Ubah</Button>
-            )}
-            {k.status === 'DRAFT' && (
               <ButtonSetujui kontrakId={k.kontrak_id} onSukses={kontrakQ.refresh} />
-            )}
+            </div>
+          )}
+          <div className="flex gap-2">
             <Button varian="garis" className="flex-1" onClick={() => setLampiranKontrakId(k.kontrak_id)}>
               📎 Lampiran
+            </Button>
+            <Button varian="garis" className="flex-1" onClick={() => setMenuKontrakId(k.kontrak_id)}>
+              🍽️ Menu
             </Button>
           </div>
         </Card>
@@ -99,6 +103,9 @@ export function HalamanKontrak() {
       )}
       {lampiranKontrakId && (
         <ModalLampiran kontrakId={lampiranKontrakId} onClose={() => setLampiranKontrakId(null)} />
+      )}
+      {menuKontrakId && (
+        <ModalMenu kontrakId={menuKontrakId} onClose={() => setMenuKontrakId(null)} />
       )}
     </div>
   );
@@ -283,5 +290,102 @@ function ModalLampiran({ kontrakId, onClose }: { kontrakId: string; onClose: () 
         {data && data.lampiran.length === 0 && <EmptyState pesan="Belum ada lampiran." />}
       </div>
     </Modal>
+  );
+}
+
+type FormMenu = Record<string, { pagi: string; siang: string; malam: string }>;
+
+function formMenuKosong(): FormMenu {
+  const f: FormMenu = {};
+  HARI.forEach((h) => { f[h] = { pagi: '', siang: '', malam: '' }; });
+  return f;
+}
+
+function ModalMenu({ kontrakId, onClose }: { kontrakId: string; onClose: () => void }) {
+  const { toast } = useToast();
+  const { data, memuat, galat, refresh } = useListCache<{ menu: MenuHari[] }>('menu.list', { kontrak_id: kontrakId });
+  const [form, setForm] = useState<FormMenu>(formMenuKosong());
+  const [sudahDimuat, setSudahDimuat] = useState(false);
+  const [proses, setProses] = useState(false);
+
+  useEffect(() => {
+    if (data && !sudahDimuat) {
+      const f = formMenuKosong();
+      data.menu.forEach((m) => { f[m.hari] = { pagi: m.menu_pagi, siang: m.menu_siang, malam: m.menu_malam }; });
+      setForm(f);
+      setSudahDimuat(true);
+    }
+  }, [data, sudahDimuat]);
+
+  function ubah(hari: string, field: 'pagi' | 'siang' | 'malam', nilai: string) {
+    setForm((f) => ({ ...f, [hari]: { ...f[hari], [field]: nilai } }));
+  }
+
+  function isiContohSop() {
+    const f = formMenuKosong();
+    HARI.forEach((h) => { f[h] = { ...MENU_SOP_DEFAULT[h] }; });
+    setForm(f);
+    toast('Contoh menu SOP diisi — periksa lalu Simpan Semua.', 'info');
+  }
+
+  async function simpanSemua() {
+    setProses(true);
+    try {
+      for (const h of HARI) {
+        const isi = form[h];
+        await api('menu.upsert', {
+          kontrak_id: kontrakId, hari: h,
+          menu_pagi: isi.pagi, menu_siang: isi.siang, menu_malam: isi.malam
+        });
+      }
+      toast('Menu mingguan tersimpan.', 'sukses');
+      refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
+    } finally {
+      setProses(false);
+    }
+  }
+
+  return (
+    <Modal judul="Menu Mingguan Kontrak" onClose={onClose}>
+      <div className="flex flex-col gap-3">
+        {memuat && !data && <LoadingSpinner />}
+        {galat && !data && <ErrorMessage pesan={galat} onRetry={refresh} />}
+
+        <Button varian="garis" onClick={isiContohSop}>📋 Isi Contoh Menu SOP</Button>
+
+        <div className="flex max-h-[55vh] flex-col gap-4 overflow-y-auto pr-1">
+          {HARI.map((h) => (
+            <div key={h} className="rounded-xl border border-gray-200 p-3">
+              <p className="mb-2 text-sm font-bold text-primary-dark">{h}</p>
+              <div className="flex flex-col gap-2">
+                <TextareaMenu label="Pagi" value={form[h]?.pagi ?? ''} onChange={(v) => ubah(h, 'pagi', v)} />
+                <TextareaMenu label="Siang" value={form[h]?.siang ?? ''} onChange={(v) => ubah(h, 'siang', v)} />
+                <TextareaMenu label="Malam" value={form[h]?.malam ?? ''} onChange={(v) => ubah(h, 'malam', v)} />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <Button onClick={() => void simpanSemua()} disabled={proses}>
+          {proses ? 'Menyimpan…' : 'Simpan Semua Menu'}
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+function TextareaMenu({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <label className="mb-1 block text-xs font-medium text-gray-600">{label}</label>
+      <textarea
+        rows={3}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light"
+      />
+    </div>
   );
 }

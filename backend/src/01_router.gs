@@ -30,6 +30,8 @@ var ACTION_MAP = {
   'kontrak.upsert':   { handler: kontrakUpsert,  roles: ['PPK'] },
   'kontrak.approve':  { handler: kontrakApprove, roles: ['PPK'] },
   'kontrak.lampiran_upload': { handler: kontrakLampiranUpload, roles: ['PPK'] },
+  'menu.list':        { handler: menuList,       roles: [] },
+  'menu.upsert':      { handler: menuUpsert,     roles: ['PPK'] },
 
   // Status harian (TAHAP 3)
   'status.set':       { handler: statusSet,      roles: ['ADMIN', 'PEMBINA'] },

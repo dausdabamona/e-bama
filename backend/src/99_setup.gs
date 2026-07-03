@@ -6,7 +6,7 @@
  *      Lewati bila skrip terikat (bound) langsung ke spreadsheet.
  *   1) setupSemua()        → jalankan ketiga langkah sekaligus (disarankan)
  *    atau satu per satu:
- *   2) setupDatabase()     → buat 13 sheet + header + validasi + format + proteksi
+ *   2) setupDatabase()     → buat 14 sheet + header + validasi + format + proteksi
  *   3) seedAwal()          → 5 akun contoh (PIN default 123456, di-hash SHA-256+SALT)
  *   4) setupFolderDrive()  → folder Drive e-BAMA/{LAMPIRAN,SURAT_PERINGATAN,TEMPLATE}
  *
@@ -61,6 +61,10 @@ function _skema_() {
       ['kontrak_id','s'], ['penyedia_id','s'], ['harga_per_porsi','i'],
       ['porsi_per_hari','i'], ['tgl_mulai','d'], ['tgl_akhir','d'],
       ['status', E.KONTRAK_STATUS], ['approved_by','s'], ['approved_at','dt']
+    ]],
+    [SHEETS.MENU_KONTRAK, [
+      ['menu_id','s'], ['kontrak_id','s'], ['hari', E.HARI],
+      ['menu_pagi','s'], ['menu_siang','s'], ['menu_malam','s']
     ]],
     [SHEETS.STATUS_HARIAN, [
       ['status_id','s'], ['tanggal','d'], ['nit','s'], ['status', E.STATUS_HARIAN],
@@ -123,7 +127,7 @@ function setupSemua() {
 }
 
 /**
- * setupDatabase() — buat/segarkan 13 sheet sesuai skema. Idempotent.
+ * setupDatabase() — buat/segarkan 14 sheet sesuai skema. Idempotent.
  */
 function setupDatabase() {
   var ss = _getSpreadsheet_();

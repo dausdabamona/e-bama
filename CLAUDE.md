@@ -16,7 +16,7 @@ Frontend : React 19 + Vite + TypeScript + Tailwind + Dexie.js + HashRouter + vit
            → deploy GitHub Pages (https://dausdabamona.github.io/e-bama/)
 Backend  : Google Apps Script (GAS) Web App — doPost action-based + token auth
            → dikelola via clasp, dipisah per modul .gs di backend/src/
-Database : Google Spreadsheet — 13 sheet (skema 3NF + 3 snapshot)
+Database : Google Spreadsheet — 14 sheet (skema 3NF + 3 snapshot)
 File     : Google Drive — via sheet LAMPIRAN (polymorphic ref_type/ref_id)
 ```
 

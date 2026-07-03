@@ -37,7 +37,7 @@
 
 ### Master (Admin)
 
-Modul: `taruna.*` → `10_taruna.gs`; `penyedia.*` & `kontrak.*` → `05_master.gs`;
+Modul: `taruna.*` → `10_taruna.gs`; `penyedia.*`, `kontrak.*` & `menu.*` → `05_master.gs`;
 `pengguna.*` → `02_auth.gs`.
 
 | Action | Role | Keterangan |
@@ -51,6 +51,8 @@ Modul: `taruna.*` → `10_taruna.gs`; `penyedia.*` & `kontrak.*` → `05_master.
 | `kontrak.upsert` | PPK | hanya boleh diubah selama `DRAFT` |
 | `kontrak.approve` | PPK | `DRAFT → DISETUJUI_PPK` (SOP no. 4) |
 | `kontrak.lampiran_upload` | PPK | `{kontrak_id, berkas:{base64,nama_file,jenis}}` — menu & nilai gizi (`jenis=MENU_GIZI`), BA penunjukan (`BA`), notulen (`NOTULEN`); boleh kapan saja |
+| `menu.list` | semua login | `{kontrak_id}` → `{menu: [...]}` urut Senin→Minggu |
+| `menu.upsert` | PPK | `{kontrak_id, hari, menu_pagi, menu_siang, menu_malam}` — menu mingguan terjadwal (referensi hari-dalam-minggu, bukan snapshot tanggal); kunci gabungan (kontrak_id, hari) |
 | `pengguna.list` / `pengguna.upsert` / `pengguna.reset_pin` | ADMIN | |
 
 ### Status Harian (SOP: Peringatan no. 2)

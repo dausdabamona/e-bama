@@ -33,6 +33,7 @@ var SHEETS = {
   TARUNA:           'TARUNA',
   PENYEDIA:         'PENYEDIA',
   KONTRAK:          'KONTRAK',
+  MENU_KONTRAK:     'MENU_KONTRAK',
   STATUS_HARIAN:    'STATUS_HARIAN',
   PESANAN:          'PESANAN',
   REALISASI:        'REALISASI',
@@ -60,6 +61,7 @@ var ENUM = {
   ROLE:              ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3'],
   BANK:              ['BNI', 'BSI'],                        // TARUNA.bank
   KONTRAK_STATUS:    ['DRAFT', 'DISETUJUI_PPK'],
+  HARI:              ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU', 'MINGGU'], // MENU_KONTRAK.hari
   STATUS_HARIAN:     ['PESIAR', 'CUTI', 'SAKIT_RUMAH', 'PENUNDAAN_STUDI', 'KEGIATAN_LUAR_KAMPUS'],
   PESANAN_STATUS:    ['DRAFT', 'DIAJUKAN', 'DIKEMBALIKAN', 'DISETUJUI', 'TERKIRIM'],
   PEMBAYARAN_STATUS: ['DIAJUKAN', 'SP2D_TERBIT', 'DITRANSFER', 'DIKONFIRMASI', 'SELESAI'],
@@ -162,6 +164,8 @@ var ACTION_MAP = {
   'kontrak.upsert':   { handler: kontrakUpsert,  roles: ['PPK'] },
   'kontrak.approve':  { handler: kontrakApprove, roles: ['PPK'] },
   'kontrak.lampiran_upload': { handler: kontrakLampiranUpload, roles: ['PPK'] },
+  'menu.list':        { handler: menuList,       roles: [] },
+  'menu.upsert':      { handler: menuUpsert,     roles: ['PPK'] },
 
   // Status harian (TAHAP 3)
   'status.set':       { handler: statusSet,      roles: ['ADMIN', 'PEMBINA'] },
@@ -579,7 +583,8 @@ function lampiranList(refType, refId) {
  * 05_master.gs — Master data penyedia & kontrak + util domain bersama
  *
  * ACTION: penyedia.list, penyedia.upsert (Admin, PPK),
- *         kontrak.list, kontrak.upsert (PPK), kontrak.approve (PPK)
+ *         kontrak.list, kontrak.upsert (PPK), kontrak.approve (PPK),
+ *         menu.list, menu.upsert (PPK) — menu mingguan terjadwal per kontrak
  *
  * Lampiran kontrak (menu & nilai gizi, BA penunjukan, notulen) → LAMPIRAN ref_type=KONTRAK.
  * Setiap aksi tulis → withLock + auditLog.
@@ -762,6 +767,53 @@ function kontrakLampiranUpload(payload, session) {
   var hasil = lampiranSave(session, 'KONTRAK', id, jenis, berkas.base64, berkas.nama_file);
   auditLog(session, 'kontrak.lampiran_upload', 'KONTRAK', id, null, { jenis: jenis, lamp_id: hasil.lamp_id });
   return hasil;
+}
+
+// ── Menu Kontrak ──────────────────────────────────────────────────────────────
+// Menu mingguan terjadwal (referensi hari-dalam-minggu, BUKAN snapshot per
+// tanggal). Terpisah dari kolom bebas PESANAN.menu yang diisi Senat per hari.
+
+/** Menu mingguan 1 kontrak, urut Senin→Minggu. */
+function menuList(payload, session) {
+  var kid = String((payload && payload.kontrak_id) || '').trim();
+  if (!kid) throw _fail_('kontrak_id wajib diisi.');
+  var rows = sheetRead(SHEETS.MENU_KONTRAK, function (r) { return String(r.kontrak_id) === kid; });
+  rows.sort(function (a, b) { return ENUM.HARI.indexOf(a.hari) - ENUM.HARI.indexOf(b.hari); });
+  return { menu: rows };
+}
+
+/** Tambah/ubah menu 1 hari untuk kontrak (PPK). Kunci gabungan: kontrak_id + hari. */
+function menuUpsert(payload, session) {
+  var kid = String((payload && payload.kontrak_id) || '').trim();
+  if (!kid) throw _fail_('kontrak_id wajib diisi.');
+  var k = sheetRead(SHEETS.KONTRAK, function (r) { return String(r.kontrak_id) === kid; })[0];
+  if (!k) throw _fail_('Kontrak tidak ditemukan: ' + kid);
+
+  var hari = String((payload && payload.hari) || '').trim().toUpperCase();
+  if (ENUM.HARI.indexOf(hari) < 0) throw _fail_('hari tidak valid: ' + hari);
+
+  var obj = {
+    kontrak_id: kid,
+    hari: hari,
+    menu_pagi: String((payload && payload.menu_pagi) || '').trim(),
+    menu_siang: String((payload && payload.menu_siang) || '').trim(),
+    menu_malam: String((payload && payload.menu_malam) || '').trim()
+  };
+
+  var lama = sheetRead(SHEETS.MENU_KONTRAK, function (r) {
+    return String(r.kontrak_id) === kid && String(r.hari) === hari;
+  })[0];
+
+  if (lama) {
+    sheetUpdate(SHEETS.MENU_KONTRAK, 'menu_id', lama.menu_id, obj);
+    auditLog(session, 'menu.upsert', 'MENU_KONTRAK', lama.menu_id, lama, obj);
+    obj.menu_id = lama.menu_id;
+    return { menu: obj };
+  }
+  obj.menu_id = nextId('MNU');
+  sheetAppend(SHEETS.MENU_KONTRAK, obj);
+  auditLog(session, 'menu.upsert', 'MENU_KONTRAK', obj.menu_id, null, obj);
+  return { menu: obj };
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -2147,7 +2199,7 @@ function pasangTriggerBackup() {
  *      Lewati bila skrip terikat (bound) langsung ke spreadsheet.
  *   1) setupSemua()        → jalankan ketiga langkah sekaligus (disarankan)
  *    atau satu per satu:
- *   2) setupDatabase()     → buat 13 sheet + header + validasi + format + proteksi
+ *   2) setupDatabase()     → buat 14 sheet + header + validasi + format + proteksi
  *   3) seedAwal()          → 5 akun contoh (PIN default 123456, di-hash SHA-256+SALT)
  *   4) setupFolderDrive()  → folder Drive e-BAMA/{LAMPIRAN,SURAT_PERINGATAN,TEMPLATE}
  *
@@ -2202,6 +2254,10 @@ function _skema_() {
       ['kontrak_id','s'], ['penyedia_id','s'], ['harga_per_porsi','i'],
       ['porsi_per_hari','i'], ['tgl_mulai','d'], ['tgl_akhir','d'],
       ['status', E.KONTRAK_STATUS], ['approved_by','s'], ['approved_at','dt']
+    ]],
+    [SHEETS.MENU_KONTRAK, [
+      ['menu_id','s'], ['kontrak_id','s'], ['hari', E.HARI],
+      ['menu_pagi','s'], ['menu_siang','s'], ['menu_malam','s']
     ]],
     [SHEETS.STATUS_HARIAN, [
       ['status_id','s'], ['tanggal','d'], ['nit','s'], ['status', E.STATUS_HARIAN],
@@ -2264,7 +2320,7 @@ function setupSemua() {
 }
 
 /**
- * setupDatabase() — buat/segarkan 13 sheet sesuai skema. Idempotent.
+ * setupDatabase() — buat/segarkan 14 sheet sesuai skema. Idempotent.
  */
 function setupDatabase() {
   var ss = _getSpreadsheet_();
@@ -2437,4 +2493,3 @@ function _ensureFolder_(parent, nama) {
   if (cari.hasNext()) return cari.next();
   return parent ? parent.createFolder(nama) : DriveApp.createFolder(nama);
 }
-

@@ -2,7 +2,8 @@
  * 05_master.gs — Master data penyedia & kontrak + util domain bersama
  *
  * ACTION: penyedia.list, penyedia.upsert (Admin, PPK),
- *         kontrak.list, kontrak.upsert (PPK), kontrak.approve (PPK)
+ *         kontrak.list, kontrak.upsert (PPK), kontrak.approve (PPK),
+ *         menu.list, menu.upsert (PPK) — menu mingguan terjadwal per kontrak
  *
  * Lampiran kontrak (menu & nilai gizi, BA penunjukan, notulen) → LAMPIRAN ref_type=KONTRAK.
  * Setiap aksi tulis → withLock + auditLog.
@@ -185,4 +186,51 @@ function kontrakLampiranUpload(payload, session) {
   var hasil = lampiranSave(session, 'KONTRAK', id, jenis, berkas.base64, berkas.nama_file);
   auditLog(session, 'kontrak.lampiran_upload', 'KONTRAK', id, null, { jenis: jenis, lamp_id: hasil.lamp_id });
   return hasil;
+}
+
+// ── Menu Kontrak ──────────────────────────────────────────────────────────────
+// Menu mingguan terjadwal (referensi hari-dalam-minggu, BUKAN snapshot per
+// tanggal). Terpisah dari kolom bebas PESANAN.menu yang diisi Senat per hari.
+
+/** Menu mingguan 1 kontrak, urut Senin→Minggu. */
+function menuList(payload, session) {
+  var kid = String((payload && payload.kontrak_id) || '').trim();
+  if (!kid) throw _fail_('kontrak_id wajib diisi.');
+  var rows = sheetRead(SHEETS.MENU_KONTRAK, function (r) { return String(r.kontrak_id) === kid; });
+  rows.sort(function (a, b) { return ENUM.HARI.indexOf(a.hari) - ENUM.HARI.indexOf(b.hari); });
+  return { menu: rows };
+}
+
+/** Tambah/ubah menu 1 hari untuk kontrak (PPK). Kunci gabungan: kontrak_id + hari. */
+function menuUpsert(payload, session) {
+  var kid = String((payload && payload.kontrak_id) || '').trim();
+  if (!kid) throw _fail_('kontrak_id wajib diisi.');
+  var k = sheetRead(SHEETS.KONTRAK, function (r) { return String(r.kontrak_id) === kid; })[0];
+  if (!k) throw _fail_('Kontrak tidak ditemukan: ' + kid);
+
+  var hari = String((payload && payload.hari) || '').trim().toUpperCase();
+  if (ENUM.HARI.indexOf(hari) < 0) throw _fail_('hari tidak valid: ' + hari);
+
+  var obj = {
+    kontrak_id: kid,
+    hari: hari,
+    menu_pagi: String((payload && payload.menu_pagi) || '').trim(),
+    menu_siang: String((payload && payload.menu_siang) || '').trim(),
+    menu_malam: String((payload && payload.menu_malam) || '').trim()
+  };
+
+  var lama = sheetRead(SHEETS.MENU_KONTRAK, function (r) {
+    return String(r.kontrak_id) === kid && String(r.hari) === hari;
+  })[0];
+
+  if (lama) {
+    sheetUpdate(SHEETS.MENU_KONTRAK, 'menu_id', lama.menu_id, obj);
+    auditLog(session, 'menu.upsert', 'MENU_KONTRAK', lama.menu_id, lama, obj);
+    obj.menu_id = lama.menu_id;
+    return { menu: obj };
+  }
+  obj.menu_id = nextId('MNU');
+  sheetAppend(SHEETS.MENU_KONTRAK, obj);
+  auditLog(session, 'menu.upsert', 'MENU_KONTRAK', obj.menu_id, null, obj);
+  return { menu: obj };
 }

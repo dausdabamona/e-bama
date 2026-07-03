@@ -1,4 +1,4 @@
-# Skema Database e-BAMA — Google Spreadsheet (13 Sheet)
+# Skema Database e-BAMA — Google Spreadsheet (14 Sheet)
 
 > **Satu sumber kebenaran skema.** Perubahan skema hanya lewat revisi file ini,
 > bukan langsung di kode. Nama sheet dan kolom: `snake_case`, dikunci di
@@ -68,11 +68,29 @@
 
 Lampiran kontrak (menu & nilai gizi, BA penunjukan penyedia, notulen rapat) → LAMPIRAN `ref_type=KONTRAK`.
 
+### 5. MENU_KONTRAK
+
+Menu mingguan terjadwal sesuai kontrak (referensi hari-dalam-minggu — **bukan**
+snapshot per tanggal). Terpisah dari kolom `menu` di PESANAN, yang tetap bebas
+diisi/diubah Senat per hari secara ad hoc.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| menu_id | string | kunci; `MNU-000001` |
+| kontrak_id | FK → KONTRAK | |
+| hari | enum | `SENIN` / `SELASA` / `RABU` / `KAMIS` / `JUMAT` / `SABTU` / `MINGGU` — unik per (kontrak_id, hari) |
+| menu_pagi | string | daftar menu sarapan, satu item per baris |
+| menu_siang | string | daftar menu makan siang |
+| menu_malam | string | daftar menu makan malam |
+
+Kalau kontrak berganti (kontrak baru dibuat), menu ikut diisi ulang untuk
+`kontrak_id` yang baru — tidak otomatis disalin dari kontrak lama.
+
 ---
 
 ## B. TRANSAKSI
 
-### 5. STATUS_HARIAN
+### 6. STATUS_HARIAN
 
 Taruna yang TIDAK berhak makan pada tanggal tertentu (SOP: Peringatan no. 2).
 
@@ -87,13 +105,13 @@ Taruna yang TIDAK berhak makan pada tanggal tertentu (SOP: Peringatan no. 2).
 
 Surat pendukung → LAMPIRAN `ref_type=STATUS_HARIAN`.
 
-### 6. PESANAN
+### 7. PESANAN
 
 Pre-Order H-1, satu pesanan per hari (SOP no. 5–7).
 Mesin status: `DRAFT → DIAJUKAN → (DIKEMBALIKAN | DISETUJUI) → TERKIRIM`.
 
 > **Koreksi (dikonfirmasi pemilik produk):** PPK **tidak** menyetujui pesanan
-> harian — PPK menyetujui `REKAP_BULANAN` (lihat sheet 13). Pembina adalah
+> harian — PPK menyetujui `REKAP_BULANAN` (lihat sheet 14). Pembina adalah
 > satu-satunya verifikator pesanan sebelum dikirim ke penyedia. Form-01
 > mencantumkan tanda tangan PPK sebagai bagian arsip administratif, bukan
 > gerbang persetujuan sistem per-hari.
@@ -112,7 +130,7 @@ Mesin status: `DRAFT → DIAJUKAN → (DIKEMBALIKAN | DISETUJUI) → TERKIRIM`.
 | verif_at | datetime | |
 | revisi_dari | FK → PESANAN | terisi bila pesanan ini revisi setelah TERKIRIM (SOP 7b); wajib lampiran BA perubahan |
 
-### 7. REALISASI
+### 8. REALISASI
 
 Pendataan penyediaan makan harian (SOP no. 8–9).
 
@@ -132,7 +150,7 @@ Pendataan penyediaan makan harian (SOP no. 8–9).
 
 Foto dokumentasi (terkompres ±200KB) → LAMPIRAN `ref_type=REALISASI`, `jenis=FOTO`.
 
-### 8. PEMBAYARAN
+### 9. PEMBAYARAN
 
 LS via KPPN (SOP no. 11–17).
 Mesin status: `DIAJUKAN → SP2D_TERBIT → DITRANSFER → DIKONFIRMASI → SELESAI`.
@@ -152,7 +170,7 @@ Mesin status: `DIAJUKAN → SP2D_TERBIT → DITRANSFER → DIKONFIRMASI → SELE
 
 Surat blokir, bukti debet bank, invoice penyedia → LAMPIRAN `ref_type=PEMBAYARAN`.
 
-### 9. TAGIHAN
+### 10. TAGIHAN
 
 Piutang gagal debet rekening taruna.
 Status: `TERTAGIH → LUNAS | DIHAPUSKAN | ESKALASI_MANUAL`.
@@ -172,7 +190,7 @@ Status: `TERTAGIH → LUNAS | DIHAPUSKAN | ESKALASI_MANUAL`.
 Bukti setor → LAMPIRAN `ref_type=TAGIHAN`, `jenis=BUKTI_SETOR`.
 Level SP aktif TIDAK disimpan di sini — dibaca `MAX(level)` dari SURAT_PERINGATAN.
 
-### 10. SURAT_PERINGATAN
+### 11. SURAT_PERINGATAN
 
 Riwayat SP per tagihan — **append-only**; eskalasi = INSERT baris baru, bukan UPDATE.
 
@@ -193,7 +211,7 @@ PDF surat → LAMPIRAN `ref_type=SP`.
 
 ## C. PENDUKUNG
 
-### 11. LAMPIRAN — satu-satunya rumah file (polymorphic)
+### 12. LAMPIRAN — satu-satunya rumah file (polymorphic)
 
 | Kolom | Tipe | Keterangan |
 |---|---|---|
@@ -208,7 +226,7 @@ PDF surat → LAMPIRAN `ref_type=SP`.
 
 Batas ukuran unggah: 5 MB per file.
 
-### 12. AUDIT_LOG — append-only, dilarang edit/hapus
+### 13. AUDIT_LOG — append-only, dilarang edit/hapus
 
 | Kolom | Tipe | Keterangan |
 |---|---|---|
@@ -220,7 +238,7 @@ Batas ukuran unggah: 5 MB per file.
 | data_lama | string | JSON |
 | data_baru | string | JSON |
 
-### 13. REKAP_BULANAN 📸 — materialized view
+### 14. REKAP_BULANAN 📸 — materialized view
 
 Di-update **incremental** oleh `rekapUpdate(tanggal)` setiap REALISASI sah /
 STATUS_HARIAN masuk — TIDAK dihitung ulang sebulan penuh (hindari timeout GAS
@@ -250,6 +268,7 @@ Setelah `FINAL`: semua update pada bulan tsb DITOLAK.
 
 ```
 PENYEDIA ─< KONTRAK ─< PESANAN ─< REALISASI ──▶ REKAP_BULANAN(📸 view)
+              └─< MENU_KONTRAK (referensi menu mingguan, bukan snapshot)
 TARUNA ──< STATUS_HARIAN                              │
 TARUNA ──< TAGIHAN ─< SURAT_PERINGATAN                ├─▶ PEMBAYARAN
                                                       └─▶ TAGIHAN.nominal
