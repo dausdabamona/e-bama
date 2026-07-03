@@ -9,6 +9,7 @@ import { HalamanAudit } from './pages/audit/audit';
 import { HalamanDashboardKpa } from './pages/dashboard-kpa/dashboard-kpa';
 import { HalamanKontrak } from './pages/kontrak/kontrak';
 import { HalamanLaporan } from './pages/laporan/laporan';
+import { HalamanLaporanResmi } from './pages/laporan/laporan-resmi';
 import { HalamanLogin } from './pages/login';
 import { HalamanPembayaran } from './pages/pembayaran/pembayaran';
 import { HalamanPengguna } from './pages/pengguna/pengguna';
@@ -67,6 +68,7 @@ export default function App() {
               <Route path="/tagihan/:id" element={<WajibLogin roles={['SENAT', 'PPK', 'KPA', 'WADIR3']}><HalamanTagihanDetail /></WajibLogin>} />
               {/* PPK + KPA + Wadir3 */}
               <Route path="/laporan" element={<WajibLogin roles={['PPK', 'KPA', 'WADIR3']}><HalamanLaporan /></WajibLogin>} />
+              <Route path="/laporan/resmi" element={<WajibLogin roles={['PPK', 'KPA', 'WADIR3']}><HalamanLaporanResmi /></WajibLogin>} />
               <Route path="/dashboard" element={<WajibLogin roles={['KPA', 'WADIR3']}><HalamanDashboardKpa /></WajibLogin>} />
               {/* Wadir 3 */}
               <Route path="/persetujuan-wadir3" element={<WajibLogin roles={['WADIR3']}><HalamanPersetujuanWadir3 /></WajibLogin>} />

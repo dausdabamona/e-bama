@@ -1,6 +1,7 @@
 // /laporan (PPK, KPA) — laporan bulanan SOP 17-19: rekap+realisasi+pembayaran+piutang.
 // Cetak via window.print() dengan CSS print rapi (lihat index.css @media print).
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { BulanPicker, bulanIni, labelBulan } from '../../components/bulan-picker';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
@@ -28,6 +29,9 @@ export function HalamanLaporan() {
         {data && <Button varian="garis" onClick={() => window.print()}>🖨️ Cetak</Button>}
       </div>
       <div className="print:hidden"><BulanPicker bulan={bulan} onChange={setBulan} /></div>
+      <Link to="/laporan/resmi" className="text-sm text-primary underline print:hidden">
+        📋 Laporan Bulanan Resmi (format Itjen/KKP)
+      </Link>
 
       {memuat && !data && <LoadingSpinner label="Memuat laporan…" />}
       {galat && !data && <ErrorMessage pesan={galat} onRetry={refresh} />}

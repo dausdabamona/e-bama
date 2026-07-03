@@ -12,7 +12,7 @@ html, body {
 /* Cetak laporan rapi A4: sembunyikan header & bottom-nav, hanya area cetak tampil */
 @media print {
   @page { size: A4; margin: 16mm; }
-  header, nav { display: none !important; }
-  main { padding: 0 !important; max-width: none !important; }
+  header, nav, aside { display: none !important; }
+  main { padding: 0 !important; max-width: none !important; margin: 0 !important; }
   body, .bg-ivory { background: #fff !important; }
 }

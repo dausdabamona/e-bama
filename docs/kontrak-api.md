@@ -131,6 +131,7 @@ Transisi ilegal → error eksplisit (mis. "Pesanan berstatus DRAFT, tidak bisa d
 | Action | Role | Keterangan |
 |---|---|---|
 | `laporan.bulanan` | PPK, KPA, WADIR3 | ringkasan rekap + realisasi + pembayaran + piutang per bulan (SOP 17–19); format menyesuaikan Laporan Bulanan BAMA |
+| `laporan.resmi` | PPK, KPA, WADIR3 | data untuk format "Laporan Bulanan Pemantauan & Evaluasi Bantuan Biaya Makan" resmi (acuan Itjen/KKP) — HANYA bagian Dalam Kampus yang dilacak e-BAMA (info umum, data penerima, realisasi, penggunaan dana, sebagian permasalahan); bagian DIPA/SK/rencana anggaran/Luar Kampus/Pengusulan diisi manual di halaman cetak, TIDAK tersimpan di server |
 | `audit.list` | ADMIN, PPK, KPA, WADIR3 | filter `{dari?, sampai?, user_id?, aksi?}`; dibatasi 500 baris terbaru |
 
 ## Proses internal terjadwal (bukan action HTTP)

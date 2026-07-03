@@ -87,6 +87,7 @@ var ACTION_MAP = {
 
   // Laporan & Audit (TAHAP 7)
   'laporan.bulanan':  { handler: laporanBulanan, roles: ['PPK', 'KPA', 'WADIR3'] },
+  'laporan.resmi':    { handler: laporanResmi,   roles: ['PPK', 'KPA', 'WADIR3'] },
   'audit.list':       { handler: auditList,      roles: ['ADMIN', 'PPK', 'KPA', 'WADIR3'] }
 };
 
