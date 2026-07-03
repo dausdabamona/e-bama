@@ -1,4 +1,4 @@
-# Skema Database e-BAMA — Google Spreadsheet (15 Sheet)
+# Skema Database e-BAMA — Google Spreadsheet (16 Sheet)
 
 > **Satu sumber kebenaran skema.** Perubahan skema hanya lewat revisi file ini,
 > bukan langsung di kode. Nama sheet dan kolom: `snake_case`, dikunci di
@@ -304,16 +304,7 @@ ulang. Nomor rekening taruna **TIDAK** disalin dari dokumen sumber (dokumen
 kertas Ketua Jurusan/panitia sering memuat rekening lengkap — DILARANG masuk
 sistem, lihat aturan `rek_mask` di sheet TARUNA).
 
----
-
-## D. USULAN TAHAP BERIKUTNYA (belum diimplementasi)
-
-> Bagian ini **rancangan/keputusan desain**, BUKAN skema yang sudah berjalan —
-> judul dokumen ("15 Sheet") tetap merujuk skema yang sudah `setupDatabase()`.
-> Sheet di bawah baru dibuat saat tahap **Cetak Form Manual SOP** dikerjakan
-> (lihat `CLAUDE.md` § 7 dan `docs/kontrak-api.md` § Cetak Form Manual SOP).
-
-### 16. TARUNA_REKENING (usulan) — pengecualian TERBATAS aturan rekening lengkap
+### 16. TARUNA_REKENING — pengecualian TERBATAS aturan rekening lengkap
 
 **Latar belakang:** Form-07 (Usulan Penahanan & Pendebetan Bank) dan Form-08
 (Usulan Pembayaran Luar Kampus) menurut SOP wajib melampirkan nomor rekening
@@ -329,33 +320,41 @@ pernah bersentuhan dengan data ini sama sekali.
 | Kolom | Tipe | Keterangan |
 |---|---|---|
 | nit | FK → TARUNA | kunci; satu baris per taruna |
+| no_rekening_lengkap | string | nomor rekening PENUH — **satu-satunya tempat** di seluruh e-BAMA yang boleh menyimpan ini |
 | bank | enum | `BNI` / `BSI` — cermin `TARUNA.bank`, disalin supaya sheet ini bisa dibaca berdiri sendiri |
-| rekening_lengkap | string | nomor rekening PENUH — **satu-satunya tempat** di seluruh e-BAMA yang boleh menyimpan ini |
-| diperbarui_oleh | FK → PENGGUNA | |
-| diperbarui_at | datetime | |
+| nama_pemilik | string | nama pemilik rekening (kadang beda kecil ejaan dari `TARUNA.nama` — dicatat apa adanya sesuai buku rekening) |
+| updated_by | FK → PENGGUNA | |
+| updated_at | datetime | |
 
 **Aturan akses (mempersempit CLAUDE.md § 4 dengan pengecualian eksplisit, BUKAN membatalkannya):**
 
-- **Tidak ada** action generik `rekening.list` / `rekening.get` / `rekening.upsert`.
-  Dibaca **HANYA** sebagai bagian internal dari `cetak.form07` dan
-  `cetak.form08` (lihat `docs/kontrak-api.md`).
-- Role yang boleh memicu pembacaan: **ADMIN, PPK SAJA** — role lain (termasuk
-  KPA/WADIR3/BAAK) ditolak di `ACTION_MAP.roles` (backend), bukan cuma
-  disembunyikan di frontend.
-- **Setiap panggilan** `cetak.form07`/`cetak.form08` WAJIB menulis 1 baris
-  `AUDIT_LOG` (`aksi='cetak.form07'` atau `'cetak.form08'`,
-  `ref_type='TARUNA_REKENING'`, `data_baru` berisi **daftar NIT** yang
-  rekeningnya ikut terbaca — **JANGAN** simpan nomor rekeningnya sendiri di
-  `AUDIT_LOG`, cukup NIT). Ini pengecualian dari aturan umum "hanya aksi
+- **Dua action khusus, bukan CRUD generik:**
+  - `rekening.lihat_lengkap` — role **ADMIN, PPK SAJA**; payload `{nit}` atau
+    `{nit_list}`; dipakai `cetak.form07`/`cetak.form08` untuk mengambil nomor
+    rekening penuh saat menyusun lampiran usulan pendebetan/pembayaran.
+  - `rekening.simpan` — role **ADMIN SAJA** (PPK **tidak** bisa menulis,
+    supaya input data sensitif ini tetap satu pintu); mengisi/memperbarui satu
+    baris TARUNA_REKENING.
+  - Role lain (termasuk KPA/WADIR3/BAAK/PEMBINA/SENAT) ditolak di
+    `ACTION_MAP.roles` (backend), bukan cuma disembunyikan di frontend.
+- **Setiap panggilan `rekening.lihat_lengkap` yang berhasil WAJIB** menulis 1
+  baris `AUDIT_LOG` (`aksi='rekening.lihat_lengkap'`, `ref_type='TARUNA_REKENING'`,
+  `ref_id=nit`) — **JANGAN** simpan nomor rekeningnya di `AUDIT_LOG`, cukup
+  catat **SIAPA** melihat rekening **SIAPA** dan **KAPAN** (`data_lama`/
+  `data_baru` dikosongkan). Ini pengecualian dari aturan umum "hanya aksi
   tulis yang di-audit" (CLAUDE.md § 4) — di sini aksi **baca** pun wajib
-  diaudit karena sensitivitas datanya.
+  diaudit karena sensitivitas datanya. `rekening.simpan` diaudit seperti aksi
+  tulis biasa (`data_lama`/`data_baru` berisi field yang berubah, BUKAN nomor
+  rekeningnya — cukup penanda field berubah).
+- Kedua action dibungkus `withLock` — termasuk `rekening.lihat_lengkap` yang
+  sebenarnya baca-saja, karena sensitivitas datanya (bukan demi konsistensi
+  tulis seperti sheet lain).
 - Sheet diproteksi warning-only di level spreadsheet (pola sama seperti
-  `AUDIT_LOG`/`SURAT_PERINGATAN`). **Tidak ada UI CRUD bebas** di aplikasi —
-  pengisian/pembaruan hanya lewat proses migrasi terkontrol (pola mengikuti
-  `scripts/migrasi-taruna.md`), bukan form isi bebas dari halaman Taruna.
+  `AUDIT_LOG`/`SURAT_PERINGATAN`).
 - `taruna.upsert` (Admin/BAAK) **tetap hanya** menerima `rek_mask` 4 digit —
   tidak ada jalan masuk rekening lengkap lewat action itu maupun lewat impor
-  CSV Taruna biasa. Pengisian `TARUNA_REKENING` adalah proses terpisah.
+  CSV Taruna biasa. Pengisian `TARUNA_REKENING` adalah proses terpisah lewat
+  `rekening.simpan`.
 
 ---
 
@@ -366,6 +365,6 @@ PENYEDIA ─< KONTRAK ─< PESANAN ─< REALISASI ──▶ REKAP_BULANAN(📸 v
               └─< MENU_KONTRAK (referensi menu mingguan, bukan snapshot)
 TARUNA ──< STATUS_HARIAN                              │
 TARUNA ──< TAGIHAN ─< SURAT_PERINGATAN                ├─▶ PEMBAYARAN
-                                                      └─▶ TAGIHAN.nominal
+TARUNA ──< TARUNA_REKENING (akses ADMIN/PPK saja)     └─▶ TAGIHAN.nominal
 LAMPIRAN (polymorphic) + AUDIT_LOG ── melintang semua tabel
 ```

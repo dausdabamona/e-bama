@@ -51,6 +51,19 @@ function validateToken(token) {
   return { user_id: u.user_id, nama: u.nama, role: u.role };
 }
 
+/**
+ * _hanyaAdminPPK_(session) — pagar tambahan di DALAM handler (bukan pengganti
+ * ACTION_MAP.roles di router). Dipakai handler yang menyentuh data sangat
+ * sensitif (rekening lengkap) supaya proteksi tidak bergantung SATU-SATUNYA
+ * pada konfigurasi router — kalau suatu saat roles di ACTION_MAP salah/kosong,
+ * handler tetap menolak sendiri.
+ */
+function _hanyaAdminPPK_(session) {
+  if (!session || (session.role !== ROLES.ADMIN && session.role !== ROLES.PPK)) {
+    throw _fail_('Anda tidak berwenang mengakses data rekening lengkap.');
+  }
+}
+
 /** Logout → hapus token. */
 function authLogout(payload, session) {
   sheetUpdate(SHEETS.PENGGUNA, 'user_id', session.user_id, { token: '', token_exp: '' });

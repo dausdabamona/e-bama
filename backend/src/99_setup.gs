@@ -6,7 +6,7 @@
  *      Lewati bila skrip terikat (bound) langsung ke spreadsheet.
  *   1) setupSemua()        → jalankan ketiga langkah sekaligus (disarankan)
  *    atau satu per satu:
- *   2) setupDatabase()     → buat 15 sheet + header + validasi + format + proteksi
+ *   2) setupDatabase()     → buat 16 sheet + header + validasi + format + proteksi
  *   3) seedAwal()          → 5 akun contoh (PIN default 123456, di-hash SHA-256+SALT)
  *   4) setupFolderDrive()  → folder Drive e-BAMA/{LAMPIRAN,SURAT_PERINGATAN,TEMPLATE}
  *
@@ -112,12 +112,18 @@ function _skema_() {
       ['bantuan_id','s'], ['nit','s'], ['kegiatan','s'], ['bulan','s'], ['periode','s'],
       ['total_hari','i'], ['nilai_per_hari','i'], ['nominal','i'], ['pembayaran_ke','i'],
       ['keterangan','s']
+    ]],
+    [SHEETS.TARUNA_REKENING, [
+      ['nit','s'], ['no_rekening_lengkap','s'], ['bank', E.BANK], ['nama_pemilik','s'],
+      ['updated_by','s'], ['updated_at','dt']
     ]]
   ];
 }
 
 // Sheet yang append-only → diproteksi warning-only (edit manual memunculkan peringatan)
-var _SHEET_PROTECT_ = [SHEETS.AUDIT_LOG, SHEETS.SURAT_PERINGATAN];
+// TARUNA_REKENING ikut diproteksi (bukan append-only, tapi datanya sensitif —
+// pengisian/pembaruan seharusnya hanya lewat rekening.simpan, bukan edit manual).
+var _SHEET_PROTECT_ = [SHEETS.AUDIT_LOG, SHEETS.SURAT_PERINGATAN, SHEETS.TARUNA_REKENING];
 
 var _WARNA_HEADER_ = '#E0F2F1';
 
@@ -132,7 +138,7 @@ function setupSemua() {
 }
 
 /**
- * setupDatabase() — buat/segarkan 15 sheet sesuai skema. Idempotent.
+ * setupDatabase() — buat/segarkan 16 sheet sesuai skema. Idempotent.
  */
 function setupDatabase() {
   var ss = _getSpreadsheet_();

@@ -77,12 +77,17 @@ e-bama/
 
 - **Role dicek di GAS (backend), BUKAN di frontend.** Frontend hanya
   menyembunyikan menu; otorisasi sebenarnya di `ACTION_MAP.roles`.
-- **Rekening taruna hanya 4 digit terakhir** (`rek_mask`, pola `••••1234`).
-  **NOMOR REKENING LENGKAP DILARANG MASUK SISTEM** — validasi menolak input
-  yang terlihat seperti nomor rekening penuh. Konversi ke 4 digit dilakukan di
-  luar sistem sebelum impor. **Satu-satunya pengecualian (usulan, belum
-  diimplementasi):** sheet terpisah `TARUNA_REKENING` khusus Form-07/08,
-  dibatasi ADMIN/PPK + wajib audit log tiap baca — lihat § 7.
+- **Rekening taruna hanya 4 digit terakhir** (`rek_mask`, pola `••••1234`) di
+  sheet TARUNA dan di **SEMUA** action/tampilan lain — validasi menolak input
+  yang terlihat seperti nomor rekening penuh lewat `taruna.upsert` maupun impor
+  CSV Taruna. **Satu-satunya pengecualian:** sheet terpisah `TARUNA_REKENING`
+  (lihat `docs/skema-sheet.md` §16) yang menyimpan nomor rekening PENUH,
+  dibaca/ditulis HANYA lewat dua action `rekening.lihat_lengkap` (role ADMIN,
+  PPK) dan `rekening.simpan` (role ADMIN saja) — bukan lewat `taruna.upsert`.
+  Setiap panggilan `rekening.lihat_lengkap` yang berhasil WAJIB mencatat satu
+  baris AUDIT_LOG (siapa melihat rekening siapa, kapan — TANPA nomor
+  rekeningnya sendiri), sebuah pengecualian dari aturan umum "hanya aksi tulis
+  yang diaudit" karena sensitivitas datanya. Lihat § 7.
 - **Setiap aksi tulis** wajib:
   - dibungkus **`LockService`** (`withLock`), dan
   - mencatat satu baris **`AUDIT_LOG`** (`data_lama` / `data_baru`).
@@ -129,11 +134,12 @@ npm run deploy                # deploy ke GitHub Pages
 
 ## 7. Cetak Form Manual SOP
 
-> Rancangan/keputusan desain untuk 8 form resmi (`docs/format-dokumen.md`).
-> **Belum diimplementasi** (belum ada action, belum ada sheet baru) — sesi
-> ini baru merancang skema + kontrak API supaya sesi berikutnya tidak perlu
-> menggali ulang dari riwayat chat. Kerjakan sebagai TAHAP tersendiri (satu
-> tahap = satu sesi, per Aturan Main Eksekusi).
+> Rancangan + implementasi bertahap untuk 8 form resmi (`docs/format-dokumen.md`).
+> Form 01/03/05/06 dan skema `TARUNA_REKENING` (dasar Form 07) **sudah
+> diimplementasi**; Form 02/04/07/08 masih menunggu (lihat tabel status di
+> bawah). Kerjakan sebagai TAHAP tersendiri (satu tahap = satu sesi, per
+> Aturan Main Eksekusi) — jangan gabung form baru dengan perubahan skema di
+> sesi yang sama.
 
 **Pola format cetak** (rujukan: `frontend/src/pages/laporan/laporan-resmi.tsx`):
 - Satu action `cetak.formNN` (GET-style) — payload kecil (id/bulan) → data
@@ -150,33 +156,40 @@ npm run deploy                # deploy ke GitHub Pages
 **Rekening lengkap — pengecualian TERBATAS dari § 4** (Form-07 & Form-08
 SOP mewajibkan nomor rekening PENUH karena bank butuh itu untuk
 debet/transfer; bukan pembatalan aturan mutlak § 4, tapi celah sempit yang
-disengaja):
-- Sheet BARU `TARUNA_REKENING` (usulan — lihat `docs/skema-sheet.md` § D),
+disengaja) — **sudah diimplementasi**:
+- Sheet TERPISAH `TARUNA_REKENING` (lihat `docs/skema-sheet.md` §16),
   TERPISAH dari `TARUNA.rek_mask` yang tetap 4 digit untuk semua hal lain
   (dashboard, laporan, `taruna.list`, dst).
-- Dibaca HANYA sebagai bagian internal `cetak.form07`/`cetak.form08` —
-  TIDAK ADA action generik `rekening.get`/`rekening.list`.
-- Role: **ADMIN & PPK SAJA** — ditolak backend untuk role lain (termasuk
-  KPA/WADIR3/BAAK), bukan cuma disembunyikan di frontend.
-- WAJIB 1 baris `AUDIT_LOG` tiap panggilan (BACA, bukan cuma tulis) — catat
-  daftar NIT yang terbaca, JANGAN catat nomor rekeningnya di `AUDIT_LOG`.
-- Tidak ada UI CRUD bebas untuk sheet ini — pengisian lewat proses migrasi
-  terkontrol (pola `scripts/migrasi-taruna.md`), sheet diproteksi
-  warning-only (seperti `AUDIT_LOG`).
+- Dua action khusus (`22_rekening.gs`): `rekening.lihat_lengkap` (role ADMIN,
+  PPK — dipakai internal `cetak.form07`/`cetak.form08`) dan `rekening.simpan`
+  (role **ADMIN SAJA**, supaya input data sensitif ini tetap satu pintu) —
+  bukan CRUD generik, keduanya diperiksa role dua kali: `ACTION_MAP.roles`
+  DAN helper `_hanyaAdminPPK_(session)` di dalam handler.
+- WAJIB 1 baris `AUDIT_LOG` tiap panggilan `rekening.lihat_lengkap` yang
+  berhasil (BACA, bukan cuma tulis) — catat NIT yang terbaca, JANGAN catat
+  nomor rekeningnya di `AUDIT_LOG`.
+- Tidak ada form isi bebas di halaman Taruna biasa — pengisian rekening
+  lengkap lewat modal terpisah "🔒 Rekening" di `/taruna` yang HANYA tampil
+  untuk role ADMIN (frontend hiding only; backend tetap menegakkan lewat
+  `rekening.simpan` roles:['ADMIN']). Sheet diproteksi warning-only (seperti
+  `AUDIT_LOG`).
 
 **8 Form** (detail lengkap: `docs/kontrak-api.md` § Cetak Form Manual SOP;
 peta asal per form: `docs/format-dokumen.md`):
 
-| Form | Nama | Sheet sumber | Status data |
+| Form | Nama | Sheet sumber | Status |
 |---|---|---|---|
-| 01 | Rencana & Persetujuan Pemesanan Harian (H-1) | PESANAN, STATUS_HARIAN, KONTRAK | ✅ cocok penuh |
-| 02 | Daftar Hadir / Tanda Terima Makan | TARUNA | ✅ cocok penuh |
-| 03 | Rekap Taruna Tidak Menerima Makan | STATUS_HARIAN, LAMPIRAN | ✅ cocok penuh |
-| 04 | Rekapitulasi Bulanan Porsi Makan | PESANAN, REALISASI | ✅ cocok penuh |
-| 05 | BA Rekonsiliasi 3 Titik | TARUNA, PESANAN, REALISASI | ✅ cocok |
-| 06 | Verifikasi & Rencana Pembayaran PPK | PEMBAYARAN, REKAP_BULANAN | ⚠️ perlu fungsi `_terbilang_()` baru (belum ada) |
-| 07 | Usulan Penahanan & Pendebetan Bank | PEMBAYARAN, REKAP_BULANAN, **TARUNA_REKENING (baru)** | ❌ perlu sheet baru dulu; **ADMIN/PPK saja** |
-| 08 | Usulan Pembayaran Luar Kampus | BANTUAN_LUAR_KAMPUS, **TARUNA_REKENING (baru)** | ⚠️ kegiatan sudah ada, rekening perlu sheet baru; **ADMIN/PPK saja** |
+| 01 | Rencana & Persetujuan Pemesanan Harian (H-1) | PESANAN, STATUS_HARIAN, KONTRAK | ✅ diimplementasi |
+| 02 | Daftar Hadir / Tanda Terima Makan | TARUNA | ⏸️ menunggu konfirmasi desain (lihat catatan di bawah) |
+| 03 | Rekap Taruna Tidak Menerima Makan | STATUS_HARIAN, LAMPIRAN | ✅ diimplementasi |
+| 04 | Rekapitulasi Bulanan Porsi Makan | PESANAN, REALISASI | ⏸️ menunggu konfirmasi desain |
+| 05 | BA Rekonsiliasi 3 Titik | TARUNA, PESANAN, REALISASI | ✅ diimplementasi |
+| 06 | Verifikasi & Rencana Pembayaran PPK | PEMBAYARAN, REKAP_BULANAN | ✅ diimplementasi (`_terbilang_()` di `03_helpers.gs`) |
+| 07 | Usulan Penahanan & Pendebetan Bank | PEMBAYARAN, REKAP_BULANAN, **TARUNA_REKENING** | 🔜 sheet & action rekening sudah siap, tinggal `cetak.form07`; **ADMIN/PPK saja** |
+| 08 | Usulan Pembayaran Luar Kampus | BANTUAN_LUAR_KAMPUS, **TARUNA_REKENING** | ⏸️ menunggu konfirmasi desain (sumber tarif); **ADMIN/PPK saja** |
+
+Form 02/04/08 diblokir sampai ada konfirmasi eksplisit dari Firdaus atas
+pilihan desain masing-masing (lihat riwayat sesi) — jangan berasumsi sendiri.
 
 ---
 

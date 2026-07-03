@@ -33,7 +33,8 @@ var SHEETS = {
   LAMPIRAN:         'LAMPIRAN',
   AUDIT_LOG:        'AUDIT_LOG',
   REKAP_BULANAN:    'REKAP_BULANAN',
-  BANTUAN_LUAR_KAMPUS: 'BANTUAN_LUAR_KAMPUS'
+  BANTUAN_LUAR_KAMPUS: 'BANTUAN_LUAR_KAMPUS',
+  TARUNA_REKENING:  'TARUNA_REKENING'
 };
 
 // ── Role pengguna ───────────────────────────────────────────────────────────
