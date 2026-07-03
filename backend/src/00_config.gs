@@ -34,7 +34,8 @@ var SHEETS = {
   AUDIT_LOG:        'AUDIT_LOG',
   REKAP_BULANAN:    'REKAP_BULANAN',
   BANTUAN_LUAR_KAMPUS: 'BANTUAN_LUAR_KAMPUS',
-  TARUNA_REKENING:  'TARUNA_REKENING'
+  TARUNA_REKENING:  'TARUNA_REKENING',
+  SP2D_MONITORING:  'SP2D_MONITORING'
 };
 
 // ── Role pengguna ───────────────────────────────────────────────────────────
@@ -67,7 +68,8 @@ var ENUM = {
   LAMPIRAN_REFTYPE:  ['KONTRAK', 'STATUS_HARIAN', 'PESANAN', 'REALISASI',
                       'PEMBAYARAN', 'TAGIHAN', 'SP'],
   LAMPIRAN_JENIS:    ['FOTO', 'SURAT', 'BA', 'INVOICE', 'BUKTI_SETOR',
-                      'BUKTI_DEBET', 'MENU_GIZI', 'NOTULEN', 'LAINNYA']
+                      'BUKTI_DEBET', 'MENU_GIZI', 'NOTULEN', 'LAINNYA'],
+  SP2D_KATEGORI:     ['DALAM_KAMPUS', 'LUAR_KAMPUS']         // SP2D_MONITORING.kategori
 };
 
 // ── Data pejabat penandatangan surat ────────────────────────────────────────

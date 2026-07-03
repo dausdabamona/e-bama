@@ -106,7 +106,11 @@ var ACTION_MAP = {
 
   // Rekening lengkap (TARUNA_REKENING) — TAHAP SENSITIF, lihat CLAUDE.md § 4/§ 7
   'rekening.lihat_lengkap': { handler: rekeningLihatLengkap, roles: ['ADMIN', 'PPK'] },
-  'rekening.simpan':        { handler: rekeningSimpan,       roles: ['ADMIN'] }
+  'rekening.simpan':        { handler: rekeningSimpan,       roles: ['ADMIN'] },
+
+  // Rekonsiliasi SP2D (Monitoring SP2D OM-SPAN vs data sistem)
+  'sp2d.import':        { handler: sp2dImport,        roles: ['PPK', 'ADMIN'] },
+  'sp2d.rekonsiliasi':  { handler: sp2dRekonsiliasi,  roles: ['PPK', 'KPA', 'WADIR3', 'ADMIN'] }
 };
 
 /** Health check. */

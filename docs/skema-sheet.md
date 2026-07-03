@@ -1,4 +1,4 @@
-# Skema Database e-BAMA — Google Spreadsheet (16 Sheet)
+# Skema Database e-BAMA — Google Spreadsheet (17 Sheet)
 
 > **Satu sumber kebenaran skema.** Perubahan skema hanya lewat revisi file ini,
 > bukan langsung di kode. Nama sheet dan kolom: `snake_case`, dikunci di
@@ -355,6 +355,52 @@ pernah bersentuhan dengan data ini sama sekali.
   tidak ada jalan masuk rekening lengkap lewat action itu maupun lewat impor
   CSV Taruna biasa. Pengisian `TARUNA_REKENING` adalah proses terpisah lewat
   `rekening.simpan`.
+
+### 17. SP2D_MONITORING — rekonsiliasi SP2D vs data sistem
+
+Menyimpan hasil impor file "Monitoring SP2D" (ekspor OM-SPAN/SAKTI KPPN),
+dipakai untuk **membandingkan** (bukan menautkan langsung) nominal yang
+tercatat sistem (`REKAP_BULANAN` untuk Dalam Kampus, `BANTUAN_LUAR_KAMPUS`
+untuk Luar Kampus) dengan nominal yang benar-benar cair via SP2D.
+
+**Kenapa dibandingkan per kelompok, bukan ditautkan per baris:** satu baris
+file sumber mewakili SATU kombinasi **Prodi + Tingkat + Bulan** (Dalam
+Kampus) atau **Prodi + Tingkat + Bulan + Kegiatan** (Luar Kampus) — jauh
+lebih rinci daripada satu baris `PEMBAYARAN`/bulan yang ada sekarang, dan
+untuk Luar Kampus bisa berupa rentang tanggal (bukan bulan penuh). Menautkan
+paksa 1:1 akan rawan salah cocok — jadi rekonsiliasi dilakukan lewat **SUM
+per kelompok** (Prodi+Tingkat[+Kegiatan] dalam bulan yang sama).
+
+Kolom **Prodi/Tingkat/Bulan/Kegiatan tidak ada** di file sumber — diparse
+dari teks bebas kolom "Uraian SPP/SPM" (lihat `_parseUraianSpm_` di
+`23_sp2d.gs`). Kalau parsing gagal, baris tetap masuk (nominal uang tidak
+boleh hilang) tapi ditandai `perlu_cek_manual='YA'` dan **dikecualikan**
+dari perbandingan otomatis — ditampilkan terpisah untuk dicek manual.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| no_spm | string | kunci; dari kolom "No. SPP/SPM" — dipakai deteksi baris baru saat impor ulang |
+| kategori | enum | `DALAM_KAMPUS` / `LUAR_KAMPUS` — dipilih pengguna saat impor (satu file = satu kategori) |
+| prodi | string | hasil parsing Uraian (`TPI`/`MP`/`TBP`), kosong bila gagal parse |
+| tingkat | string | hasil parsing Uraian (`I`/`II`/`III`) |
+| bulan | string | `YYYY-MM`, hasil parsing Uraian |
+| kegiatan | string | khusus Luar Kampus (`KPA`/`PKL2`/`PKL3`/`PTB`), kosong untuk Dalam Kampus |
+| jumlah_orang | integer | dari "...untuk N Orang" di Uraian |
+| jumlah_pembayaran | integer | dari kolom "Jumlah Pembayaran" file sumber |
+| tgl_spm, no_sp2d, tgl_sp2d, status_sp2d | - | apa adanya dari file sumber (`-` → dikosongkan, artinya SP2D belum terbit) |
+| uraian_asli | string | teks Uraian SPP/SPM lengkap, disimpan apa adanya untuk verifikasi manual |
+| perlu_cek_manual | string | `'YA'` bila prodi/tingkat/bulan (atau kegiatan utk Luar Kampus) gagal diparse |
+
+**Impor (`sp2d.import`, role ADMIN/PPK):** PPK unduh file terbaru dari
+OM-SPAN tiap bulan, unggah CSV (header persis file sumber). Impor **HANYA
+menambah** baris dengan `no_spm` yang belum pernah ada — baris yang sudah
+ada TIDAK diproses ulang (dikonfirmasi Firdaus: cek bulanan cukup untuk
+penambahan, bukan mengulang proses seluruh riwayat).
+
+**Rekonsiliasi (`sp2d.rekonsiliasi`, role PPK/KPA/WADIR3/ADMIN, baca saja):**
+digabung ke halaman Laporan Bulanan yang sudah ada — payload `{bulan}`,
+mengembalikan perbandingan per kelompok untuk Dalam Kampus & Luar Kampus,
+plus daftar baris `perlu_cek_manual` bulan itu.
 
 ---
 

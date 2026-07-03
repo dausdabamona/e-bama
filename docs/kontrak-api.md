@@ -180,6 +180,18 @@ luar sistem; diajukan ke PPK untuk diinput. Catatan murni, tanpa alur status.
 | `rekening.lihat_lengkap` | **ADMIN, PPK SAJA** | `{nit}` atau `{nit_list}` → `{rekening:[{nit,no_rekening_lengkap,bank,nama_pemilik}]}` | Dipakai internal `cetak.form07`/`cetak.form08` dan modal "🔒 Rekening" (Admin) di `/taruna`. Setiap panggilan berhasil WAJIB 1 baris `AUDIT_LOG` (`ref_id`=NIT yang dilihat) — **tanpa** nomor rekening di `AUDIT_LOG`. Dibungkus `withLock` walau baca-saja. |
 | `rekening.simpan` | **ADMIN SAJA** | `{nit, no_rekening_lengkap, bank, nama_pemilik}` → `{nit, bank, nama_pemilik}` | PPK tidak bisa menulis, supaya input data sensitif tetap satu pintu. `AUDIT_LOG` mencatat field yang berubah, bukan nomor rekeningnya. |
 
+### Rekonsiliasi SP2D (`SP2D_MONITORING`) — dibandingkan per kelompok, bukan ditautkan per baris
+
+> Modul `backend/src/23_sp2d.gs`. Lihat `docs/skema-sheet.md` §17 untuk
+> alasan lengkap kenapa rekonsiliasi berbasis SUM per kelompok
+> (Prodi+Tingkat+Bulan[+Kegiatan]), bukan tautan 1:1 ke baris SP2D. Digabung
+> ke halaman **Laporan Bulanan** (`/laporan`) yang sudah ada.
+
+| Action | Role | Payload → Data | Keterangan |
+|---|---|---|---|
+| `sp2d.import` | PPK, ADMIN | `{kategori:'DALAM_KAMPUS'\|'LUAR_KAMPUS', baris:[{no_spm,tgl_spm?,no_sp2d?,tgl_sp2d?,jumlah_pembayaran,status_sp2d?,uraian_asli}]}` → `{ditambah, dilewati}` | CSV header persis file ekspor OM-SPAN ("No. SPP/SPM", "Uraian SPP/SPM", dst.). **HANYA menambah** `no_spm` yang belum ada — baris lama tidak diproses ulang (dikonfirmasi Firdaus). Prodi/Tingkat/Bulan/Kegiatan diparse dari Uraian; gagal parse → `perlu_cek_manual='YA'`, baris tetap masuk. |
+| `sp2d.rekonsiliasi` | PPK, KPA, WADIR3, ADMIN (baca saja) | `{bulan}` → `{bulan, dalam_kampus:[{prodi,tingkat,sistem,sp2d,selisih,cocok}], luar_kampus:[{kegiatan,prodi,tingkat,sistem,sp2d,selisih,cocok}], perlu_cek_manual:[{no_spm,kategori,jumlah_pembayaran,uraian_asli}]}` | `sistem` = SUM dari `REKAP_BULANAN`/`BANTUAN_LUAR_KAMPUS` (join `TARUNA` utk prodi+tingkat); `sp2d` = SUM `jumlah_pembayaran` `SP2D_MONITORING` kelompok yang sama (baris `perlu_cek_manual` dikecualikan, ditampilkan terpisah). |
+
 ## Proses internal terjadwal (bukan action HTTP)
 
 | Fungsi | Jadwal | Keterangan |

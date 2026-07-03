@@ -6,7 +6,7 @@
  *      Lewati bila skrip terikat (bound) langsung ke spreadsheet.
  *   1) setupSemua()        → jalankan ketiga langkah sekaligus (disarankan)
  *    atau satu per satu:
- *   2) setupDatabase()     → buat 16 sheet + header + validasi + format + proteksi
+ *   2) setupDatabase()     → buat 17 sheet + header + validasi + format + proteksi
  *   3) seedAwal()          → 5 akun contoh (PIN default 123456, di-hash SHA-256+SALT)
  *   4) setupFolderDrive()  → folder Drive e-BAMA/{LAMPIRAN,SURAT_PERINGATAN,TEMPLATE}
  *
@@ -116,6 +116,12 @@ function _skema_() {
     [SHEETS.TARUNA_REKENING, [
       ['nit','s'], ['no_rekening_lengkap','s'], ['bank', E.BANK], ['nama_pemilik','s'],
       ['updated_by','s'], ['updated_at','dt']
+    ]],
+    [SHEETS.SP2D_MONITORING, [
+      ['no_spm','s'], ['kategori', E.SP2D_KATEGORI], ['prodi','s'], ['tingkat','s'],
+      ['bulan','s'], ['kegiatan','s'], ['jumlah_orang','i'], ['jumlah_pembayaran','i'],
+      ['tgl_spm','d'], ['no_sp2d','s'], ['tgl_sp2d','d'], ['status_sp2d','s'],
+      ['uraian_asli','s'], ['perlu_cek_manual','s']
     ]]
   ];
 }
@@ -138,7 +144,7 @@ function setupSemua() {
 }
 
 /**
- * setupDatabase() — buat/segarkan 16 sheet sesuai skema. Idempotent.
+ * setupDatabase() — buat/segarkan 17 sheet sesuai skema. Idempotent.
  */
 function setupDatabase() {
   var ss = _getSpreadsheet_();
