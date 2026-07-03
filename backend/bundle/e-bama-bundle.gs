@@ -158,8 +158,10 @@ var ACTION_MAP = {
   'penyedia.list':    { handler: penyediaList,   roles: [] },
   'penyedia.upsert':  { handler: penyediaUpsert, roles: ['ADMIN', 'PPK'] },
   'kontrak.list':     { handler: kontrakList,    roles: [] },
+  'kontrak.get':      { handler: kontrakGet,     roles: [] },
   'kontrak.upsert':   { handler: kontrakUpsert,  roles: ['PPK'] },
   'kontrak.approve':  { handler: kontrakApprove, roles: ['PPK'] },
+  'kontrak.lampiran_upload': { handler: kontrakLampiranUpload, roles: ['PPK'] },
 
   // Status harian (TAHAP 3)
   'status.set':       { handler: statusSet,      roles: ['ADMIN', 'PEMBINA'] },
@@ -688,6 +690,14 @@ function kontrakList(payload, session) {
   return { kontrak: sheetRead(SHEETS.KONTRAK) };
 }
 
+/** Detail kontrak + lampiran (menu & nilai gizi, BA penunjukan, notulen). */
+function kontrakGet(payload, session) {
+  var id = String((payload && payload.kontrak_id) || '').trim();
+  var k = sheetRead(SHEETS.KONTRAK, function (r) { return String(r.kontrak_id) === id; })[0];
+  if (!k) throw _fail_('Kontrak tidak ditemukan: ' + id);
+  return { kontrak: k, lampiran: lampiranList('KONTRAK', id) };
+}
+
 /** Tambah/ubah kontrak (hanya selama DRAFT). Baru → KTR-000001, status DRAFT. */
 function kontrakUpsert(payload, session) {
   var pid = String((payload && payload.penyedia_id) || '').trim();
@@ -734,6 +744,24 @@ function kontrakApprove(payload, session) {
   sheetUpdate(SHEETS.KONTRAK, 'kontrak_id', id, patch);
   auditLog(session, 'kontrak.approve', 'KONTRAK', id, { status: lama.status }, { status: 'DISETUJUI_PPK' });
   return { kontrak_id: id, status: 'DISETUJUI_PPK' };
+}
+
+/**
+ * Unggah lampiran kontrak (menu & nilai gizi, BA penunjukan, notulen rapat).
+ * Payload {kontrak_id, berkas:{base64, nama_file, jenis}}. Boleh kapan saja
+ * (DRAFT maupun DISETUJUI_PPK) — dokumen pendukung bisa menyusul.
+ */
+function kontrakLampiranUpload(payload, session) {
+  var id = String((payload && payload.kontrak_id) || '').trim();
+  var k = sheetRead(SHEETS.KONTRAK, function (r) { return String(r.kontrak_id) === id; })[0];
+  if (!k) throw _fail_('Kontrak tidak ditemukan: ' + id);
+  var berkas = payload && payload.berkas;
+  if (!berkas || !berkas.base64) throw _fail_('Berkas wajib diisi.');
+  var jenis = berkas.jenis || 'LAINNYA';
+  if (ENUM.LAMPIRAN_JENIS.indexOf(jenis) < 0) throw _fail_('jenis lampiran tidak valid.');
+  var hasil = lampiranSave(session, 'KONTRAK', id, jenis, berkas.base64, berkas.nama_file);
+  auditLog(session, 'kontrak.lampiran_upload', 'KONTRAK', id, null, { jenis: jenis, lamp_id: hasil.lamp_id });
+  return hasil;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1993,8 +2021,9 @@ function auditList(payload, session) {
  *
  * Kebijakan (tenggat, JAM_TRIGGER) via getKebijakanSP() — DILARANG baca CONFIG langsung.
  * - eskalasiTagihan() : dijalankan trigger harian; IDEMPOTEN (aman 2× sehari)
- * - pasangTrigger()   : sekali jalan dari editor — pasang trigger harian
- * - backupMingguan()  : diisi pada TAHAP 8 (copy spreadsheet ke e-BAMA/BACKUP)
+ * - pasangTrigger()   : sekali jalan dari editor — pasang trigger harian eskalasi
+ * - backupMingguan()  : copy spreadsheet ke e-BAMA/BACKUP, retensi 8 terbaru
+ * - pasangTriggerBackup() : sekali jalan dari editor — pasang trigger mingguan backup
  */
 
 /**
@@ -2065,9 +2094,47 @@ function pasangTrigger() {
 }
 
 /**
- * backupMingguan() — DIISI PADA TAHAP 8:
- * copy spreadsheet ke folder e-BAMA/BACKUP tiap minggu + trigger-nya.
+ * backupMingguan() — copy spreadsheet ke folder e-BAMA/BACKUP.
+ * Retensi 8 backup terbaru (± 2 bulan mingguan); yang lebih lama dibuang
+ * ke sampah Drive (bukan dihapus permanen — masih bisa dipulihkan 30 hari).
  */
+function backupMingguan() {
+  var p = PropertiesService.getScriptProperties();
+  var rootId = p.getProperty('FOLDER_ROOT');
+  var root = rootId ? DriveApp.getFolderById(rootId) : _ensureFolder_(null, 'e-BAMA');
+  var folderBackup = _ensureFolder_(root, 'BACKUP');
+  p.setProperty('FOLDER_BACKUP', folderBackup.getId());
+
+  var ss = _getSpreadsheet_();
+  var sumber = DriveApp.getFileById(ss.getId());
+  var nama = 'e-BAMA-DB-BACKUP-' + _todayStr_();
+  sumber.makeCopy(nama, folderBackup);
+
+  var MAKS_BACKUP = 8;
+  var files = [];
+  var iter = folderBackup.getFiles();
+  while (iter.hasNext()) files.push(iter.next());
+  files.sort(function (a, b) { return b.getDateCreated().getTime() - a.getDateCreated().getTime(); });
+  for (var i = MAKS_BACKUP; i < files.length; i++) files[i].setTrashed(true);
+
+  var totalTersimpan = Math.min(files.length, MAKS_BACKUP);
+  Logger.log('backupMingguan: ' + nama + ' dibuat. Total backup tersimpan: ' + totalTersimpan);
+  return { nama: nama, total_tersimpan: totalTersimpan };
+}
+
+/**
+ * Pasang trigger time-driven mingguan backupMingguan() — Minggu jam 02.00
+ * (Asia/Jayapura, di luar jam sibuk). Menghapus trigger lama dulu (tidak dobel).
+ */
+function pasangTriggerBackup() {
+  ScriptApp.getProjectTriggers().forEach(function (tr) {
+    if (tr.getHandlerFunction() === 'backupMingguan') ScriptApp.deleteTrigger(tr);
+  });
+  ScriptApp.newTrigger('backupMingguan')
+    .timeBased().onWeekDay(ScriptApp.WeekDay.SUNDAY).atHour(2)
+    .create();
+  Logger.log('Trigger backupMingguan terpasang: mingguan hari Minggu jam 02.00 (Asia/Jayapura).');
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // ▼▼▼ 99_setup.gs ▼▼▼

@@ -6,6 +6,7 @@ const WARNA: Record<string, string> = {
   DIAJUKAN: 'bg-amber-100 text-amber-800',
   DIKEMBALIKAN: 'bg-red-100 text-red-700',
   DISETUJUI: 'bg-sky-100 text-sky-800',
+  DISETUJUI_PPK: 'bg-green-100 text-green-800',
   TERKIRIM: 'bg-primary-light text-primary-dark',
   TERVERIFIKASI_PPK: 'bg-sky-100 text-sky-800',
   FINAL: 'bg-amber-100 text-amber-800',

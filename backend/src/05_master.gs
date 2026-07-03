@@ -113,6 +113,14 @@ function kontrakList(payload, session) {
   return { kontrak: sheetRead(SHEETS.KONTRAK) };
 }
 
+/** Detail kontrak + lampiran (menu & nilai gizi, BA penunjukan, notulen). */
+function kontrakGet(payload, session) {
+  var id = String((payload && payload.kontrak_id) || '').trim();
+  var k = sheetRead(SHEETS.KONTRAK, function (r) { return String(r.kontrak_id) === id; })[0];
+  if (!k) throw _fail_('Kontrak tidak ditemukan: ' + id);
+  return { kontrak: k, lampiran: lampiranList('KONTRAK', id) };
+}
+
 /** Tambah/ubah kontrak (hanya selama DRAFT). Baru → KTR-000001, status DRAFT. */
 function kontrakUpsert(payload, session) {
   var pid = String((payload && payload.penyedia_id) || '').trim();
@@ -159,4 +167,22 @@ function kontrakApprove(payload, session) {
   sheetUpdate(SHEETS.KONTRAK, 'kontrak_id', id, patch);
   auditLog(session, 'kontrak.approve', 'KONTRAK', id, { status: lama.status }, { status: 'DISETUJUI_PPK' });
   return { kontrak_id: id, status: 'DISETUJUI_PPK' };
+}
+
+/**
+ * Unggah lampiran kontrak (menu & nilai gizi, BA penunjukan, notulen rapat).
+ * Payload {kontrak_id, berkas:{base64, nama_file, jenis}}. Boleh kapan saja
+ * (DRAFT maupun DISETUJUI_PPK) — dokumen pendukung bisa menyusul.
+ */
+function kontrakLampiranUpload(payload, session) {
+  var id = String((payload && payload.kontrak_id) || '').trim();
+  var k = sheetRead(SHEETS.KONTRAK, function (r) { return String(r.kontrak_id) === id; })[0];
+  if (!k) throw _fail_('Kontrak tidak ditemukan: ' + id);
+  var berkas = payload && payload.berkas;
+  if (!berkas || !berkas.base64) throw _fail_('Berkas wajib diisi.');
+  var jenis = berkas.jenis || 'LAINNYA';
+  if (ENUM.LAMPIRAN_JENIS.indexOf(jenis) < 0) throw _fail_('jenis lampiran tidak valid.');
+  var hasil = lampiranSave(session, 'KONTRAK', id, jenis, berkas.base64, berkas.nama_file);
+  auditLog(session, 'kontrak.lampiran_upload', 'KONTRAK', id, null, { jenis: jenis, lamp_id: hasil.lamp_id });
+  return hasil;
 }

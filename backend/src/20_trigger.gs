@@ -3,8 +3,9 @@
  *
  * Kebijakan (tenggat, JAM_TRIGGER) via getKebijakanSP() — DILARANG baca CONFIG langsung.
  * - eskalasiTagihan() : dijalankan trigger harian; IDEMPOTEN (aman 2× sehari)
- * - pasangTrigger()   : sekali jalan dari editor — pasang trigger harian
- * - backupMingguan()  : diisi pada TAHAP 8 (copy spreadsheet ke e-BAMA/BACKUP)
+ * - pasangTrigger()   : sekali jalan dari editor — pasang trigger harian eskalasi
+ * - backupMingguan()  : copy spreadsheet ke e-BAMA/BACKUP, retensi 8 terbaru
+ * - pasangTriggerBackup() : sekali jalan dari editor — pasang trigger mingguan backup
  */
 
 /**
@@ -75,6 +76,44 @@ function pasangTrigger() {
 }
 
 /**
- * backupMingguan() — DIISI PADA TAHAP 8:
- * copy spreadsheet ke folder e-BAMA/BACKUP tiap minggu + trigger-nya.
+ * backupMingguan() — copy spreadsheet ke folder e-BAMA/BACKUP.
+ * Retensi 8 backup terbaru (± 2 bulan mingguan); yang lebih lama dibuang
+ * ke sampah Drive (bukan dihapus permanen — masih bisa dipulihkan 30 hari).
  */
+function backupMingguan() {
+  var p = PropertiesService.getScriptProperties();
+  var rootId = p.getProperty('FOLDER_ROOT');
+  var root = rootId ? DriveApp.getFolderById(rootId) : _ensureFolder_(null, 'e-BAMA');
+  var folderBackup = _ensureFolder_(root, 'BACKUP');
+  p.setProperty('FOLDER_BACKUP', folderBackup.getId());
+
+  var ss = _getSpreadsheet_();
+  var sumber = DriveApp.getFileById(ss.getId());
+  var nama = 'e-BAMA-DB-BACKUP-' + _todayStr_();
+  sumber.makeCopy(nama, folderBackup);
+
+  var MAKS_BACKUP = 8;
+  var files = [];
+  var iter = folderBackup.getFiles();
+  while (iter.hasNext()) files.push(iter.next());
+  files.sort(function (a, b) { return b.getDateCreated().getTime() - a.getDateCreated().getTime(); });
+  for (var i = MAKS_BACKUP; i < files.length; i++) files[i].setTrashed(true);
+
+  var totalTersimpan = Math.min(files.length, MAKS_BACKUP);
+  Logger.log('backupMingguan: ' + nama + ' dibuat. Total backup tersimpan: ' + totalTersimpan);
+  return { nama: nama, total_tersimpan: totalTersimpan };
+}
+
+/**
+ * Pasang trigger time-driven mingguan backupMingguan() — Minggu jam 02.00
+ * (Asia/Jayapura, di luar jam sibuk). Menghapus trigger lama dulu (tidak dobel).
+ */
+function pasangTriggerBackup() {
+  ScriptApp.getProjectTriggers().forEach(function (tr) {
+    if (tr.getHandlerFunction() === 'backupMingguan') ScriptApp.deleteTrigger(tr);
+  });
+  ScriptApp.newTrigger('backupMingguan')
+    .timeBased().onWeekDay(ScriptApp.WeekDay.SUNDAY).atHour(2)
+    .create();
+  Logger.log('Trigger backupMingguan terpasang: mingguan hari Minggu jam 02.00 (Asia/Jayapura).');
+}

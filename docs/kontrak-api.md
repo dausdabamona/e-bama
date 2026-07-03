@@ -47,8 +47,10 @@ Modul: `taruna.*` → `10_taruna.gs`; `penyedia.*` & `kontrak.*` → `05_master.
 | `penyedia.list` | semua login | |
 | `penyedia.upsert` | ADMIN, PPK | |
 | `kontrak.list` | semua login | |
-| `kontrak.upsert` | PPK | |
+| `kontrak.get` | semua login | `{kontrak_id}` → `{kontrak, lampiran}` |
+| `kontrak.upsert` | PPK | hanya boleh diubah selama `DRAFT` |
 | `kontrak.approve` | PPK | `DRAFT → DISETUJUI_PPK` (SOP no. 4) |
+| `kontrak.lampiran_upload` | PPK | `{kontrak_id, berkas:{base64,nama_file,jenis}}` — menu & nilai gizi (`jenis=MENU_GIZI`), BA penunjukan (`BA`), notulen (`NOTULEN`); boleh kapan saja |
 | `pengguna.list` / `pengguna.upsert` / `pengguna.reset_pin` | ADMIN | |
 
 ### Status Harian (SOP: Peringatan no. 2)

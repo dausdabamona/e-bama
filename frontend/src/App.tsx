@@ -7,6 +7,7 @@ import { HalamanAkun } from './pages/akun';
 import { HalamanAntrian } from './pages/antrian';
 import { HalamanAudit } from './pages/audit/audit';
 import { HalamanDashboardKpa } from './pages/dashboard-kpa/dashboard-kpa';
+import { HalamanKontrak } from './pages/kontrak/kontrak';
 import { HalamanLaporan } from './pages/laporan/laporan';
 import { HalamanLogin } from './pages/login';
 import { HalamanPembayaran } from './pages/pembayaran/pembayaran';
@@ -56,6 +57,7 @@ export default function App() {
               <Route path="/status-taruna" element={<WajibLogin roles={['PEMBINA', 'ADMIN']}><HalamanStatusTaruna /></WajibLogin>} />
               {/* PPK */}
               <Route path="/rekap" element={<WajibLogin roles={['PPK']}><HalamanRekap /></WajibLogin>} />
+              <Route path="/kontrak" element={<WajibLogin roles={['PPK']}><HalamanKontrak /></WajibLogin>} />
               <Route path="/pembayaran" element={<WajibLogin roles={['PPK', 'SENAT', 'KPA', 'WADIR3']}><HalamanPembayaran /></WajibLogin>} />
               {/* Senat + PPK (+KPA/Wadir3 lihat) */}
               <Route path="/tagihan" element={<WajibLogin roles={['SENAT', 'PPK', 'KPA', 'WADIR3']}><HalamanTagihanList /></WajibLogin>} />
