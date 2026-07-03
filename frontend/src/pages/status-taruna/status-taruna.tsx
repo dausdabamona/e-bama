@@ -161,8 +161,8 @@ export function HalamanStatusTaruna() {
       <h2 className="text-sm font-semibold text-gray-600">Riwayat 14 Hari Terakhir</h2>
       {statusQ.memuat && !statusQ.data && <LoadingSpinner />}
       {statusQ.galat && !statusQ.data && <ErrorMessage pesan={statusQ.galat} onRetry={statusQ.refresh} />}
-      {statusQ.data?.status.length === 0 && <EmptyState pesan="Tidak ada status tercatat." />}
-      {statusQ.data?.status
+      {statusQ.data?.status?.length === 0 && <EmptyState pesan="Tidak ada status tercatat." />}
+      {(statusQ.data?.status ?? [])
         .slice().sort((a, b) => b.tanggal.localeCompare(a.tanggal))
         .map((s) => {
           const t = daftarTaruna.find((x) => x.nit === s.nit);

@@ -22,7 +22,7 @@ export function HalamanRealisasiDetail() {
 
   if (memuat && !data) return <LoadingSpinner />;
   if (galat && !data) return <ErrorMessage pesan={galat} onRetry={refresh} />;
-  const r = data?.realisasi.find((x) => x.real_id === id);
+  const r = data?.realisasi?.find((x) => x.real_id === id);
   if (!r) return <ErrorMessage pesan="Realisasi tidak ditemukan." onRetry={refresh} />;
 
   const sudahTtd = session?.role === 'PEMBINA' ? Boolean(r.ttd_pembina_at) : Boolean(r.ttd_senat_at);

@@ -37,7 +37,7 @@ export function HalamanPengguna() {
   }, [data, filterRole, cari]);
 
   const jmlAktif = (data?.pengguna ?? []).filter((p) => p.status === 'AKTIF').length;
-  const jmlTotal = data?.pengguna.length ?? 0;
+  const jmlTotal = data?.pengguna?.length ?? 0;
 
   async function resetPin(userId: string) {
     try {

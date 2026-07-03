@@ -27,8 +27,8 @@ export function HalamanRealisasiList() {
   const galat = pesananQ.galat || realisasiQ.galat;
   const data = pesananQ.data && realisasiQ.data ? { pesanan: pesananQ.data.pesanan, realisasi: realisasiQ.data.realisasi } : null;
 
-  const punyaRealisasi = new Set(data?.realisasi.map((r) => r.pesanan_id));
-  const menunggu = data?.pesanan.filter((p) => p.status === 'TERKIRIM' && !punyaRealisasi.has(p.pesanan_id)) ?? [];
+  const punyaRealisasi = new Set(data?.realisasi?.map((r) => r.pesanan_id));
+  const menunggu = data?.pesanan?.filter((p) => p.status === 'TERKIRIM' && !punyaRealisasi.has(p.pesanan_id)) ?? [];
 
   return (
     <div className="flex flex-col gap-4">
@@ -55,8 +55,8 @@ export function HalamanRealisasiList() {
           ))}
 
           <h2 className="mt-2 text-sm font-semibold text-gray-600">Riwayat Realisasi</h2>
-          {data.realisasi.length === 0 && <EmptyState pesan="Belum ada realisasi bulan ini." />}
-          {data.realisasi
+          {(data.realisasi ?? []).length === 0 && <EmptyState pesan="Belum ada realisasi bulan ini." />}
+          {(data.realisasi ?? [])
             .slice()
             .sort((a, b) => b.tanggal.localeCompare(a.tanggal))
             .map((r) => {

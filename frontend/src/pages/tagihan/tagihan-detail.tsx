@@ -39,7 +39,7 @@ export function HalamanTagihanDetail() {
 
   if (tagihanQ.memuat && !tagihanQ.data) return <LoadingSpinner />;
   if (tagihanQ.galat && !tagihanQ.data) return <ErrorMessage pesan={tagihanQ.galat} onRetry={tagihanQ.refresh} />;
-  const t = tagihanQ.data?.tagihan.find((x) => x.tagihan_id === id);
+  const t = tagihanQ.data?.tagihan?.find((x) => x.tagihan_id === id);
   if (!t) return <ErrorMessage pesan="Tagihan tidak ditemukan." onRetry={tagihanQ.refresh} />;
 
   async function pilihBerkas() {
@@ -117,8 +117,8 @@ export function HalamanTagihanDetail() {
       <Card>
         <p className="mb-2 text-sm font-semibold text-gray-600">Riwayat Surat Peringatan</p>
         {spQ.memuat && !spQ.data && <LoadingSpinner />}
-        {spQ.data?.sp.length === 0 && <p className="text-sm text-gray-400">Belum ada SP terbit.</p>}
-        {spQ.data?.sp.map((s) => (
+        {spQ.data?.sp?.length === 0 && <p className="text-sm text-gray-400">Belum ada SP terbit.</p>}
+        {spQ.data?.sp?.map((s) => (
           <div key={s.sp_id} className="flex items-center justify-between border-b border-gray-100 py-2 last:border-0">
             <div>
               <p className="font-medium">SP-{s.level}: {s.no_surat}</p>

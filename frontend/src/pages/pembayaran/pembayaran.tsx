@@ -25,7 +25,7 @@ export function HalamanPembayaran() {
   const { data, memuat, galat, refresh } = useListCache<{ pembayaran: Pembayaran[] }>('bayar.list', { bulan });
   const [proses, setProses] = useState(false);
 
-  const b = data?.pembayaran.find((x) => x.bulan === bulan);
+  const b = data?.pembayaran?.find((x) => x.bulan === bulan);
   const [noSpm, setNoSpm] = useState('');
   const [tglSpm, setTglSpm] = useState('');
   const [noSp2d, setNoSp2d] = useState('');

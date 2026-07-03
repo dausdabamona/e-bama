@@ -38,8 +38,8 @@ export function HalamanKontrak() {
       </div>
       {penyediaQ.memuat && !penyediaQ.data && <LoadingSpinner />}
       {penyediaQ.galat && !penyediaQ.data && <ErrorMessage pesan={penyediaQ.galat} onRetry={penyediaQ.refresh} />}
-      {penyediaQ.data && penyediaQ.data.penyedia.length === 0 && <EmptyState pesan="Belum ada penyedia." />}
-      {penyediaQ.data?.penyedia.map((p) => (
+      {penyediaQ.data && (penyediaQ.data.penyedia ?? []).length === 0 && <EmptyState pesan="Belum ada penyedia." />}
+      {penyediaQ.data?.penyedia?.map((p) => (
         <Card key={p.penyedia_id} className="flex items-center justify-between active:bg-primary-light/30" onClick={() => setModalPenyedia(p)}>
           <div>
             <p className="font-semibold">{p.nama}</p>
@@ -56,8 +56,8 @@ export function HalamanKontrak() {
       </div>
       {kontrakQ.memuat && !kontrakQ.data && <LoadingSpinner />}
       {kontrakQ.galat && !kontrakQ.data && <ErrorMessage pesan={kontrakQ.galat} onRetry={kontrakQ.refresh} />}
-      {kontrakQ.data && kontrakQ.data.kontrak.length === 0 && <EmptyState pesan="Belum ada kontrak." />}
-      {kontrakQ.data?.kontrak.map((k) => (
+      {kontrakQ.data && (kontrakQ.data.kontrak ?? []).length === 0 && <EmptyState pesan="Belum ada kontrak." />}
+      {kontrakQ.data?.kontrak?.map((k) => (
         <Card key={k.kontrak_id} className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <div>

@@ -51,9 +51,9 @@ export function HalamanAudit() {
 
       {memuat && !data && <LoadingSpinner label="Memuat log…" />}
       {galat && !data && <ErrorMessage pesan={galat} onRetry={refresh} />}
-      {data && data.log.length === 0 && <EmptyState pesan="Tidak ada log pada rentang ini." />}
+      {data && (data.log ?? []).length === 0 && <EmptyState pesan="Tidak ada log pada rentang ini." />}
 
-      {data?.log.map((l, i) => (
+      {data?.log?.map((l, i) => (
         <Card key={i} className="text-sm">
           <div className="flex items-center justify-between">
             <span className="font-mono font-semibold">{l.aksi}</span>

@@ -20,7 +20,7 @@ export function HalamanVerifikasi() {
   const [proses, setProses] = useState<string | null>(null);
   const [tampilKembalikan, setTampilKembalikan] = useState<Pesanan | null>(null);
 
-  const antrian = data?.pesanan.filter((p) => p.status === 'DIAJUKAN') ?? [];
+  const antrian = data?.pesanan?.filter((p) => p.status === 'DIAJUKAN') ?? [];
 
   async function setujui(p: Pesanan) {
     setProses(p.pesanan_id);
