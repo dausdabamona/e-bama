@@ -58,6 +58,7 @@ var ACTION_MAP = {
   'rekap.verify':     { handler: rekapVerify,    roles: ['PPK'] },
   'rekap.final':      { handler: rekapFinal,     roles: ['PPK'] },
   'rekap.approve_wadir3': { handler: rekapApproveWadir3, roles: ['WADIR3'] },
+  'rekap.input_historis': { handler: rekapInputHistoris, roles: ['PPK', 'ADMIN'] },
 
   // Pembayaran (TAHAP 4A)
   'bayar.list':       { handler: bayarList,      roles: ['PPK', 'KPA', 'SENAT', 'WADIR3'] },

@@ -19,6 +19,7 @@ import { HalamanRealisasiList } from './pages/realisasi/realisasi-list';
 import { HalamanRealisasiBuat } from './pages/realisasi/realisasi-form';
 import { HalamanRealisasiDetail } from './pages/realisasi/realisasi-detail';
 import { HalamanRekap } from './pages/rekap/rekap';
+import { HalamanRekapHistoris } from './pages/rekap/rekap-historis';
 import { HalamanPersetujuanWadir3 } from './pages/rekap/persetujuan-wadir3';
 import { HalamanStatusTaruna } from './pages/status-taruna/status-taruna';
 import { HalamanTagihanList } from './pages/tagihan/tagihan-list';
@@ -57,6 +58,7 @@ export default function App() {
               <Route path="/status-taruna" element={<WajibLogin roles={['PEMBINA', 'ADMIN']}><HalamanStatusTaruna /></WajibLogin>} />
               {/* PPK */}
               <Route path="/rekap" element={<WajibLogin roles={['PPK']}><HalamanRekap /></WajibLogin>} />
+              <Route path="/rekap/historis" element={<WajibLogin roles={['PPK', 'ADMIN']}><HalamanRekapHistoris /></WajibLogin>} />
               <Route path="/kontrak" element={<WajibLogin roles={['PPK']}><HalamanKontrak /></WajibLogin>} />
               <Route path="/pembayaran" element={<WajibLogin roles={['PPK', 'SENAT', 'KPA', 'WADIR3']}><HalamanPembayaran /></WajibLogin>} />
               {/* Senat + PPK (+KPA/Wadir3 lihat) */}

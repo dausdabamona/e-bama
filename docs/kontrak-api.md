@@ -95,6 +95,7 @@ Transisi ilegal → error eksplisit (mis. "Pesanan berstatus DRAFT, tidak bisa d
 | `rekap.verify` | PPK | `DRAFT → TERVERIFIKASI_PPK` |
 | `rekap.final` | PPK | `→ FINAL` — beku, dasar SPM; update berikutnya ditolak |
 | `rekap.approve_wadir3` | WADIR3 | `FINAL → DISETUJUI_WADIR3` — otorisasi pencairan (bukan koreksi angka); syarat `bayar.create` |
+| `rekap.input_historis` | PPK, ADMIN | `{bulan, harga_per_porsi, porsi_per_hari, baris:[{nit,hari_makan,hari_tidak_makan?}]}` — migrasi bulan pra-aplikasi (mis. Januari–Juni sebelum e-BAMA aktif), TANPA Pesanan/Realisasi harian palsu; tolak bila bulan itu sudah punya baris bukan `DRAFT`; jejak sumber di AUDIT_LOG (`sumber: INPUT_HISTORIS_PRA_APLIKASI`), lanjut alur normal `rekap.verify → rekap.final → rekap.approve_wadir3` |
 
 `rekapUpdate(tanggal)` internal (bukan action publik): incremental per hari, uang integer.
 

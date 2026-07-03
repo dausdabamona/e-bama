@@ -2,7 +2,8 @@
  * 14_rekap.gs — REKAP_BULANAN: materialized view incremental (SOP no. 10)
  * Status: DRAFT → TERVERIFIKASI_PPK → FINAL (beku, dasar SPM)
  *
- * ACTION: rekap.get (PPK, KPA), rekap.verify (PPK), rekap.final (PPK)
+ * ACTION: rekap.get (PPK, KPA), rekap.verify (PPK), rekap.final (PPK),
+ *         rekap.input_historis (PPK, Admin) — migrasi bulan pra-aplikasi
  * INTERNAL: rekapUpdate(tanggal) — dipanggil realisasi.ttd, BUKAN action publik.
  *
  * Uang selalu integer rupiah: nominal = hari_makan × harga_per_porsi × porsi_per_hari.
@@ -157,4 +158,77 @@ function rekapFinal(payload, session) {
 function rekapApproveWadir3(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
   return _rekapSetStatus_(session, bulan, 'FINAL', 'DISETUJUI_WADIR3', 'approve_wadir3');
+}
+
+/**
+ * rekap.input_historis (PPK, Admin) — migrasi bulan yang SUDAH BERJALAN sebelum
+ * e-BAMA ada (mis. Januari–Juni), TANPA Pesanan/Realisasi harian palsu.
+ * Payload {bulan, harga_per_porsi, porsi_per_hari, baris:[{nit, hari_makan, hari_tidak_makan?}]}.
+ * Ditulis batch (bukan per-baris) demi kuota GAS. Ditolak bila bulan itu sudah
+ * punya baris berstatus selain DRAFT (mencegah menimpa rekap yang sedang berjalan
+ * lewat alur normal). Jejak sumber tercatat di AUDIT_LOG, BUKAN kolom sheet baru.
+ */
+function rekapInputHistoris(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  var harga = _int_(payload && payload.harga_per_porsi, 'harga_per_porsi');
+  var porsi = _int_(payload && payload.porsi_per_hari, 'porsi_per_hari');
+  var baris = (payload && payload.baris) || [];
+  if (!baris.length) throw _fail_('baris tidak boleh kosong.');
+
+  var existing = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
+  existing.forEach(function (r) {
+    if (String(r.status) !== 'DRAFT') {
+      throw _fail_('Rekap bulan ' + bulan + ' sudah berstatus ' + r.status + ' — tidak bisa diimpor historis lagi.');
+    }
+  });
+
+  var tarunaValid = {};
+  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaValid[String(t.nit)] = true; });
+
+  return withLock(function () {
+    var sh = _sheet_(SHEETS.REKAP_BULANAN);
+    var lastCol = sh.getLastColumn();
+    var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    var last = sh.getLastRow();
+    var data = last >= 2 ? sh.getRange(2, 1, last - 1, lastCol).getValues() : [];
+    var iBulan = headers.indexOf('bulan'), iNit = headers.indexOf('nit');
+
+    var barisNit = {};
+    for (var i = 0; i < data.length; i++) {
+      if (_bulanStr_(data[i][iBulan]) !== bulan) continue;
+      barisNit[String(data[i][iNit])] = i + 2; // nomor baris sheet
+    }
+
+    var barisBaru = [];
+    var n = 0;
+    baris.forEach(function (b) {
+      var nit = String((b && b.nit) || '').trim();
+      if (!nit) throw _fail_('nit wajib diisi pada setiap baris.');
+      if (!tarunaValid[nit]) throw _fail_('Taruna tidak ditemukan: ' + nit);
+      var makan = _int_(b.hari_makan, 'hari_makan');
+      var tidak = _int_(b.hari_tidak_makan || 0, 'hari_tidak_makan');
+      var nominal = Math.round(makan * harga * porsi);
+
+      var nilai = {
+        bulan: bulan, nit: nit, hari_makan: makan, hari_tidak_makan: tidak,
+        nominal: nominal, status: 'DRAFT', verif_by: '', verif_at: ''
+      };
+      var row = headers.map(function (h) { return nilai[h] !== undefined ? nilai[h] : ''; });
+      if (barisNit[nit]) {
+        sh.getRange(barisNit[nit], 1, 1, lastCol).setValues([row]);
+      } else {
+        barisBaru.push(row);
+      }
+      n++;
+    });
+    if (barisBaru.length) {
+      sh.getRange(sh.getLastRow() + 1, 1, barisBaru.length, lastCol).setValues(barisBaru);
+    }
+
+    auditLog(session, 'rekap.input_historis', 'REKAP_BULANAN', bulan, null, {
+      baris: n, harga_per_porsi: harga, porsi_per_hari: porsi,
+      sumber: 'INPUT_HISTORIS_PRA_APLIKASI'
+    });
+    return { bulan: bulan, baris: n };
+  });
 }

@@ -249,6 +249,16 @@ STATUS_HARIAN masuk — TIDAK dihitung ulang sebulan penuh (hindari timeout GAS
 > sebelum PPK boleh membuat PEMBAYARAN (`bayar.create`). Ini otorisasi
 > pencairan — bukan koreksi angka; nominal tidak berubah pada langkah ini.
 
+> **Migrasi bulan pra-aplikasi:** untuk bulan yang sudah berjalan manual
+> sebelum e-BAMA aktif (mis. Januari–Juni), baris diisi langsung lewat
+> `rekap.input_historis` (PPK/Admin) — BUKAN dengan membuat Pesanan/Realisasi
+> harian palsu bertanggal mundur (`pesanan.kirim` memang menolak tanggal yang
+> sudah lewat). `harga_per_porsi`/`porsi_per_hari` untuk bulan historis diinput
+> manual saat itu (tidak selalu merujuk KONTRAK yang ada di sistem). Jejak
+> sumbernya di AUDIT_LOG (`sumber: INPUT_HISTORIS_PRA_APLIKASI`), bukan kolom
+> sheet tersendiri. Setelah masuk, bulan itu lanjut alur normal: verifikasi →
+> final → persetujuan Wadir 3 → pembayaran.
+
 | Kolom | Tipe | Keterangan |
 |---|---|---|
 | bulan | string | `YYYY-MM`; kunci gabungan (bulan, nit) |
