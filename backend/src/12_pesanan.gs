@@ -1,10 +1,14 @@
 /**
- * 12_pesanan.gs — Pesanan makan Pre-Order H-1 (SOP no. 5–7)
- * Mesin status: DRAFT → DIAJUKAN → (DIKEMBALIKAN | DISETUJUI) → TERKIRIM
+ * 12_pesanan.gs — Pesanan makan Pre-Order H-1 (SOP no. 5–8, Form-01)
+ * Mesin status: DRAFT → DIAJUKAN → (DIKEMBALIKAN | DISETUJUI_PEMBINA)
+ *               → (DIKEMBALIKAN | DISETUJUI_PPK) → TERKIRIM
+ * Rantai Form-01: Senat merencanakan → Pembina memverifikasi → PPK menyetujui
+ *               → Senat menyampaikan ke penyedia paling lambat H-1.
  *
  * ACTION: pesanan.list, pesanan.get (semua login),
  *         pesanan.create/submit/kirim/revisi (Senat),
- *         pesanan.verify/return (Pembina)
+ *         pesanan.verify (Pembina), pesanan.approve (PPK),
+ *         pesanan.return (Pembina, PPK)
  *
  * jml_taruna = SNAPSHOT (taruna AKTIF − STATUS_HARIAN tgl tsb); koreksi manual
  * wajib catatan. Transisi ilegal → error eksplisit.
@@ -78,7 +82,8 @@ function pesananCreate(payload, session) {
     catatan: catatan,
     status: 'DRAFT',
     created_by: session.user_id,
-    verif_by: '', verif_at: '', revisi_dari: ''
+    verif_by: '', verif_at: '', revisi_dari: '',
+    appr_by: '', appr_at: ''
   };
   sheetAppend(SHEETS.PESANAN, obj);
   auditLog(session, 'pesanan.create', 'PESANAN', obj.pesanan_id, null,
@@ -109,28 +114,39 @@ function pesananSubmit(payload, session) {
   return { pesanan_id: p.pesanan_id, status: 'DIAJUKAN' };
 }
 
-/** DIAJUKAN → DISETUJUI (Pembina, SOP no. 6). */
+/** DIAJUKAN → DISETUJUI_PEMBINA (Pembina, SOP no. 6). */
 function pesananVerify(payload, session) {
   var id = payload && payload.pesanan_id;
-  _pesananTransisi_(session, id, 'DIAJUKAN', 'DISETUJUI', 'verify',
+  _pesananTransisi_(session, id, 'DIAJUKAN', 'DISETUJUI_PEMBINA', 'verify',
     { verif_by: session.user_id, verif_at: new Date() });
-  return { pesanan_id: id, status: 'DISETUJUI' };
+  return { pesanan_id: id, status: 'DISETUJUI_PEMBINA' };
 }
 
-/** DIAJUKAN → DIKEMBALIKAN (alasan wajib). */
+/** DISETUJUI_PEMBINA → DISETUJUI_PPK (PPK, SOP no. 7 / Form-01). */
+function pesananApprove(payload, session) {
+  var id = payload && payload.pesanan_id;
+  _pesananTransisi_(session, id, 'DISETUJUI_PEMBINA', 'DISETUJUI_PPK', 'approve',
+    { appr_by: session.user_id, appr_at: new Date() });
+  return { pesanan_id: id, status: 'DISETUJUI_PPK' };
+}
+
+/**
+ * Pengembalian (alasan wajib):
+ * Pembina: DIAJUKAN → DIKEMBALIKAN; PPK: DISETUJUI_PEMBINA → DIKEMBALIKAN.
+ */
 function pesananReturn(payload, session) {
   var id = payload && payload.pesanan_id;
   var alasan = String((payload && payload.alasan) || '').trim();
   if (!alasan) throw _fail_('alasan pengembalian wajib diisi.');
+  var dariStatus = (session.role === 'PPK') ? 'DISETUJUI_PEMBINA' : 'DIAJUKAN';
   var p = _pesanan_(id);
   // Skema tidak punya kolom alasan tersendiri → catat di catatan + AUDIT_LOG
-  var catatan = (p.catatan ? p.catatan + ' | ' : '') + 'DIKEMBALIKAN: ' + alasan;
-  _pesananTransisi_(session, id, 'DIAJUKAN', 'DIKEMBALIKAN', 'return',
-    { verif_by: session.user_id, verif_at: new Date(), catatan: catatan });
+  var catatan = (p.catatan ? p.catatan + ' | ' : '') + 'DIKEMBALIKAN (' + session.role + '): ' + alasan;
+  _pesananTransisi_(session, id, dariStatus, 'DIKEMBALIKAN', 'return', { catatan: catatan });
   return { pesanan_id: id, status: 'DIKEMBALIKAN' };
 }
 
-/** DISETUJUI → TERKIRIM (Senat), hanya ≤ H-1 dari tgl_makan. */
+/** DISETUJUI_PPK → TERKIRIM (Senat), hanya ≤ H-1 dari tgl_makan. */
 function pesananKirim(payload, session) {
   var id = payload && payload.pesanan_id;
   var p = _pesanan_(id);
@@ -138,7 +154,7 @@ function pesananKirim(payload, session) {
     throw _fail_('Pengiriman hanya boleh H-1 atau lebih awal dari tgl_makan. ' +
       'Untuk perubahan setelah terkirim gunakan pesanan.revisi dengan BA perubahan.');
   }
-  _pesananTransisi_(session, id, 'DISETUJUI', 'TERKIRIM', 'kirim', null);
+  _pesananTransisi_(session, id, 'DISETUJUI_PPK', 'TERKIRIM', 'kirim', null);
   return { pesanan_id: id, status: 'TERKIRIM' };
 }
 

@@ -40,7 +40,8 @@ var ACTION_MAP = {
   'pesanan.create':   { handler: pesananCreate,  roles: ['SENAT'] },
   'pesanan.submit':   { handler: pesananSubmit,  roles: ['SENAT'] },
   'pesanan.verify':   { handler: pesananVerify,  roles: ['PEMBINA'] },
-  'pesanan.return':   { handler: pesananReturn,  roles: ['PEMBINA'] },
+  'pesanan.approve':  { handler: pesananApprove, roles: ['PPK'] },
+  'pesanan.return':   { handler: pesananReturn,  roles: ['PEMBINA', 'PPK'] },
   'pesanan.kirim':    { handler: pesananKirim,   roles: ['SENAT'] },
   'pesanan.revisi':   { handler: pesananRevisi,  roles: ['SENAT'] },
 
