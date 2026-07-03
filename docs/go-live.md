@@ -23,6 +23,8 @@
 | 2.5 | Uji health check (`doGet`) dan login dari domain produksi `dausdabamona.github.io/e-bama/` — bukan URL test | ☐ | | |
 | 2.6 | Simpan/arsipkan Script ID + URL deployment lama (untuk referensi), tandai jelas "TEST — jangan dipakai lagi" | ☐ | | |
 
+> ⚠️ **Jebakan versi beku:** deployment biasa (`New deployment`) membuat **snapshot beku** di versi tertentu (`@1`, `@2`, dst.) — `clasp push` TIDAK pernah memperbaruinya; perlu `New version` manual tiap kali kode berubah, dan itu pun tidak selalu langsung berlaku. Untuk testing sehari-hari, pakai deployment tipe **`@HEAD`** (`clasp deployments` akan menampilkannya) — otomatis mengikuti kode terbaru setiap `clasp push`, tanpa langkah tambahan. Pastikan deployment `@HEAD` itu juga dikonfigurasi **Execute as = Me**, **Who has access = Anyone** di Manage Deployments. Untuk **produksi**, tetap ikuti 2.1–2.2 (deployment versi tetap, sengaja tidak auto-update) supaya kode produksi tidak berubah tanpa sepengetahuan — ganti versi produksi HANYA lewat `New version` yang disengaja.
+
 ## 3. Trigger otomatis
 
 | # | Langkah | Hasil | Tanggal | Paraf |
