@@ -24,6 +24,8 @@
 | 2.6 | Simpan/arsipkan Script ID + URL deployment lama (untuk referensi), tandai jelas "TEST — jangan dipakai lagi" | ☐ | | |
 
 > ⚠️ **Jebakan versi beku:** deployment biasa (`New deployment`) membuat **snapshot beku** di versi tertentu (`@1`, `@2`, dst.) — `clasp push` TIDAK pernah memperbaruinya; perlu `New version` manual tiap kali kode berubah, dan itu pun tidak selalu langsung berlaku. Untuk testing sehari-hari, pakai deployment tipe **`@HEAD`** (`clasp deployments` akan menampilkannya) — otomatis mengikuti kode terbaru setiap `clasp push`, tanpa langkah tambahan. Pastikan deployment `@HEAD` itu juga dikonfigurasi **Execute as = Me**, **Who has access = Anyone** di Manage Deployments. Untuk **produksi**, tetap ikuti 2.1–2.2 (deployment versi tetap, sengaja tidak auto-update) supaya kode produksi tidak berubah tanpa sepengetahuan — ganti versi produksi HANYA lewat `New version` yang disengaja.
+>
+> ⚠️ **Kalau `@HEAD` hilang/tidak ketemu lagi** (pernah terjadi — deployment test lama tidak muncul lagi di Manage Deployments): jangan asal klik **"New deployment"** berkali-kali, itu membuat URL BARU tiap kali diklik (bikin bingung URL mana yang aktif). Pilih **satu** deployment yang sudah ada (atau buat **satu** baru sekali saja), lalu URL-nya dipakai TETAP seterusnya — untuk kode baru, buka **Manage deployments → pensil (Edit) pada deployment itu → dropdown Versi pilih "New Version" → Deploy**. Jangan pernah klik "New deployment" lagi setelah itu, supaya URL tidak berubah-ubah. Cek juga menu **"Test deployments"** (terpisah dari Manage Deployments) sebelum menyerah ke opsi manual — itu yang paling mendekati perilaku `@HEAD` asli.
 
 ## 3. Trigger otomatis
 
