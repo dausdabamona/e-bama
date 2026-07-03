@@ -1,0 +1,6 @@
+# clasp push dijalankan dari folder backend/ (rootDir = "."), supaya
+# appsscript.json (yang ada di backend/, BUKAN di backend/src/) ikut terbaca
+# sebagai manifest. bundle/ dikecualikan supaya salinan gabungan .gs di sana
+# tidak ikut ter-push (isinya duplikat semua fungsi yang sudah ada di src/).
+bundle/**
+.clasp.json.example
