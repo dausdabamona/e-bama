@@ -5,18 +5,26 @@ import { Layout, NAV_PER_ROLE } from './components/layout';
 import { ToastProvider } from './components/ui/toast';
 import { HalamanAkun } from './pages/akun';
 import { HalamanAntrian } from './pages/antrian';
-import { DalamPengembangan } from './pages/dalam-pengembangan';
+import { HalamanAudit } from './pages/audit/audit';
+import { HalamanDashboardKpa } from './pages/dashboard-kpa/dashboard-kpa';
+import { HalamanLaporan } from './pages/laporan/laporan';
 import { HalamanLogin } from './pages/login';
+import { HalamanPembayaran } from './pages/pembayaran/pembayaran';
+import { HalamanPengguna } from './pages/pengguna/pengguna';
 import { HalamanPesananList } from './pages/pesanan/pesanan-list';
 import { HalamanPesananBuat } from './pages/pesanan/pesanan-buat';
 import { HalamanPesananDetail } from './pages/pesanan/pesanan-detail';
 import { HalamanRealisasiList } from './pages/realisasi/realisasi-list';
 import { HalamanRealisasiBuat } from './pages/realisasi/realisasi-form';
 import { HalamanRealisasiDetail } from './pages/realisasi/realisasi-detail';
-import { HalamanVerifikasi } from './pages/verifikasi';
+import { HalamanRekap } from './pages/rekap/rekap';
 import { HalamanStatusTaruna } from './pages/status-taruna/status-taruna';
 import { HalamanTagihanList } from './pages/tagihan/tagihan-list';
 import { HalamanTagihanDetail } from './pages/tagihan/tagihan-detail';
+import { HalamanTagihanGagalDebet } from './pages/tagihan/tagihan-gagal-debet';
+import { HalamanTarunaList } from './pages/taruna/taruna-list';
+import { HalamanTarunaImpor } from './pages/taruna/taruna-import';
+import { HalamanVerifikasi } from './pages/verifikasi';
 
 /** Beranda: arahkan ke item nav pertama sesuai role. */
 function Beranda() {
@@ -46,17 +54,21 @@ export default function App() {
               <Route path="/verifikasi" element={<WajibLogin roles={['PEMBINA']}><HalamanVerifikasi /></WajibLogin>} />
               <Route path="/status-taruna" element={<WajibLogin roles={['PEMBINA', 'ADMIN']}><HalamanStatusTaruna /></WajibLogin>} />
               {/* PPK */}
-              <Route path="/rekap" element={<WajibLogin roles={['PPK']}><DalamPengembangan judul="Rekap Bulanan" /></WajibLogin>} />
-              <Route path="/pembayaran" element={<WajibLogin roles={['PPK']}><DalamPengembangan judul="Pembayaran" /></WajibLogin>} />
+              <Route path="/rekap" element={<WajibLogin roles={['PPK']}><HalamanRekap /></WajibLogin>} />
+              <Route path="/pembayaran" element={<WajibLogin roles={['PPK', 'SENAT', 'KPA']}><HalamanPembayaran /></WajibLogin>} />
               {/* Senat + PPK (+KPA lihat) */}
               <Route path="/tagihan" element={<WajibLogin roles={['SENAT', 'PPK', 'KPA']}><HalamanTagihanList /></WajibLogin>} />
+              <Route path="/tagihan/gagal-debet" element={<WajibLogin roles={['PPK']}><HalamanTagihanGagalDebet /></WajibLogin>} />
               <Route path="/tagihan/:id" element={<WajibLogin roles={['SENAT', 'PPK', 'KPA']}><HalamanTagihanDetail /></WajibLogin>} />
               {/* PPK + KPA */}
-              <Route path="/laporan" element={<WajibLogin roles={['PPK', 'KPA']}><DalamPengembangan judul="Laporan" /></WajibLogin>} />
-              <Route path="/dashboard" element={<WajibLogin roles={['KPA']}><DalamPengembangan judul="Dashboard" /></WajibLogin>} />
+              <Route path="/laporan" element={<WajibLogin roles={['PPK', 'KPA']}><HalamanLaporan /></WajibLogin>} />
+              <Route path="/dashboard" element={<WajibLogin roles={['KPA']}><HalamanDashboardKpa /></WajibLogin>} />
               {/* Admin */}
-              <Route path="/taruna" element={<WajibLogin roles={['ADMIN']}><DalamPengembangan judul="Data Taruna" /></WajibLogin>} />
-              <Route path="/pengguna" element={<WajibLogin roles={['ADMIN']}><DalamPengembangan judul="Pengguna" /></WajibLogin>} />
+              <Route path="/taruna" element={<WajibLogin roles={['ADMIN']}><HalamanTarunaList /></WajibLogin>} />
+              <Route path="/taruna/impor" element={<WajibLogin roles={['ADMIN']}><HalamanTarunaImpor /></WajibLogin>} />
+              <Route path="/pengguna" element={<WajibLogin roles={['ADMIN']}><HalamanPengguna /></WajibLogin>} />
+              {/* Admin, PPK, KPA */}
+              <Route path="/audit" element={<WajibLogin roles={['ADMIN', 'PPK', 'KPA']}><HalamanAudit /></WajibLogin>} />
               {/* Semua role */}
               <Route path="/akun" element={<HalamanAkun />} />
               <Route path="/antrian" element={<HalamanAntrian />} />

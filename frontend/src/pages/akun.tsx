@@ -1,5 +1,6 @@
 // Halaman Akun: info sesi, ganti PIN, keluar
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/auth-context';
 import { api } from '../lib/api';
 import { Button } from '../components/ui/button';
@@ -45,6 +46,9 @@ export function HalamanAkun() {
           {proses ? 'Memproses…' : 'Simpan PIN Baru'}
         </Button>
       </Card>
+      {(session?.role === 'ADMIN' || session?.role === 'PPK' || session?.role === 'KPA') && (
+        <Link to="/audit"><Button varian="garis" className="w-full">📜 Lihat Audit Log</Button></Link>
+      )}
       <Button varian="bahaya" onClick={() => void logout()}>Keluar</Button>
     </div>
   );

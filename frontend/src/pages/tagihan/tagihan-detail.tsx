@@ -9,7 +9,10 @@ import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { ErrorMessage } from '../../components/ui/error-message';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
+import { Input } from '../../components/ui/input';
+import { Modal } from '../../components/ui/modal';
 import { useToast } from '../../components/ui/toast';
+import { api } from '../../lib/api';
 import { useListCache } from '../../lib/use-list-cache';
 import { urlDrive } from '../pesanan/tipe';
 import { formatRupiah, type SuratPeringatan, type Tagihan } from './tipe';
@@ -32,6 +35,7 @@ export function HalamanTagihanDetail() {
   const [fotoBase64, setFotoBase64] = useState('');
   const [proses, setProses] = useState(false);
   const [galat, setGalat] = useState('');
+  const [tampilHapus, setTampilHapus] = useState(false);
 
   if (tagihanQ.memuat && !tagihanQ.data) return <LoadingSpinner />;
   if (tagihanQ.galat && !tagihanQ.data) return <ErrorMessage pesan={tagihanQ.galat} onRetry={tagihanQ.refresh} />;
@@ -58,6 +62,32 @@ export function HalamanTagihanDetail() {
       setFotoNama(''); setFotoBase64('');
     } catch (e) {
       setGalat(e instanceof Error ? e.message : 'Gagal.');
+    } finally {
+      setProses(false);
+    }
+  }
+
+  async function verifikasiSetoran() {
+    setProses(true);
+    try {
+      await api('tagihan.verify', { tagihan_id: t!.tagihan_id });
+      toast('Tagihan diverifikasi — LUNAS.', 'sukses');
+      tagihanQ.refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
+    } finally {
+      setProses(false);
+    }
+  }
+
+  async function terbitkanUlangSp() {
+    setProses(true);
+    try {
+      await api('tagihan.regenerate_sp', { tagihan_id: t!.tagihan_id });
+      toast('SP diterbitkan ulang.', 'sukses');
+      spQ.refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
     } finally {
       setProses(false);
     }
@@ -118,6 +148,68 @@ export function HalamanTagihanDetail() {
           </Button>
         </Card>
       )}
+
+      {t.status === 'TERTAGIH' && session?.role === 'PPK' && (
+        <Card className="flex flex-col gap-2">
+          <p className="text-sm font-semibold text-gray-600">Tindakan PPK</p>
+          {t.tgl_setor && (
+            <Button onClick={() => void verifikasiSetoran()} disabled={proses}>
+              Verifikasi Setoran → LUNAS
+            </Button>
+          )}
+          {spQ.data && spQ.data.sp.length > 0 && (
+            <Button varian="garis" onClick={() => void terbitkanUlangSp()} disabled={proses}>
+              Terbitkan Ulang SP Level Aktif
+            </Button>
+          )}
+          <Button varian="bahaya" onClick={() => setTampilHapus(true)} disabled={proses}>
+            Hapuskan Tagihan
+          </Button>
+        </Card>
+      )}
+
+      {tampilHapus && (
+        <ModalHapus
+          onClose={() => setTampilHapus(false)}
+          onSukses={() => { setTampilHapus(false); tagihanQ.refresh(); }}
+          tagihanId={t.tagihan_id}
+        />
+      )}
     </div>
+  );
+}
+
+function ModalHapus({ tagihanId, onClose, onSukses }: {
+  tagihanId: string; onClose: () => void; onSukses: () => void;
+}) {
+  const { toast } = useToast();
+  const [catatan, setCatatan] = useState('');
+  const [proses, setProses] = useState(false);
+  const [galat, setGalat] = useState('');
+
+  async function kirim() {
+    if (!catatan.trim()) { setGalat('Catatan penghapusan wajib diisi.'); return; }
+    setProses(true); setGalat('');
+    try {
+      await api('tagihan.waive', { tagihan_id: tagihanId, catatan_hapus: catatan.trim() });
+      toast('Tagihan dihapuskan.', 'sukses');
+      onSukses();
+    } catch (e) {
+      setGalat(e instanceof Error ? e.message : 'Gagal.');
+    } finally {
+      setProses(false);
+    }
+  }
+
+  return (
+    <Modal judul="Hapuskan Tagihan" onClose={onClose}>
+      <div className="flex flex-col gap-3">
+        <Input label="Catatan Penghapusan (wajib)" value={catatan} onChange={(e) => setCatatan(e.target.value)} autoFocus />
+        {galat && <p className="text-sm text-red-600">{galat}</p>}
+        <Button varian="bahaya" onClick={() => void kirim()} disabled={proses}>
+          {proses ? 'Memproses…' : 'Hapuskan Tagihan'}
+        </Button>
+      </div>
+    </Modal>
   );
 }

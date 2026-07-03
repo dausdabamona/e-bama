@@ -1,6 +1,9 @@
 // /tagihan — daftar tagihan aktif + badge level SP merah (semua role terkait).
+// PPK: kartu ringkasan piutang per level + tombol tandai gagal debet massal.
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../auth/auth-context';
 import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { EmptyState } from '../../components/ui/empty-state';
 import { ErrorMessage } from '../../components/ui/error-message';
@@ -15,12 +18,44 @@ function labelLevel(level: number): string {
   return '';
 }
 
+interface Ringkasan {
+  per_level: Record<string, { jumlah: number; nominal: number }>;
+  total_outstanding: number;
+}
+
 export function HalamanTagihanList() {
+  const { session } = useAuth();
   const { data, memuat, galat, refresh } = useListCache<{ tagihan: Tagihan[] }>('tagihan.list', {});
+  const ringkasanQ = useListCache<Ringkasan>('tagihan.summary', {});
+  const tampilRingkasan = session?.role === 'PPK' || session?.role === 'KPA';
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-bold text-primary-dark">Tagihan</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-primary-dark">Tagihan</h1>
+        {session?.role === 'PPK' && (
+          <Link to="/tagihan/gagal-debet"><Button>+ Gagal Debet</Button></Link>
+        )}
+      </div>
+
+      {tampilRingkasan && ringkasanQ.data && (
+        <Card>
+          <p className="mb-2 text-sm font-semibold text-gray-600">Ringkasan Piutang Outstanding</p>
+          <div className="grid grid-cols-4 gap-2 text-center">
+            {['1', '2', '3'].map((lv) => (
+              <div key={lv} className="rounded-xl bg-red-50 p-2">
+                <p className="text-xs text-red-700">SP-{lv}</p>
+                <p className="font-bold">{ringkasanQ.data!.per_level[lv]?.jumlah ?? 0}</p>
+              </div>
+            ))}
+            <div className="rounded-xl bg-gray-100 p-2">
+              <p className="text-xs text-gray-500">Belum SP</p>
+              <p className="font-bold">{ringkasanQ.data!.per_level['0']?.jumlah ?? 0}</p>
+            </div>
+          </div>
+          <p className="mt-2 text-sm">Total Outstanding: <span className="font-bold">{formatRupiah(ringkasanQ.data!.total_outstanding)}</span></p>
+        </Card>
+      )}
 
       {memuat && !data && <LoadingSpinner label="Memuat tagihan…" />}
       {galat && !data && <ErrorMessage pesan={galat} onRetry={refresh} />}
