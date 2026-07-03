@@ -80,7 +80,9 @@ e-bama/
 - **Rekening taruna hanya 4 digit terakhir** (`rek_mask`, pola `••••1234`).
   **NOMOR REKENING LENGKAP DILARANG MASUK SISTEM** — validasi menolak input
   yang terlihat seperti nomor rekening penuh. Konversi ke 4 digit dilakukan di
-  luar sistem sebelum impor.
+  luar sistem sebelum impor. **Satu-satunya pengecualian (usulan, belum
+  diimplementasi):** sheet terpisah `TARUNA_REKENING` khusus Form-07/08,
+  dibatasi ADMIN/PPK + wajib audit log tiap baca — lihat § 7.
 - **Setiap aksi tulis** wajib:
   - dibungkus **`LockService`** (`withLock`), dan
   - mencatat satu baris **`AUDIT_LOG`** (`data_lama` / `data_baru`).
@@ -122,6 +124,59 @@ npm run dev                   # server pengembangan lokal
 npm run build                 # build produksi ke dist/
 npm run deploy                # deploy ke GitHub Pages
 ```
+
+---
+
+## 7. Cetak Form Manual SOP
+
+> Rancangan/keputusan desain untuk 8 form resmi (`docs/format-dokumen.md`).
+> **Belum diimplementasi** (belum ada action, belum ada sheet baru) — sesi
+> ini baru merancang skema + kontrak API supaya sesi berikutnya tidak perlu
+> menggali ulang dari riwayat chat. Kerjakan sebagai TAHAP tersendiri (satu
+> tahap = satu sesi, per Aturan Main Eksekusi).
+
+**Pola format cetak** (rujukan: `frontend/src/pages/laporan/laporan-resmi.tsx`):
+- Satu action `cetak.formNN` (GET-style) — payload kecil (id/bulan) → data
+  bundel lengkap dari sheet terkait (lihat `docs/kontrak-api.md` § Cetak
+  Form Manual SOP untuk rincian tiap form).
+- Halaman cetak React merender SEMUA bagian; kelas `print:hidden` untuk
+  kontrol layar (bulan-picker, tombol), `hidden ... print:block` untuk kop
+  surat resmi yang HANYA tampil saat dicetak.
+- Tombol Cetak = `window.print()` — CSS `@media print` di `index.css` sudah
+  menyembunyikan header/sidebar/bottom-nav.
+- Field yang datanya TIDAK dilacak sistem → kolom isian manual, state lokal
+  React saja, TIDAK dikirim/disimpan ke server (isi ulang tiap kali cetak).
+
+**Rekening lengkap — pengecualian TERBATAS dari § 4** (Form-07 & Form-08
+SOP mewajibkan nomor rekening PENUH karena bank butuh itu untuk
+debet/transfer; bukan pembatalan aturan mutlak § 4, tapi celah sempit yang
+disengaja):
+- Sheet BARU `TARUNA_REKENING` (usulan — lihat `docs/skema-sheet.md` § D),
+  TERPISAH dari `TARUNA.rek_mask` yang tetap 4 digit untuk semua hal lain
+  (dashboard, laporan, `taruna.list`, dst).
+- Dibaca HANYA sebagai bagian internal `cetak.form07`/`cetak.form08` —
+  TIDAK ADA action generik `rekening.get`/`rekening.list`.
+- Role: **ADMIN & PPK SAJA** — ditolak backend untuk role lain (termasuk
+  KPA/WADIR3/BAAK), bukan cuma disembunyikan di frontend.
+- WAJIB 1 baris `AUDIT_LOG` tiap panggilan (BACA, bukan cuma tulis) — catat
+  daftar NIT yang terbaca, JANGAN catat nomor rekeningnya di `AUDIT_LOG`.
+- Tidak ada UI CRUD bebas untuk sheet ini — pengisian lewat proses migrasi
+  terkontrol (pola `scripts/migrasi-taruna.md`), sheet diproteksi
+  warning-only (seperti `AUDIT_LOG`).
+
+**8 Form** (detail lengkap: `docs/kontrak-api.md` § Cetak Form Manual SOP;
+peta asal per form: `docs/format-dokumen.md`):
+
+| Form | Nama | Sheet sumber | Status data |
+|---|---|---|---|
+| 01 | Rencana & Persetujuan Pemesanan Harian (H-1) | PESANAN, STATUS_HARIAN, KONTRAK | ✅ cocok penuh |
+| 02 | Daftar Hadir / Tanda Terima Makan | TARUNA | ✅ cocok penuh |
+| 03 | Rekap Taruna Tidak Menerima Makan | STATUS_HARIAN, LAMPIRAN | ✅ cocok penuh |
+| 04 | Rekapitulasi Bulanan Porsi Makan | PESANAN, REALISASI | ✅ cocok penuh |
+| 05 | BA Rekonsiliasi 3 Titik | TARUNA, PESANAN, REALISASI | ✅ cocok |
+| 06 | Verifikasi & Rencana Pembayaran PPK | PEMBAYARAN, REKAP_BULANAN | ⚠️ perlu fungsi `_terbilang_()` baru (belum ada) |
+| 07 | Usulan Penahanan & Pendebetan Bank | PEMBAYARAN, REKAP_BULANAN, **TARUNA_REKENING (baru)** | ❌ perlu sheet baru dulu; **ADMIN/PPK saja** |
+| 08 | Usulan Pembayaran Luar Kampus | BANTUAN_LUAR_KAMPUS, **TARUNA_REKENING (baru)** | ⚠️ kegiatan sudah ada, rekening perlu sheet baru; **ADMIN/PPK saja** |
 
 ---
 

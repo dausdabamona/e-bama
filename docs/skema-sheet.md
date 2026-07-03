@@ -306,6 +306,59 @@ sistem, lihat aturan `rek_mask` di sheet TARUNA).
 
 ---
 
+## D. USULAN TAHAP BERIKUTNYA (belum diimplementasi)
+
+> Bagian ini **rancangan/keputusan desain**, BUKAN skema yang sudah berjalan —
+> judul dokumen ("15 Sheet") tetap merujuk skema yang sudah `setupDatabase()`.
+> Sheet di bawah baru dibuat saat tahap **Cetak Form Manual SOP** dikerjakan
+> (lihat `CLAUDE.md` § 7 dan `docs/kontrak-api.md` § Cetak Form Manual SOP).
+
+### 16. TARUNA_REKENING (usulan) — pengecualian TERBATAS aturan rekening lengkap
+
+**Latar belakang:** Form-07 (Usulan Penahanan & Pendebetan Bank) dan Form-08
+(Usulan Pembayaran Luar Kampus) menurut SOP wajib melampirkan nomor rekening
+**lengkap** taruna — bank tidak bisa memproses debet/transfer hanya dari 4
+digit terakhir. Selama ini itu ditangani PPK **di luar sistem** (arsip
+pribadi, sesuai temuan Itjen III). Sheet **terpisah** ini dibuat khusus untuk
+menutup celah itu tanpa melonggarkan aturan `rek_mask` di sheet TARUNA yang
+tetap 4 digit untuk SEMUA penggunaan lain (dashboard, laporan, taruna.list,
+dst.) — separasi sheet dipilih (bukan kolom baru di TARUNA) supaya proteksi
+akses bisa ketat di satu tempat, dan `taruna.list`/`taruna.upsert` biasa tidak
+pernah bersentuhan dengan data ini sama sekali.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| nit | FK → TARUNA | kunci; satu baris per taruna |
+| bank | enum | `BNI` / `BSI` — cermin `TARUNA.bank`, disalin supaya sheet ini bisa dibaca berdiri sendiri |
+| rekening_lengkap | string | nomor rekening PENUH — **satu-satunya tempat** di seluruh e-BAMA yang boleh menyimpan ini |
+| diperbarui_oleh | FK → PENGGUNA | |
+| diperbarui_at | datetime | |
+
+**Aturan akses (mempersempit CLAUDE.md § 4 dengan pengecualian eksplisit, BUKAN membatalkannya):**
+
+- **Tidak ada** action generik `rekening.list` / `rekening.get` / `rekening.upsert`.
+  Dibaca **HANYA** sebagai bagian internal dari `cetak.form07` dan
+  `cetak.form08` (lihat `docs/kontrak-api.md`).
+- Role yang boleh memicu pembacaan: **ADMIN, PPK SAJA** — role lain (termasuk
+  KPA/WADIR3/BAAK) ditolak di `ACTION_MAP.roles` (backend), bukan cuma
+  disembunyikan di frontend.
+- **Setiap panggilan** `cetak.form07`/`cetak.form08` WAJIB menulis 1 baris
+  `AUDIT_LOG` (`aksi='cetak.form07'` atau `'cetak.form08'`,
+  `ref_type='TARUNA_REKENING'`, `data_baru` berisi **daftar NIT** yang
+  rekeningnya ikut terbaca — **JANGAN** simpan nomor rekeningnya sendiri di
+  `AUDIT_LOG`, cukup NIT). Ini pengecualian dari aturan umum "hanya aksi
+  tulis yang di-audit" (CLAUDE.md § 4) — di sini aksi **baca** pun wajib
+  diaudit karena sensitivitas datanya.
+- Sheet diproteksi warning-only di level spreadsheet (pola sama seperti
+  `AUDIT_LOG`/`SURAT_PERINGATAN`). **Tidak ada UI CRUD bebas** di aplikasi —
+  pengisian/pembaruan hanya lewat proses migrasi terkontrol (pola mengikuti
+  `scripts/migrasi-taruna.md`), bukan form isi bebas dari halaman Taruna.
+- `taruna.upsert` (Admin/BAAK) **tetap hanya** menerima `rek_mask` 4 digit —
+  tidak ada jalan masuk rekening lengkap lewat action itu maupun lewat impor
+  CSV Taruna biasa. Pengisian `TARUNA_REKENING` adalah proses terpisah.
+
+---
+
 ## Diagram relasi (ringkas)
 
 ```

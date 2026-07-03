@@ -146,6 +146,35 @@ luar sistem; diajukan ke PPK untuk diinput. Catatan murni, tanpa alur status.
 | `blk.import` | PPK, ADMIN | `{baris:[{nit, kegiatan, bulan, periode, total_hari, nilai_per_hari, pembayaran_ke, keterangan?}]}` — upsert kunci gabungan (nit, kegiatan, bulan, pembayaran_ke), aman diimpor ulang |
 | `audit.list` | ADMIN, PPK, KPA, WADIR3 | filter `{dari?, sampai?, user_id?, aksi?}`; dibatasi 500 baris terbaru |
 
+### Cetak Form Manual SOP (Form 01–08) — USULAN, belum diimplementasi
+
+> **Belum ada di `ACTION_MAP`.** Ini rancangan untuk tahap berikutnya (satu
+> tahap = satu sesi, per Aturan Main Eksekusi `CLAUDE.md`) — modul rencana
+> `backend/src/21_cetak.gs`. Peta form ↔ sumber data lengkap:
+> `docs/format-dokumen.md`. Pola tampilan cetak (React): rujuk
+> `frontend/src/pages/laporan/laporan-resmi.tsx` — satu action GET-style per
+> form → data bundel lengkap, halaman merender semua bagian dengan kelas
+> `print:hidden`/`print:block`, tombol Cetak = `window.print()`.
+>
+> **Rekening lengkap (Form-07 & Form-08 saja):** dibaca dari sheet baru
+> `TARUNA_REKENING` (usulan — lihat `docs/skema-sheet.md` § D). Role **ADMIN,
+> PPK SAJA** — backend menolak role lain secara eksplisit, bukan cuma
+> disembunyikan di frontend. Setiap panggilan `cetak.form07`/`cetak.form08`
+> WAJIB menulis 1 baris `AUDIT_LOG` berisi **daftar NIT** yang rekeningnya
+> ikut terbaca (bukan nomor rekeningnya) — pengecualian dari aturan "hanya
+> aksi tulis yang diaudit", karena di sini aksi **baca** pun wajib dicatat.
+
+| Action | Role | Payload → Data | Status kecocokan data |
+|---|---|---|---|
+| `cetak.form01` | SENAT, PEMBINA, PPK, KPA | `{pesanan_id}` → `{pesanan, kontrak, jml_taruna_aktif, status_harian_terkait:[...], dibuat_oleh_nama, diverifikasi_oleh_nama}` — Rencana & Persetujuan Pemesanan Harian (H-1); sumber PESANAN+STATUS_HARIAN+KONTRAK | ✅ cocok penuh |
+| `cetak.form02` | SENAT, PEMBINA | `{tanggal}` → `{tanggal, taruna:[{nit,nama,prodi,tingkat,kelas}]}` — lembar Daftar Hadir/Tanda Terima Makan KOSONG untuk paraf kertas; sumber TARUNA aktif per tanggal | ✅ cocok penuh (hasil scan tetap diunggah via `realisasi.create`/`lampiran`, bukan action ini) |
+| `cetak.form03` | PEMBINA, BAAK, ADMIN, PPK, KPA | `{bulan}` → `{bulan, baris:[{nit,nama,status,tanggal,lampiran:[...]}]}` — Rekap Taruna Tidak Menerima Makan; sumber STATUS_HARIAN+LAMPIRAN | ✅ cocok penuh |
+| `cetak.form04` | PPK, KPA, WADIR3, ADMIN | `{bulan}` → `{bulan, baris:[{tanggal,porsi_dipesan,porsi_terealisasi,ketidaksesuaian}], total_dipesan, total_terealisasi}` — Rekapitulasi Bulanan Porsi Makan; sumber PESANAN+REALISASI | ✅ cocok penuh |
+| `cetak.form05` | PPK, KPA, WADIR3 | `{bulan}` → `{bulan, titik1_taruna_x_hari, titik2_total_pesanan, titik3_total_realisasi, selisih, cocok:boolean}` — BA Rekonsiliasi 3 Titik; sumber TARUNA(aktif×hari efektif)+PESANAN+REALISASI | ✅ cocok — pastikan "hari efektif" konsisten dgn `jml_hari_efektif` di `laporan.resmi` |
+| `cetak.form06` | PPK | `{bayar_id}` → `{pembayaran, rekap_ringkas, nominal_terbilang, checklist:[...]}` — Verifikasi & Rencana Pembayaran PPK; sumber PEMBAYARAN+REKAP_BULANAN | ⚠️ perlu fungsi util baru `_terbilang_()` (angka→teks Indonesia) — belum ada di `03_helpers.gs` |
+| `cetak.form07` | **ADMIN, PPK SAJA** (backend tolak role lain) | `{bayar_id}` → `{pembayaran, baris:[{nit,nama,bank,rekening_lengkap,nominal}]}` — Usulan Penahanan & Pendebetan Bank; sumber PEMBAYARAN+REKAP_BULANAN+**TARUNA_REKENING (baru)** | ❌ perlu sheet `TARUNA_REKENING` dulu sebelum bisa diimplementasi |
+| `cetak.form08` | **ADMIN, PPK SAJA** (backend tolak role lain) | `{bulan, kegiatan?}` → `{bulan, kegiatan, baris:[{nit,nama,bank,rekening_lengkap,kegiatan,total_hari,nilai_per_hari,nominal}], total}` — Usulan Pembayaran Luar Kampus (PKL/Magang/KPA/PTB); sumber BANTUAN_LUAR_KAMPUS+**TARUNA_REKENING (baru)** | ⚠️ kegiatan/hari/nilai sudah ada (BANTUAN_LUAR_KAMPUS); `rekening_lengkap` perlu sheet baru sama seperti form07 |
+
 ## Proses internal terjadwal (bukan action HTTP)
 
 | Fungsi | Jadwal | Keterangan |
