@@ -185,7 +185,7 @@ peta asal per form: `docs/format-dokumen.md`):
 | 04 | Rekapitulasi Bulanan Porsi Makan | PESANAN, REALISASI | ⏸️ menunggu konfirmasi desain |
 | 05 | BA Rekonsiliasi 3 Titik | TARUNA, PESANAN, REALISASI | ✅ diimplementasi |
 | 06 | Verifikasi & Rencana Pembayaran PPK | PEMBAYARAN, REKAP_BULANAN | ✅ diimplementasi (`_terbilang_()` di `03_helpers.gs`) |
-| 07 | Usulan Penahanan & Pendebetan Bank | PEMBAYARAN, REKAP_BULANAN, **TARUNA_REKENING** | 🔜 sheet & action rekening sudah siap, tinggal `cetak.form07`; **ADMIN/PPK saja** |
+| 07 | Usulan Penahanan & Pendebetan Bank | PEMBAYARAN, REKAP_BULANAN, **TARUNA_REKENING** | ✅ diimplementasi; **ADMIN/PPK saja**, halaman TIDAK di-cache Dexie |
 | 08 | Usulan Pembayaran Luar Kampus | BANTUAN_LUAR_KAMPUS, **TARUNA_REKENING** | ⏸️ menunggu konfirmasi desain (sumber tarif); **ADMIN/PPK saja** |
 
 Form 02/04/08 diblokir sampai ada konfirmasi eksplisit dari Firdaus atas

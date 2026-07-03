@@ -4,7 +4,8 @@
  * ACTION: cetak.form01 (SENAT, PEMBINA, PPK, ADMIN),
  *         cetak.form03 (PPK, ADMIN, PEMBINA),
  *         cetak.form05 (PEMBINA, PPK, ADMIN),
- *         cetak.form06 (PPK, KPA, ADMIN)
+ *         cetak.form06 (PPK, KPA, ADMIN),
+ *         cetak.form07 (ADMIN, PPK SAJA — baca TARUNA_REKENING, lihat 22_rekening.gs)
  *
  * Setiap cetak.formNN adalah action GET-style (tanpa efek samping) — hanya
  * membaca & merangkai data untuk dirender+dicetak di frontend. Tidak ada
@@ -176,4 +177,70 @@ function cetakForm06(payload, session) {
     nominal_terbilang: _terbilangRupiah_(totalNominal),
     pejabat: PEJABAT
   };
+}
+
+/**
+ * Form 07: Usulan Penahanan & Pendebetan Rekening ke Bank. Payload {bulan}.
+ * Satu-satunya form yang menampilkan nomor rekening PENUH (join ke
+ * TARUNA_REKENING) — role dibatasi ADMIN/PPK dua lapis (ACTION_MAP.roles DAN
+ * _hanyaAdminPPK_ di sini), dan setiap panggilan WAJIB 1 baris AUDIT_LOG
+ * (daftar NIT yang rekeningnya ikut terbaca, BUKAN nomor rekeningnya).
+ * Mensyaratkan PEMBAYARAN bulan itu sudah ada (dibuat lewat bayar.create,
+ * yang sendirinya mensyaratkan REKAP_BULANAN berstatus DISETUJUI_WADIR3) —
+ * supaya nominal yang tercetak sudah melalui gerbang otorisasi pencairan.
+ */
+function cetakForm07(payload, session) {
+  _hanyaAdminPPK_(session);
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+
+  return withLock(function () {
+    var pembayaran = sheetRead(SHEETS.PEMBAYARAN, function (r) { return _bulanStr_(r.bulan) === bulan; })[0];
+    if (!pembayaran) {
+      throw _fail_('Belum ada PEMBAYARAN untuk bulan ' + bulan + ' — Form 07 hanya bisa dicetak setelah proses pembayaran dibuat (bayar.create).');
+    }
+
+    var rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
+    if (!rekapRows.length) throw _fail_('Belum ada rekap untuk bulan ' + bulan + '.');
+
+    var tarunaByNit = {};
+    sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+
+    var nitList = rekapRows.map(function (r) { return String(r.nit); });
+    var rekeningByNit = {};
+    sheetRead(SHEETS.TARUNA_REKENING, function (r) { return nitList.indexOf(String(r.nit)) >= 0; })
+      .forEach(function (r) { rekeningByNit[String(r.nit)] = r; });
+
+    var totalNominal = 0;
+    var baris = rekapRows.map(function (r) {
+      var nit = String(r.nit);
+      var t = tarunaByNit[nit] || {};
+      var rek = rekeningByNit[nit];
+      var nominal = _int_(r.nominal, 'nominal');
+      totalNominal += nominal;
+      return {
+        nit: nit, nama: t.nama || '',
+        bank: rek ? rek.bank : '', no_rekening_lengkap: rek ? rek.no_rekening_lengkap : '',
+        nama_pemilik: rek ? rek.nama_pemilik : '', nominal: nominal, rekening_lengkap_ada: !!rek
+      };
+    });
+
+    // AUDIT: satu baris untuk seluruh daftar penerima bulan ini — catat SIAPA
+    // (session.user_id) membaca rekening SIAPA (nitList) dan KAPAN, TANPA
+    // pernah menulis nomor rekeningnya sendiri ke AUDIT_LOG.
+    auditLog(session, 'cetak.form07', 'TARUNA_REKENING', nitList.join(','), null, { nit_list: nitList });
+
+    return {
+      bulan: bulan,
+      pembayaran: {
+        bayar_id: pembayaran.bayar_id,
+        nilai_total: _int_(pembayaran.nilai_total, 'nilai_total'),
+        no_spm: pembayaran.no_spm, tgl_spm: _tglStr_(pembayaran.tgl_spm),
+        no_sp2d: pembayaran.no_sp2d, tgl_sp2d: _tglStr_(pembayaran.tgl_sp2d),
+        status: pembayaran.status
+      },
+      baris: baris,
+      total_nominal: totalNominal,
+      pejabat: PEJABAT
+    };
+  });
 }
