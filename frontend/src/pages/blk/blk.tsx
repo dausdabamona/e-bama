@@ -138,8 +138,12 @@ export function HalamanBantuanLuarKampus() {
             Bulan otomatis dideteksi dari periode — kalau gagal, tambah kolom
             <code> bulan</code> (YYYY-MM) di CSV.
           </p>
-          <input type="file" accept=".csv,text/csv" onChange={(e) => void pilihFile(e)}
-            className="min-h-tap rounded-xl border border-gray-300 px-3 py-2.5 text-sm" />
+          {tarunaQ.memuat && !tarunaQ.data ? (
+            <LoadingSpinner label="Memuat daftar Taruna dulu (perlu untuk cocokkan NIT)…" />
+          ) : (
+            <input type="file" accept=".csv,text/csv" onChange={(e) => void pilihFile(e)}
+              className="min-h-tap rounded-xl border border-gray-300 px-3 py-2.5 text-sm" />
+          )}
 
           {baris.length > 0 && (
             <>
