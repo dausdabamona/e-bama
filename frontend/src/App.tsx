@@ -9,7 +9,9 @@ import { HalamanAudit } from './pages/audit/audit';
 import { HalamanBantuanLuarKampus } from './pages/blk/blk';
 import { HalamanCetakIndex } from './pages/cetak/cetak-index';
 import { HalamanCetakForm01 } from './pages/cetak/form-01';
+import { HalamanCetakForm02 } from './pages/cetak/form-02';
 import { HalamanCetakForm03 } from './pages/cetak/form-03';
+import { HalamanCetakForm04 } from './pages/cetak/form-04';
 import { HalamanCetakForm05 } from './pages/cetak/form-05';
 import { HalamanCetakForm06 } from './pages/cetak/form-06';
 import { HalamanCetakForm07 } from './pages/cetak/form-07';
@@ -92,7 +94,11 @@ export default function App() {
               <Route path="/cetak" element={<HalamanCetakIndex />} />
               <Route path="/cetak/form-01" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm01 /></WajibLogin>} />
               <Route path="/cetak/form-01/:tgl" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm01 /></WajibLogin>} />
+              <Route path="/cetak/form-02" element={<WajibLogin roles={['PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm02 /></WajibLogin>} />
+              <Route path="/cetak/form-02/:tgl" element={<WajibLogin roles={['PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm02 /></WajibLogin>} />
               <Route path="/cetak/form-03" element={<WajibLogin roles={['PPK', 'ADMIN', 'PEMBINA']}><HalamanCetakForm03 /></WajibLogin>} />
+              <Route path="/cetak/form-04" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm04 /></WajibLogin>} />
+              <Route path="/cetak/form-04/:bulan" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm04 /></WajibLogin>} />
               <Route path="/cetak/form-05" element={<WajibLogin roles={['PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm05 /></WajibLogin>} />
               <Route path="/cetak/form-05/:tgl" element={<WajibLogin roles={['PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm05 /></WajibLogin>} />
               <Route path="/cetak/form-06" element={<WajibLogin roles={['PPK', 'KPA', 'ADMIN']}><HalamanCetakForm06 /></WajibLogin>} />

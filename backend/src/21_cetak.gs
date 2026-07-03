@@ -2,7 +2,9 @@
  * 21_cetak.gs — Cetak Form Manual SOP (Form 01-08, docs/format-dokumen.md)
  *
  * ACTION: cetak.form01 (SENAT, PEMBINA, PPK, ADMIN),
+ *         cetak.form02 (PEMBINA, PPK, ADMIN),
  *         cetak.form03 (PPK, ADMIN, PEMBINA),
+ *         cetak.form04 (SENAT, PEMBINA, PPK, ADMIN),
  *         cetak.form05 (PEMBINA, PPK, ADMIN),
  *         cetak.form06 (PPK, KPA, ADMIN),
  *         cetak.form07 (ADMIN, PPK SAJA — baca TARUNA_REKENING, lihat 22_rekening.gs)
@@ -54,6 +56,45 @@ function cetakForm01(payload, session) {
 }
 
 /**
+ * Form 02: Daftar Hadir / Tanda Terima Makan. Payload {tanggal}.
+ * Keputusan desain (dikonfirmasi Firdaus): TIDAK ada pencatatan kehadiran
+ * individual di skema — tanda tangan digital Pembina+Senat di REALISASI
+ * (ttd_pembina_at/ttd_senat_at) sudah jadi bukti sah tanda terima, jadi form
+ * ini HANYA daftar taruna berhak makan (taruna AKTIF dikurangi STATUS_HARIAN
+ * tanggal itu — subset sama seperti _hitungJmlTaruna_ PESANAN) tanpa kolom
+ * paraf per waktu makan.
+ */
+function cetakForm02(payload, session) {
+  var tgl = _wajibTgl_(payload && payload.tanggal, 'tanggal');
+
+  var tidakBerhak = {};
+  sheetRead(SHEETS.STATUS_HARIAN, function (r) { return _tglStr_(r.tanggal) === tgl; })
+    .forEach(function (r) { tidakBerhak[String(r.nit)] = true; });
+
+  var daftar = sheetRead(SHEETS.TARUNA, function (r) { return r.status === 'AKTIF' && !tidakBerhak[String(r.nit)]; })
+    .map(function (t) { return { nit: String(t.nit), nama: t.nama, prodi: t.prodi, tingkat: t.tingkat, kelas: t.kelas }; })
+    .sort(function (a, b) { return a.nama.localeCompare(b.nama); });
+
+  var realisasi = sheetRead(SHEETS.REALISASI, function (r) { return _tglStr_(r.tanggal) === tgl; })[0];
+
+  return {
+    tanggal: tgl,
+    taruna: daftar,
+    jml_taruna: daftar.length,
+    realisasi: realisasi ? {
+      porsi_diterima: _int_(realisasi.porsi_diterima, 'porsi_diterima'),
+      jml_taruna_makan: _int_(realisasi.jml_taruna_makan, 'jml_taruna_makan'),
+      ttd_pembina_at: (realisasi.ttd_pembina_at instanceof Date)
+        ? Utilities.formatDate(realisasi.ttd_pembina_at, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss')
+        : String(realisasi.ttd_pembina_at || ''),
+      ttd_senat_at: (realisasi.ttd_senat_at instanceof Date)
+        ? Utilities.formatDate(realisasi.ttd_senat_at, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss')
+        : String(realisasi.ttd_senat_at || '')
+    } : null
+  };
+}
+
+/**
  * Form 03: Rekap Taruna Tidak Menerima Makan (bulanan). Payload {bulan}.
  * Kelompokkan STATUS_HARIAN sebulan per jenis status, sertakan referensi
  * LAMPIRAN (surat bukti) per baris kalau ada.
@@ -88,6 +129,61 @@ function cetakForm03(payload, session) {
   });
 
   return { bulan: bulan, per_status: perStatus, total: rows.length };
+}
+
+/**
+ * Form 04: Rekapitulasi Bulanan Porsi Makan. Payload {bulan}.
+ * Keputusan desain (dikonfirmasi Firdaus): TIDAK ada rincian porsi per waktu
+ * makan (Sarapan/Siang/Malam) — skema hanya simpan REALISASI.porsi_diterima
+ * agregat per tanggal, sama seperti Form 01. Baris per tanggal yang ADA
+ * REALISASI (bukan 1..31 buta), diurutkan tanggal, + baris JUMLAH TOTAL.
+ */
+function cetakForm04(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  var realisasiBulan = sheetRead(SHEETS.REALISASI, function (r) { return _bulanStr_(r.tanggal) === bulan; });
+
+  var penyediaById = {};
+  sheetRead(SHEETS.PENYEDIA).forEach(function (p) { penyediaById[String(p.penyedia_id)] = p; });
+
+  var kontrakCache = {};
+  var kontrakRingkasById = {};
+  function kontrakPada(tgl) {
+    if (kontrakCache.hasOwnProperty(tgl)) return kontrakCache[tgl];
+    var k = null;
+    try { k = _kontrakAktifPada_(tgl); } catch (e) { k = null; }
+    kontrakCache[tgl] = k;
+    if (k && !kontrakRingkasById[k.kontrak_id]) {
+      var p = penyediaById[String(k.penyedia_id)] || {};
+      kontrakRingkasById[k.kontrak_id] = {
+        kontrak_id: k.kontrak_id, penyedia_nama: p.nama || '',
+        harga_per_porsi: _int_(k.harga_per_porsi, 'harga_per_porsi')
+      };
+    }
+    return k;
+  }
+
+  var totalTarunaAktif = 0, totalPorsi = 0, totalBiaya = 0;
+  var baris = realisasiBulan
+    .map(function (r) {
+      var tgl = _tglStr_(r.tanggal);
+      var tarunaAktif = _hitungJmlTaruna_(tgl);
+      var porsi = _int_(r.porsi_diterima, 'porsi_diterima');
+      var kontrak = kontrakPada(tgl);
+      var harga = kontrak ? _int_(kontrak.harga_per_porsi, 'harga_per_porsi') : 0;
+      var biaya = Math.round(porsi * harga);
+      totalTarunaAktif += tarunaAktif; totalPorsi += porsi; totalBiaya += biaya;
+      return {
+        tanggal: tgl, taruna_aktif: tarunaAktif, total_porsi: porsi,
+        jumlah_biaya: biaya, kontrak_ditemukan: !!kontrak
+      };
+    })
+    .sort(function (a, b) { return a.tanggal.localeCompare(b.tanggal); });
+
+  return {
+    bulan: bulan, baris: baris,
+    total_taruna_aktif: totalTarunaAktif, total_porsi: totalPorsi, total_biaya: totalBiaya,
+    kontrak_ringkas: Object.keys(kontrakRingkasById).map(function (k) { return kontrakRingkasById[k]; })
+  };
 }
 
 /**

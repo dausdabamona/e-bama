@@ -180,16 +180,16 @@ peta asal per form: `docs/format-dokumen.md`):
 | Form | Nama | Sheet sumber | Status |
 |---|---|---|---|
 | 01 | Rencana & Persetujuan Pemesanan Harian (H-1) | PESANAN, STATUS_HARIAN, KONTRAK | ✅ diimplementasi |
-| 02 | Daftar Hadir / Tanda Terima Makan | TARUNA | ⏸️ menunggu konfirmasi desain (lihat catatan di bawah) |
+| 02 | Daftar Hadir / Tanda Terima Makan | TARUNA, STATUS_HARIAN, REALISASI | ✅ diimplementasi — tanpa presensi individual (dikonfirmasi Firdaus): ttd digital REALISASI jadi bukti, bukan paraf per-taruna |
 | 03 | Rekap Taruna Tidak Menerima Makan | STATUS_HARIAN, LAMPIRAN | ✅ diimplementasi |
-| 04 | Rekapitulasi Bulanan Porsi Makan | PESANAN, REALISASI | ⏸️ menunggu konfirmasi desain |
+| 04 | Rekapitulasi Bulanan Porsi Makan | PESANAN, REALISASI, KONTRAK | ✅ diimplementasi — total porsi/hari agregat (dikonfirmasi Firdaus), tanpa rincian Sarapan/Siang/Malam |
 | 05 | BA Rekonsiliasi 3 Titik | TARUNA, PESANAN, REALISASI | ✅ diimplementasi |
 | 06 | Verifikasi & Rencana Pembayaran PPK | PEMBAYARAN, REKAP_BULANAN | ✅ diimplementasi (`_terbilang_()` di `03_helpers.gs`) |
 | 07 | Usulan Penahanan & Pendebetan Bank | PEMBAYARAN, REKAP_BULANAN, **TARUNA_REKENING** | ✅ diimplementasi; **ADMIN/PPK saja**, halaman TIDAK di-cache Dexie |
-| 08 | Usulan Pembayaran Luar Kampus | BANTUAN_LUAR_KAMPUS, **TARUNA_REKENING** | ⏸️ menunggu konfirmasi desain (sumber tarif); **ADMIN/PPK saja** |
+| 08 | Usulan Pembayaran Luar Kampus | BANTUAN_LUAR_KAMPUS, STATUS_HARIAN, **TARUNA_REKENING** | 🔜 desain sudah dikonfirmasi Firdaus (tarif manual per kegiatan, jml hari dari STATUS_HARIAN) — tinggal implementasi; **ADMIN/PPK saja** |
 
-Form 02/04/08 diblokir sampai ada konfirmasi eksplisit dari Firdaus atas
-pilihan desain masing-masing (lihat riwayat sesi) — jangan berasumsi sendiri.
+Desain Form 02/04/08 sudah dikonfirmasi Firdaus (lihat riwayat sesi) — bukan
+lagi asumsi sendiri.
 
 ---
 

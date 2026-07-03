@@ -4,7 +4,7 @@
 // (belum ada sumber data terstruktur untuk itu) — status LENGKAP/TIDAK LENGKAP
 // dan checklist adalah state lokal, TIDAK dikirim ke server.
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { BulanPicker, bulanIni, labelBulan } from '../../components/bulan-picker';
 import { BlokTtd2Kolom } from '../../components/cetak/blok-ttd';
 import { KopSurat } from '../../components/cetak/kop-surat';
@@ -96,7 +96,10 @@ export function HalamanCetakForm06() {
             {DAFTAR_DOKUMEN.map((d, i) => (
               <label key={i} className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={checklist[i]} onChange={() => toggleChecklist(i)} className="h-4 w-4" />
-                {d}
+                <span className="flex-1">{d}</span>
+                {d.indexOf('Form 04') === 0 && (
+                  <Link to={`/cetak/form-04/${data.bulan}`} className="text-xs text-primary underline print:hidden">Buka →</Link>
+                )}
               </label>
             ))}
             <p className="text-xs text-gray-400 print:hidden">

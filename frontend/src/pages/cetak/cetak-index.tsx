@@ -19,9 +19,9 @@ interface DaftarForm {
 
 const DAFTAR_FORM: DaftarForm[] = [
   { nomor: '01', nama: 'Rencana & Persetujuan Pemesanan Makan Harian (H-1)', rute: '/cetak/form-01' },
-  { nomor: '02', nama: 'Daftar Hadir / Tanda Terima Makan' },
+  { nomor: '02', nama: 'Daftar Hadir / Tanda Terima Makan', rute: '/cetak/form-02' },
   { nomor: '03', nama: 'Rekap Taruna Tidak Menerima Makan (bulanan)', rute: '/cetak/form-03' },
-  { nomor: '04', nama: 'Rekapitulasi Bulanan Porsi Makan' },
+  { nomor: '04', nama: 'Rekapitulasi Bulanan Porsi Makan', rute: '/cetak/form-04' },
   { nomor: '05', nama: 'BA Rekonsiliasi 3 Titik', rute: '/cetak/form-05' },
   { nomor: '06', nama: 'Verifikasi & Rencana Pembayaran PPK', rute: '/cetak/form-06' },
   { nomor: '07', nama: 'Usulan Penahanan & Pendebetan Bank', rute: '/cetak/form-07' },

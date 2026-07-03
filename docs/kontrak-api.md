@@ -148,10 +148,10 @@ luar sistem; diajukan ke PPK untuk diinput. Catatan murni, tanpa alur status.
 
 ### Cetak Form Manual SOP (Form 01–08)
 
-> Modul `backend/src/21_cetak.gs`. Form 01/03/05/06 **sudah ada di
-> `ACTION_MAP`**; Form 02/04/07/08 masih menunggu (lihat tabel status — 07
-> tinggal implementasi karena `TARUNA_REKENING`+action rekening sudah siap,
-> 02/04/08 diblokir menunggu konfirmasi desain, bukan soal data). Peta form ↔
+> Modul `backend/src/21_cetak.gs`. Form 01/02/03/04/05/06/07 **sudah ada di
+> `ACTION_MAP`**; Form 08 masih menunggu (desain sudah dikonfirmasi Firdaus —
+> tarif manual per kegiatan, jml hari dari STATUS_HARIAN — tinggal
+> implementasi). Peta form ↔
 > sumber data lengkap: `docs/format-dokumen.md`. Pola tampilan cetak (React):
 > rujuk `frontend/src/pages/laporan/laporan-resmi.tsx` — satu action
 > GET-style per form → data bundel lengkap, halaman merender semua bagian
@@ -163,9 +163,9 @@ luar sistem; diajukan ke PPK untuk diinput. Catatan murni, tanpa alur status.
 | Action | Role | Payload → Data | Status |
 |---|---|---|---|
 | `cetak.form01` | SENAT, PEMBINA, PPK, ADMIN | `{tgl_makan}` → `{pesanan, kontrak, jml_status_harian, dibuat_oleh_nama, diverifikasi_oleh_nama, verif_at}` — Rencana & Persetujuan Pemesanan Harian (H-1) | ✅ diimplementasi |
-| `cetak.form02` | SENAT, PEMBINA | `{tanggal}` → `{tanggal, taruna:[{nit,nama,prodi,tingkat,kelas}]}` — lembar Daftar Hadir/Tanda Terima Makan KOSONG untuk paraf kertas | ⏸️ menunggu konfirmasi desain (model pencatatan kehadiran individual) |
+| `cetak.form02` | PEMBINA, PPK, ADMIN | `{tanggal}` → `{tanggal, taruna:[{nit,nama,prodi,tingkat,kelas}], jml_taruna, realisasi}` — Daftar Hadir/Tanda Terima Makan; **tanpa presensi individual** (dikonfirmasi Firdaus) — ttd digital REALISASI jadi bukti | ✅ diimplementasi |
 | `cetak.form03` | PPK, ADMIN, PEMBINA | `{bulan}` → `{bulan, per_status:{...}, total}` — Rekap Taruna Tidak Menerima Makan | ✅ diimplementasi |
-| `cetak.form04` | PPK, KPA, WADIR3, ADMIN | `{bulan}` → `{bulan, baris:[{tanggal,porsi_dipesan,porsi_terealisasi,ketidaksesuaian}], total_dipesan, total_terealisasi}` — Rekapitulasi Bulanan Porsi Makan | ⏸️ menunggu konfirmasi desain (rincian porsi per waktu makan) |
+| `cetak.form04` | SENAT, PEMBINA, PPK, ADMIN | `{bulan}` → `{bulan, baris:[{tanggal,taruna_aktif,total_porsi,jumlah_biaya,kontrak_ditemukan}], total_taruna_aktif, total_porsi, total_biaya, kontrak_ringkas}` — Rekapitulasi Bulanan Porsi Makan; **total porsi/hari agregat** (dikonfirmasi Firdaus), tanpa rincian Sarapan/Siang/Malam | ✅ diimplementasi |
 | `cetak.form05` | PEMBINA, PPK, ADMIN | `{tanggal}` → `{titik1_taruna_berhak, titik2_total_pesanan, titik3_total_realisasi, selisih_titik1_titik2, selisih_titik2_titik3, cocok, cek_otomatis}` — BA Rekonsiliasi 3 Titik | ✅ diimplementasi |
 | `cetak.form06` | PPK, KPA, ADMIN | `{bulan}` → `{baris, total_taruna, total_hari_makan, total_nominal, nominal_terbilang, pejabat}` — Verifikasi & Rencana Pembayaran PPK; **ditolak bila REKAP_BULANAN bulan itu belum FINAL** | ✅ diimplementasi (`_terbilang_()` di `03_helpers.gs`) |
 | `cetak.form07` | **ADMIN, PPK SAJA** | `{bulan}` → `{pembayaran, baris:[{nit,nama,bank,no_rekening_lengkap,nama_pemilik,nominal,rekening_lengkap_ada}], total_nominal}` — Usulan Penahanan & Pendebetan Bank; sumber PEMBAYARAN+REKAP_BULANAN+`TARUNA_REKENING`; **ditolak bila belum ada PEMBAYARAN bulan itu**; setiap panggilan mencatat 1 baris AUDIT_LOG (NIT yang rekeningnya terbaca) | ✅ diimplementasi |
