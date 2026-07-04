@@ -12,7 +12,7 @@ import { ErrorMessage } from '../../components/ui/error-message';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
 import { useToast } from '../../components/ui/toast';
 import { api } from '../../lib/api';
-import { bacaFileTeks, parseCsv } from '../../lib/csv';
+import { bacaFileTeks, deteksiPemisah, parseCsv } from '../../lib/csv';
 import { useListCache } from '../../lib/use-list-cache';
 import type { Taruna } from '../taruna/tipe';
 import { formatRupiah } from '../tagihan/tipe';
@@ -167,7 +167,8 @@ export function HalamanLaporan() {
   function validasiBarisSp2d(kolomIdx: Record<string, number>, row: string[]): BarisPreviewSp2d {
     const ambil = (k: string) => (kolomIdx[k] !== undefined ? (row[kolomIdx[k]] ?? '').trim() : '');
     const noSpm = ambil('no_spm');
-    const jumlah = ambil('jumlah_pembayaran');
+    // Nominal bisa berupa "3.100.000" (titik ribuan) atau "12660000" — buang non-digit.
+    const jumlah = ambil('jumlah_pembayaran').replace(/[^\d]/g, '');
     const uraian = ambil('uraian_asli');
 
     let pesan = '';
@@ -186,7 +187,8 @@ export function HalamanLaporan() {
     const file = e.target.files?.[0];
     if (!file) return;
     const teks = await bacaFileTeks(file);
-    const semua = parseCsv(teks);
+    // OM-SPAN lokal Indonesia sering pakai pemisah ';' — deteksi otomatis.
+    const semua = parseCsv(teks, deteksiPemisah(teks));
     if (semua.length < 2) { toast('File CSV kosong atau tidak valid.', 'galat'); return; }
 
     // File Monitoring OM-SPAN diawali baris JUDUL + baris kosong sebelum header

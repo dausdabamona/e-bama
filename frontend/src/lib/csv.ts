@@ -16,8 +16,20 @@ export function unduhCsv(namaFile: string, header: string[], baris: (string | nu
   URL.revokeObjectURL(url);
 }
 
-/** Parse teks CSV sederhana (koma, kutip dua) → array baris (array string). */
-export function parseCsv(teks: string): string[][] {
+/**
+ * Deteksi pemisah kolom: koma atau titik-koma. Ekspor CSV dari Excel lokal
+ * Indonesia (mis. OM-SPAN) memakai ';' karganya ',' dipakai desimal. Ambil
+ * beberapa baris awal, hitung mana yang lebih dominan.
+ */
+export function deteksiPemisah(teks: string): ',' | ';' {
+  const awal = teks.split(/\r?\n/).slice(0, 15).join('\n');
+  const titikKoma = (awal.match(/;/g) || []).length;
+  const koma = (awal.match(/,/g) || []).length;
+  return titikKoma > koma ? ';' : ',';
+}
+
+/** Parse teks CSV sederhana (kutip dua) → array baris. `pemisah` default ','. */
+export function parseCsv(teks: string, pemisah: ',' | ';' = ','): string[][] {
   const baris: string[][] = [];
   let sel: string[] = [];
   let field = '';
@@ -29,7 +41,7 @@ export function parseCsv(teks: string): string[][] {
       else if (c === '"') dalamKutip = false;
       else field += c;
     } else if (c === '"') dalamKutip = true;
-    else if (c === ',') { sel.push(field); field = ''; }
+    else if (c === pemisah) { sel.push(field); field = ''; }
     else if (c === '\n' || c === '\r') {
       if (c === '\r' && teks[i + 1] === '\n') i++;
       sel.push(field); field = '';

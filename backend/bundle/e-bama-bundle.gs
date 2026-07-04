@@ -3147,13 +3147,21 @@ function _parseProdiTingkat_(teks) {
   return { tingkat: m[1].toUpperCase(), prodi: m[2].toUpperCase() };
 }
 
-/** Parse bulan dari "Bulan Mei 2026" atau "... 9 Maret 2026 s.d ..." → 'YYYY-MM' atau null. */
+/**
+ * Parse bulan MAKAN dari Uraian → 'YYYY-MM' atau null. Prioritas:
+ *  1) "Bulan Mei 2026" (Dalam Kampus & SPANExt).
+ *  2) "Periode [Bulan] [tgl] <bulan> <tahun>" (Luar Kampus) — mis.
+ *     "Periode 1 Mei 2026 s.d 31 Mei 2026", "Periode April 2026",
+ *     "Periode Bulan Februari 2026". DIANCHOR ke kata "Periode" supaya TIDAK
+ *     salah ambil tanggal SK ("...Tanggal 27 Februari 2026") yang formatnya
+ *     juga tgl-bulan-tahun. Kalau tak ada pola dikenal → null (perlu_cek_manual).
+ */
 function _parseBulanUraian_(teks) {
   var namaBulan = Object.keys(_SP2D_BULAN_MAP_).join('|');
   var m = new RegExp('Bulan\\s+(' + namaBulan + ')\\s+(\\d{4})', 'i').exec(teks);
   if (m) return m[2] + '-' + ('0' + _SP2D_BULAN_MAP_[m[1].toLowerCase()]).slice(-2);
-  m = new RegExp('(\\d{1,2})\\s+(' + namaBulan + ')\\s+(\\d{4})', 'i').exec(teks);
-  if (m) return m[3] + '-' + ('0' + _SP2D_BULAN_MAP_[m[2].toLowerCase()]).slice(-2);
+  m = new RegExp('Periode\\s+(?:Bulan\\s+)?(?:\\d{1,2}\\s+)?(' + namaBulan + ')\\s+(\\d{4})', 'i').exec(teks);
+  if (m) return m[2] + '-' + ('0' + _SP2D_BULAN_MAP_[m[1].toLowerCase()]).slice(-2);
   return null;
 }
 
