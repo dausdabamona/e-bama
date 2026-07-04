@@ -14,6 +14,7 @@ import { useToast } from '../../components/ui/toast';
 import { api } from '../../lib/api';
 import { bacaFileTeks, deteksiPemisah, parseCsv } from '../../lib/csv';
 import { useListCache } from '../../lib/use-list-cache';
+import { bacaXlsxSebagaiBaris } from '../../lib/xlsx-ringan';
 import type { Taruna } from '../taruna/tipe';
 import { formatRupiah } from '../tagihan/tipe';
 
@@ -186,10 +187,24 @@ export function HalamanLaporan() {
   async function pilihFileSp2d(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const teks = await bacaFileTeks(file);
-    // OM-SPAN lokal Indonesia sering pakai pemisah ';' — deteksi otomatis.
-    const semua = parseCsv(teks, deteksiPemisah(teks));
-    if (semua.length < 2) { toast('File CSV kosong atau tidak valid.', 'galat'); return; }
+
+    let semua: string[][];
+    if (/\.xlsx$/i.test(file.name)) {
+      try {
+        semua = await bacaXlsxSebagaiBaris(file);
+      } catch (err) {
+        toast(err instanceof Error ? err.message : 'Gagal membaca file .xlsx.', 'galat');
+        return;
+      }
+    } else if (/\.xls$/i.test(file.name)) {
+      toast('Format .xls (Excel lama) belum didukung — simpan ulang sebagai .xlsx atau .csv dulu.', 'galat');
+      return;
+    } else {
+      const teks = await bacaFileTeks(file);
+      // OM-SPAN lokal Indonesia sering pakai pemisah ';' — deteksi otomatis.
+      semua = parseCsv(teks, deteksiPemisah(teks));
+    }
+    if (semua.length < 2) { toast('File kosong atau tidak dikenali.', 'galat'); return; }
 
     // File Monitoring OM-SPAN diawali baris JUDUL + baris kosong sebelum header
     // asli — jadi jangan asumsikan header = baris 0. Scan ≤15 baris pertama untuk
@@ -542,9 +557,10 @@ export function HalamanLaporan() {
             <Card className="flex flex-col gap-2 print:hidden">
               <p className="text-sm font-semibold text-gray-600">Impor Monitoring SP2D</p>
               <p className="text-xs text-gray-500">
-                Unggah CSV — dua format didukung: (1) "Monitoring SP2D" OM-SPAN klasik (agregat, header
-                No. SPP/SPM dst.), atau (2) "SPANExt" per-taruna (header memuat "Nama Penerima") — dicocokkan
-                ke NIT di bawah sebelum disimpan. Hanya baris yang BELUM pernah masuk yang ditambah.
+                Unggah CSV atau .xlsx langsung dari SPAN — dua format didukung: (1) "Monitoring SP2D"
+                OM-SPAN klasik (agregat, header No. SPP/SPM dst.), atau (2) "SPANExt" per-taruna (header
+                memuat "Nama Penerima") — dicocokkan ke NIT di bawah sebelum disimpan. Hanya baris yang
+                BELUM pernah masuk yang ditambah.
               </p>
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Kategori Sumber</label>
@@ -557,7 +573,9 @@ export function HalamanLaporan() {
               {tarunaQ.memuat && !tarunaQ.data ? (
                 <LoadingSpinner label="Memuat daftar Taruna dulu (perlu untuk cocokkan nama SPANExt)…" />
               ) : (
-                <input type="file" accept=".csv,text/csv" onChange={(e) => void pilihFileSp2d(e)}
+                <input type="file"
+                  accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  onChange={(e) => void pilihFileSp2d(e)}
                   className="min-h-tap rounded-xl border border-gray-300 px-3 py-2.5 text-sm" />
               )}
 
