@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/e-bama/sw.js', { scope: '/e-bama/' })})}

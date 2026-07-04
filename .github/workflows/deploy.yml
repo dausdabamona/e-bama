@@ -1,0 +1,56 @@
+# Deploy frontend ke GitHub Pages saat push ke main (atau manual via workflow_dispatch)
+name: Deploy GitHub Pages
+
+on:
+  push:
+    # Deploy dari branch default (claude/...) — environment github-pages hanya
+    # mengizinkan branch default. Saat branch default diganti ke main (TAHAP 8),
+    # ganti daftar ini menjadi [main].
+    branches: ['claude/ebama-gsheet-github-pages-l1k7t0']
+    paths: ['frontend/**', '.github/workflows/deploy.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      # Setel Pages ke mode GitHub Actions secara otomatis (tanpa setelan manual)
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+        env:
+          # Atur di Settings → Secrets and variables → Actions → Variables
+          VITE_GAS_URL: ${{ vars.VITE_GAS_URL }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
