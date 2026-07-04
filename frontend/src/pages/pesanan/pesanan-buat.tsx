@@ -32,17 +32,35 @@ function hariDalamMinggu(tgl: string): string {
   return NAMA_HARI[new Date(y, m - 1, d).getDay()];
 }
 
+/** Tanggal 'YYYY-MM-DD' digeser n hari (pakai komponen lokal). */
+function tambahHari(tgl: string, n: number): string {
+  const [y, m, d] = tgl.split('-').map(Number);
+  if (!y || !m || !d) return tgl;
+  const dt = new Date(y, m - 1, d + n);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
 interface MenuHari { hari: string; menu_pagi: string; menu_siang: string; menu_malam: string }
 interface KontrakRingkas { kontrak_id: string; status: string; tgl_mulai: string; tgl_akhir: string }
 
-/** Rangkai menu satu hari (pagi/siang/malam) jadi teks ringkas untuk field Menu pesanan. */
-function formatMenuKontrak(m: MenuHari): string {
-  const baris = (label: string, teks: string) => {
-    const items = (teks || '').split('\n').map((s) => s.trim()).filter(Boolean).join(', ');
-    return items ? `${label}: ${items}` : '';
-  };
-  return [baris('Pagi', m.menu_pagi), baris('Siang', m.menu_siang), baris('Malam', m.menu_malam)]
-    .filter(Boolean).join('\n');
+/** Item satu waktu makan (dipisah baris) → "a, b, c". */
+function itemsMenu(teks: string): string {
+  return (teks || '').split('\n').map((s) => s.trim()).filter(Boolean).join(', ');
+}
+
+/**
+ * Komposisi satu pengantaran rekanan untuk pesanan tanggal D (dikonfirmasi Firdaus):
+ * MALAM hari D + PAGI hari D+1 + SIANG hari D+1. Contoh: pesanan Selasa →
+ * "Selasa Malam" + "Rabu Pagi" + "Rabu Siang". Diberi label hari eksplisit
+ * karena satu pengantaran memang mencakup dua hari kalender.
+ */
+function komposisiPesanan(hariMalam: string, menuMalam: MenuHari | undefined,
+                          hariPagiSiang: string, menuPagiSiang: MenuHari | undefined): string {
+  const baris: string[] = [];
+  if (menuMalam && itemsMenu(menuMalam.menu_malam)) baris.push(`${hariMalam} Malam: ${itemsMenu(menuMalam.menu_malam)}`);
+  if (menuPagiSiang && itemsMenu(menuPagiSiang.menu_pagi)) baris.push(`${hariPagiSiang} Pagi: ${itemsMenu(menuPagiSiang.menu_pagi)}`);
+  if (menuPagiSiang && itemsMenu(menuPagiSiang.menu_siang)) baris.push(`${hariPagiSiang} Siang: ${itemsMenu(menuPagiSiang.menu_siang)}`);
+  return baris.join('\n');
 }
 
 export function HalamanPesananBuat() {
@@ -83,11 +101,12 @@ export function HalamanPesananBuat() {
     void muatMenuKontrak(tgl);
   }
 
-  /** Ambil menu kontrak aktif untuk hari-dalam-minggu tanggal tsb → auto-isi bila
-   *  field menu masih kosong / belum diedit manual. */
+  /** Susun menu satu pengantaran (Malam hari-D + Pagi & Siang hari D+1) dari
+   *  kontrak aktif → auto-isi bila field menu masih kosong / belum diedit manual. */
   async function muatMenuKontrak(tgl: string) {
-    const hari = hariDalamMinggu(tgl);
-    setHariKontrak(hari);
+    const hariMalam = hariDalamMinggu(tgl);                 // hari D  (mis. Selasa)
+    const hariPagiSiang = hariDalamMinggu(tambahHari(tgl, 1)); // hari D+1 (mis. Rabu)
+    setHariKontrak(`${hariMalam} Malam + ${hariPagiSiang} Pagi & Siang`);
     setPesanMenuKontrak('');
     try {
       const kres = await api<{ kontrak: KontrakRingkas[] }>('kontrak.list', {});
@@ -97,10 +116,11 @@ export function HalamanPesananBuat() {
       if (!aktif) { setMenuKontrak(''); setPesanMenuKontrak('Belum ada kontrak aktif (DISETUJUI_PPK) untuk tanggal ini.'); return; }
 
       const mres = await api<{ menu: MenuHari[] }>('menu.list', { kontrak_id: aktif.kontrak_id });
-      const m = mres.menu.find((x) => x.hari === hari);
-      const saran = m ? formatMenuKontrak(m) : '';
+      const menuMalam = mres.menu.find((x) => x.hari === hariMalam);
+      const menuPagiSiang = mres.menu.find((x) => x.hari === hariPagiSiang);
+      const saran = komposisiPesanan(hariMalam, menuMalam, hariPagiSiang, menuPagiSiang);
       setMenuKontrak(saran);
-      if (!saran) { setPesanMenuKontrak(`Menu kontrak untuk hari ${hari} belum diisi.`); return; }
+      if (!saran) { setPesanMenuKontrak(`Menu kontrak untuk ${hariMalam}/${hariPagiSiang} belum diisi.`); return; }
 
       // Auto-isi bila field masih kosong atau belum diedit sejak auto-isi terakhir.
       setMenu((prev) => (prev.trim() === '' || prev === menuAutoRef.current) ? saran : prev);
@@ -168,23 +188,26 @@ export function HalamanPesananBuat() {
         <div className="rounded-xl bg-primary-light/40 p-3 text-sm">
           {memuatEstimasi ? 'Menghitung estimasi…' :
             jmlOtomatis !== null
-              ? <>Estimasi otomatis: <span className="font-bold">{jmlOtomatis} taruna</span> akan makan {hariKontrak ? `hari ${hariKontrak}` : ''} (taruna AKTIF dikurangi yang berstatus harian)</>
+              ? <>Estimasi otomatis: <span className="font-bold">{jmlOtomatis} taruna</span> (taruna AKTIF dikurangi yang berstatus harian)</>
               : 'Estimasi akan dihitung ulang oleh server saat disimpan.'}
         </div>
 
         <div>
-          <div className="mb-1 flex items-center justify-between">
-            <label className="block text-sm font-medium text-gray-700">
-              Menu{hariKontrak ? ` — ${hariKontrak}` : ''}
-            </label>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <label className="block text-sm font-medium text-gray-700">Menu Pengantaran</label>
             {menuKontrak && menu !== menuKontrak && (
-              <button type="button" className="text-xs font-semibold text-primary" onClick={pakaiMenuKontrak}>
+              <button type="button" className="shrink-0 text-xs font-semibold text-primary" onClick={pakaiMenuKontrak}>
                 🍽️ Pakai menu kontrak
               </button>
             )}
           </div>
+          {hariKontrak && (
+            <p className="mb-1 text-xs text-gray-500">
+              Satu pengantaran = <span className="font-semibold">{hariKontrak}</span> (rekanan mengantar sekali, mencakup malam ini + pagi & siang esok).
+            </p>
+          )}
           <textarea
-            rows={4}
+            rows={5}
             placeholder="Menu otomatis dari kontrak, bisa diubah bila perlu"
             value={menu}
             onChange={(e) => setMenu(e.target.value)}

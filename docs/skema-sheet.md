@@ -86,6 +86,16 @@ diisi/diubah Senat per hari secara ad hoc.
 Kalau kontrak berganti (kontrak baru dibuat), menu ikut diisi ulang untuk
 `kontrak_id` yang baru — tidak otomatis disalin dari kontrak lama.
 
+**Komposisi satu pengantaran (dikonfirmasi Firdaus).** Rekanan mengantar
+**sekali** per hari, dan satu pengantaran mencakup **tiga waktu makan yang
+melintasi dua hari kalender**: **MALAM hari D** + **PAGI hari D+1** + **SIANG
+hari D+1**. Jadi untuk `PESANAN.tgl_makan = D` (mis. Selasa), menu yang
+dirakit = `menu_malam[D]` + `menu_pagi[D+1]` + `menu_siang[D+1]` (Selasa
+Malam + Rabu Pagi + Rabu Siang). Perakitan ini dilakukan di halaman Buat
+Pesanan Senat (frontend, `pesanan-buat.tsx`) sebagai isian awal `PESANAN.menu`
+— tetap boleh diubah Senat per hari (ad hoc). Pagi & Siang hari D sendiri
+sudah tercakup di pengantaran hari D-1.
+
 ---
 
 ## B. TRANSAKSI
