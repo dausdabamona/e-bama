@@ -15,6 +15,13 @@
  * teks bebas "Uraian SPP/SPM" (lihat _parseUraianSpm_). Kalau parsing gagal,
  * baris tetap masuk (data uang tidak boleh hilang) tapi ditandai
  * perlu_cek_manual='YA' dan DIKECUALIKAN dari rekonsiliasi otomatis.
+ *
+ * Format kedua ("SPANExt") — satu baris per TARUNA penerima (bukan per
+ * kelompok). Dikirim dengan `nit` terisi (dicocokkan Admin/PPK dari nama
+ * penerima di frontend). Untuk baris ber-nit, `prodi`/`tingkat`/`jumlah_orang`
+ * SENGAJA TIDAK disimpan (lihat docs/skema-sheet.md §17) — kalau disalin dari
+ * TARUNA itu jadi dependensi transitif via nit yang bisa basi; keduanya
+ * diturunkan via join ke TARUNA saat sp2dRekonsiliasi, bukan saat impor.
  */
 
 var _SP2D_BULAN_MAP_ = {
@@ -77,10 +84,30 @@ function _parseUraianSpm_(uraian, kategori) {
 }
 
 /**
- * sp2d.import {kategori, baris:[{no_spm, tgl_spm?, no_sp2d?, tgl_sp2d?,
+ * Hasil parsing satu baris ber-nit (format SPANExt, per-taruna): bulan diambil
+ * dari tgl_sp2d (bukan diparse dari teks), prodi/tingkat SENGAJA tidak
+ * dihitung di sini (lihat catatan modul & docs/skema-sheet.md §17) — diturunkan
+ * via join TARUNA saat sp2dRekonsiliasi. kegiatan tetap diparse (properti
+ * transaksi itu sendiri, bukan turunan TARUNA). gagal=true kalau bulan tidak
+ * terbaca, kegiatan wajib (Luar Kampus) tidak ketemu, atau nit tidak dikenal.
+ */
+function _parseBarisPerTaruna_(nit, uraian, tglSp2d, kategori, tarunaValid) {
+  var teks = String(uraian || '');
+  var bulan = _bulanStr_(tglSp2d);
+  var kegiatan = kategori === 'LUAR_KAMPUS' ? _parseKegiatanUraian_(teks) : null;
+  var gagal = !/^\d{4}-\d{2}$/.test(bulan) || (kategori === 'LUAR_KAMPUS' && !kegiatan) || !tarunaValid[nit];
+  return {
+    prodi: '', tingkat: '', bulan: /^\d{4}-\d{2}$/.test(bulan) ? bulan : '',
+    kegiatan: kegiatan || '', jumlah_orang: null, gagal: gagal
+  };
+}
+
+/**
+ * sp2d.import {kategori, baris:[{no_spm, nit?, tgl_spm?, no_sp2d?, tgl_sp2d?,
  * jumlah_pembayaran, status_sp2d?, uraian_asli}]} — HANYA MENAMBAH baris
  * dengan no_spm yang belum pernah ada (dikonfirmasi Firdaus: cek impor bulanan
- * hanya untuk penambahan, bukan mengulang proses semua riwayat).
+ * hanya untuk penambahan, bukan mengulang proses semua riwayat). `nit` opsional
+ * — terisi untuk format per-taruna (SPANExt), kosong untuk format agregat lama.
  */
 function sp2dImport(payload, session) {
   var kategori = payload && payload.kategori;
@@ -91,6 +118,8 @@ function sp2dImport(payload, session) {
   return withLock(function () {
     var adaNoSpm = {};
     sheetRead(SHEETS.SP2D_MONITORING).forEach(function (r) { adaNoSpm[String(r.no_spm)] = true; });
+    var tarunaValid = {};
+    sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaValid[String(t.nit)] = true; });
 
     var ditambah = 0, dilewati = 0;
     baris.forEach(function (b) {
@@ -98,10 +127,13 @@ function sp2dImport(payload, session) {
       if (!noSpm) throw _fail_('no_spm wajib diisi pada setiap baris.');
       if (adaNoSpm[noSpm]) { dilewati++; return; } // sudah pernah masuk — lewati (hanya penambahan)
 
+      var nit = (b && b.nit) ? String(b.nit).trim() : '';
       var uraian = String((b && b.uraian_asli) || '');
-      var hasil = _parseUraianSpm_(uraian, kategori);
+      var hasil = nit
+        ? _parseBarisPerTaruna_(nit, uraian, b.tgl_sp2d, kategori, tarunaValid)
+        : _parseUraianSpm_(uraian, kategori);
       sheetAppend(SHEETS.SP2D_MONITORING, {
-        no_spm: noSpm, kategori: kategori,
+        no_spm: noSpm, kategori: kategori, nit: nit,
         prodi: hasil.prodi, tingkat: hasil.tingkat, bulan: hasil.bulan, kegiatan: hasil.kegiatan,
         jumlah_orang: hasil.jumlah_orang !== null ? hasil.jumlah_orang : '',
         jumlah_pembayaran: _int_(b.jumlah_pembayaran, 'jumlah_pembayaran'),
@@ -153,7 +185,14 @@ function sp2dRekonsiliasi(payload, session) {
       return { no_spm: r.no_spm, kategori: r.kategori, jumlah_pembayaran: _int_(r.jumlah_pembayaran || 0, 'jumlah_pembayaran'), uraian_asli: r.uraian_asli };
     });
 
-  // ── Dalam Kampus: REKAP_BULANAN × TARUNA, kelompok (prodi, tingkat) ──
+  // Baris ber-nit (format per-taruna/SPANExt) DIKECUALIKAN dari kelompok
+  // agregat di bawah — prodi/tingkat-nya sengaja kosong (lihat catatan modul),
+  // jadi ikut di sini akan lumped jadi satu kelompok "prodi/tingkat kosong"
+  // yang keliru. Baris ber-nit punya perbandingannya sendiri (per_taruna).
+  var sp2dAgregat = sp2dValid.filter(function (r) { return !r.nit; });
+  var sp2dPerTaruna = sp2dValid.filter(function (r) { return !!r.nit; });
+
+  // ── Dalam Kampus (agregat): REKAP_BULANAN × TARUNA, kelompok (prodi, tingkat) ──
   var rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
   var sistemDalam = _kelompokkanJumlah_(
     rekapRows.map(function (r) {
@@ -163,7 +202,7 @@ function sp2dRekonsiliasi(payload, session) {
     function (x) { return x.kunci; }, function (x) { return x.nominal; }
   );
   var sp2dDalam = _kelompokkanJumlah_(
-    sp2dValid.filter(function (r) { return r.kategori === 'DALAM_KAMPUS'; }),
+    sp2dAgregat.filter(function (r) { return r.kategori === 'DALAM_KAMPUS'; }),
     function (r) { return r.prodi + '|' + r.tingkat; },
     function (r) { return _int_(r.jumlah_pembayaran || 0, 'jumlah_pembayaran'); }
   );
@@ -176,7 +215,7 @@ function sp2dRekonsiliasi(payload, session) {
     return { prodi: parts[0], tingkat: parts[1], sistem: sistem, sp2d: sp2d, selisih: sistem - sp2d, cocok: sistem === sp2d };
   });
 
-  // ── Luar Kampus: BANTUAN_LUAR_KAMPUS × TARUNA, kelompok (kegiatan, prodi, tingkat) ──
+  // ── Luar Kampus (agregat): BANTUAN_LUAR_KAMPUS × TARUNA, kelompok (kegiatan, prodi, tingkat) ──
   var blkRows = sheetRead(SHEETS.BANTUAN_LUAR_KAMPUS, function (r) { return _bulanStr_(r.bulan) === bulan; });
   var sistemLuar = _kelompokkanJumlah_(
     blkRows.map(function (r) {
@@ -186,7 +225,7 @@ function sp2dRekonsiliasi(payload, session) {
     function (x) { return x.kunci; }, function (x) { return x.nominal; }
   );
   var sp2dLuar = _kelompokkanJumlah_(
-    sp2dValid.filter(function (r) { return r.kategori === 'LUAR_KAMPUS'; }),
+    sp2dAgregat.filter(function (r) { return r.kategori === 'LUAR_KAMPUS'; }),
     function (r) { return r.kegiatan + '|' + r.prodi + '|' + r.tingkat; },
     function (r) { return _int_(r.jumlah_pembayaran || 0, 'jumlah_pembayaran'); }
   );
@@ -199,5 +238,64 @@ function sp2dRekonsiliasi(payload, session) {
     return { kegiatan: parts[0], prodi: parts[1], tingkat: parts[2], sistem: sistem, sp2d: sp2d, selisih: sistem - sp2d, cocok: sistem === sp2d };
   });
 
-  return { bulan: bulan, dalam_kampus: dalamKampus, luar_kampus: luarKampus, perlu_cek_manual: perluCekManual };
+  // ── Dalam Kampus (per-taruna/SPANExt): REKAP_BULANAN vs SP2D, kelompok (nit) ──
+  // prodi/tingkat DITURUNKAN via join TARUNA di sini, TIDAK dibaca dari SP2D_MONITORING.
+  // Tabel ini HANYA dihitung kalau ada minimal satu baris SP2D per-taruna kategori
+  // ybs bulan ini — kalau tidak, sistemDalamNit (dari SELURUH REKAP_BULANAN bulan
+  // itu) akan lumped jadi "selisih" palsu untuk bulan yang memang masih format
+  // agregat lama (belum ada impor SPANExt sama sekali).
+  var sp2dPerTarunaDalam = sp2dPerTaruna.filter(function (r) { return r.kategori === 'DALAM_KAMPUS'; });
+  var dalamKampusPerTaruna = [];
+  if (sp2dPerTarunaDalam.length > 0) {
+    var sistemDalamNit = _kelompokkanJumlah_(
+      rekapRows, function (r) { return String(r.nit); }, function (r) { return _int_(r.nominal || 0, 'nominal'); }
+    );
+    var sp2dDalamNit = _kelompokkanJumlah_(
+      sp2dPerTarunaDalam, function (r) { return String(r.nit); },
+      function (r) { return _int_(r.jumlah_pembayaran || 0, 'jumlah_pembayaran'); }
+    );
+    var kunciDalamNit = {};
+    Object.keys(sistemDalamNit).forEach(function (k) { kunciDalamNit[k] = true; });
+    Object.keys(sp2dDalamNit).forEach(function (k) { kunciDalamNit[k] = true; });
+    dalamKampusPerTaruna = Object.keys(kunciDalamNit).sort().map(function (nit) {
+      var t = tarunaByNit[nit] || {};
+      var sistem = sistemDalamNit[nit] || 0, sp2d = sp2dDalamNit[nit] || 0;
+      return {
+        nit: nit, nama: t.nama || '', prodi: t.prodi || '', tingkat: t.tingkat || '',
+        sistem: sistem, sp2d: sp2d, selisih: sistem - sp2d, cocok: sistem === sp2d
+      };
+    });
+  }
+
+  // ── Luar Kampus (per-taruna/SPANExt): BANTUAN_LUAR_KAMPUS vs SP2D, kelompok (nit, kegiatan) ──
+  // Sama seperti di atas: hanya dihitung kalau ada baris SPANExt Luar Kampus bulan ini.
+  var sp2dPerTarunaLuar = sp2dPerTaruna.filter(function (r) { return r.kategori === 'LUAR_KAMPUS'; });
+  var luarKampusPerTaruna = [];
+  if (sp2dPerTarunaLuar.length > 0) {
+    var sistemLuarNit = _kelompokkanJumlah_(
+      blkRows, function (r) { return String(r.nit) + '|' + r.kegiatan; }, function (r) { return _int_(r.nominal || 0, 'nominal'); }
+    );
+    var sp2dLuarNit = _kelompokkanJumlah_(
+      sp2dPerTarunaLuar, function (r) { return String(r.nit) + '|' + r.kegiatan; },
+      function (r) { return _int_(r.jumlah_pembayaran || 0, 'jumlah_pembayaran'); }
+    );
+    var kunciLuarNit = {};
+    Object.keys(sistemLuarNit).forEach(function (k) { kunciLuarNit[k] = true; });
+    Object.keys(sp2dLuarNit).forEach(function (k) { kunciLuarNit[k] = true; });
+    luarKampusPerTaruna = Object.keys(kunciLuarNit).sort().map(function (k) {
+      var parts = k.split('|'); var nit = parts[0], kegiatan = parts[1];
+      var t = tarunaByNit[nit] || {};
+      var sistem = sistemLuarNit[k] || 0, sp2d = sp2dLuarNit[k] || 0;
+      return {
+        nit: nit, nama: t.nama || '', kegiatan: kegiatan, prodi: t.prodi || '', tingkat: t.tingkat || '',
+        sistem: sistem, sp2d: sp2d, selisih: sistem - sp2d, cocok: sistem === sp2d
+      };
+    });
+  }
+
+  return {
+    bulan: bulan, dalam_kampus: dalamKampus, luar_kampus: luarKampus,
+    dalam_kampus_per_taruna: dalamKampusPerTaruna, luar_kampus_per_taruna: luarKampusPerTaruna,
+    perlu_cek_manual: perluCekManual
+  };
 }

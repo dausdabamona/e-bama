@@ -118,7 +118,7 @@ function _skema_() {
       ['updated_by','s'], ['updated_at','dt']
     ]],
     [SHEETS.SP2D_MONITORING, [
-      ['no_spm','s'], ['kategori', E.SP2D_KATEGORI], ['prodi','s'], ['tingkat','s'],
+      ['no_spm','s'], ['kategori', E.SP2D_KATEGORI], ['nit','s'], ['prodi','s'], ['tingkat','s'],
       ['bulan','s'], ['kegiatan','s'], ['jumlah_orang','i'], ['jumlah_pembayaran','i'],
       ['tgl_spm','d'], ['no_sp2d','s'], ['tgl_sp2d','d'], ['status_sp2d','s'],
       ['uraian_asli','s'], ['perlu_cek_manual','s']

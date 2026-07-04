@@ -14,6 +14,7 @@ import { useToast } from '../../components/ui/toast';
 import { api } from '../../lib/api';
 import { bacaFileTeks, parseCsv } from '../../lib/csv';
 import { useListCache } from '../../lib/use-list-cache';
+import type { Taruna } from '../taruna/tipe';
 import { formatRupiah } from '../tagihan/tipe';
 
 interface Laporan {
@@ -26,12 +27,17 @@ interface Laporan {
 
 interface BarisRekon { prodi: string; tingkat: string; sistem: number; sp2d: number; selisih: number; cocok: boolean }
 interface BarisRekonLuar extends BarisRekon { kegiatan: string }
+interface BarisRekonPerTaruna { nit: string; nama: string; prodi: string; tingkat: string; sistem: number; sp2d: number; selisih: number; cocok: boolean }
+interface BarisRekonLuarPerTaruna extends BarisRekonPerTaruna { kegiatan: string }
 interface PerluCekManual { no_spm: string; kategori: string; jumlah_pembayaran: number; uraian_asli: string }
 interface Rekonsiliasi {
-  bulan: string; dalam_kampus: BarisRekon[]; luar_kampus: BarisRekonLuar[]; perlu_cek_manual: PerluCekManual[];
+  bulan: string; dalam_kampus: BarisRekon[]; luar_kampus: BarisRekonLuar[];
+  dalam_kampus_per_taruna: BarisRekonPerTaruna[]; luar_kampus_per_taruna: BarisRekonLuarPerTaruna[];
+  perlu_cek_manual: PerluCekManual[];
 }
 
-// Header PERSIS file ekspor "Monitoring SP2D" OM-SPAN (case-insensitive) → kunci internal.
+// Header PERSIS file ekspor "Monitoring SP2D" OM-SPAN klasik — format AGREGAT
+// (satu baris = satu kelompok Prodi+Tingkat+Bulan[+Kegiatan], lihat skema §17).
 const PETA_KOLOM_SP2D: Record<string, string> = {
   'no. spp/spm': 'no_spm',
   'tanggal spm': 'tgl_spm',
@@ -48,6 +54,80 @@ interface BarisPreviewSp2d {
   valid: boolean; pesan: string;
 }
 
+// ── Format PER-TARUNA ("SPANExt") — satu baris = satu taruna penerima ──
+// Berbeda granularitas dari format agregat: bulan diambil dari tanggal SP2D
+// (bukan diparse dari teks), dan nit dicocokkan dari "Nama Penerima" di sini
+// (frontend) sebelum dikirim — backend TIDAK menebak, hanya menyimpan apa
+// yang sudah dikonfirmasi (lihat docs/skema-sheet.md §17).
+
+/** Cari indeks kolom header, cocokkan longgar (tanpa spasi/titik/underscore, case-insensitive). */
+function cariIndeksKolomSp2d(header: string[], ...kandidat: string[]): number {
+  const rapikan = (s: string) => s.toLowerCase().replace(/[\s._]/g, '');
+  const target = kandidat.map(rapikan);
+  return header.findIndex((h) => target.includes(rapikan(h)));
+}
+
+/** Normalisasi nama untuk pencocokan: kapital, hapus titik/koma/kutip/strip, rapikan spasi. */
+function normalisasiNamaSp2d(s: string): string {
+  return s.toUpperCase().replace(/[.,'’-]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+/** Cocok BIDIREKSIONAL: nama SPANExt bisa terpotong ATAU punya noise di belakang. */
+function cocokBidireksionalSp2d(a: string, b: string): boolean {
+  return !!a && !!b && (a.startsWith(b) || b.startsWith(a));
+}
+
+/** "31-05-2026" → "2026-05-31"; "-" atau format tak dikenal → ''. */
+function parseTglDDMMYYYYSp2d(s: string): string {
+  const m = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(s.trim());
+  if (!m) return '';
+  return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+}
+
+/** "Rp. 1.144.000" → "1144000"; kosong bila tak ada digit. */
+function parseRupiahSp2d(s: string): string {
+  return s.replace(/[^\d]/g, '');
+}
+
+interface BarisPreviewPerTaruna {
+  noSpm: string; noSp2d: string; tglSp2d: string; jumlahPembayaran: string;
+  namaPenerima: string; uraianAsli: string; statusSp2d: string;
+  nitTerpilih: string; kandidat: { nit: string; nama: string }[];
+  valid: boolean; pesan: string;
+}
+
+function validasiBarisPerTaruna(kolomIdx: Record<string, number>, row: string[], daftarTaruna: Taruna[]): BarisPreviewPerTaruna {
+  const ambil = (k: string) => (kolomIdx[k] !== undefined ? (row[kolomIdx[k]] ?? '').trim() : '');
+  const namaPenerima = ambil('nama_penerima').replace(/^penerima\s*:\s*/i, '').trim();
+  const noSp2d = ambil('no_sp2d');
+  const noPenerima = ambil('no_penerima');
+  const nomorReferensi = ambil('nomor_referensi');
+  const tglSp2d = parseTglDDMMYYYYSp2d(ambil('tgl_sp2d'));
+  const jumlahPembayaran = parseRupiahSp2d(ambil('jumlah_pembayaran'));
+  const uraianAsli = ambil('uraian_asli');
+  const statusSp2d = ambil('status_sp2d');
+  const noSpm = nomorReferensi || `${noSp2d}-${noPenerima}`;
+
+  let pesan = '';
+  if (!noSpm.trim() || noSpm === '-') pesan = 'Nomor Referensi / No SP2D+No Penerima kosong.';
+  else if (!tglSp2d) pesan = 'Tanggal SP2D tidak terbaca (harus DD-MM-YYYY).';
+  else if (!jumlahPembayaran) pesan = 'Jumlah tidak terbaca sebagai angka.';
+  else if (!namaPenerima) pesan = 'Nama Penerima kosong.';
+
+  const target = normalisasiNamaSp2d(namaPenerima);
+  const kandidat = target
+    ? daftarTaruna
+        .filter((t) => cocokBidireksionalSp2d(normalisasiNamaSp2d(t.nama), target))
+        .map((t) => ({ nit: t.nit, nama: t.nama }))
+    : [];
+
+  return {
+    noSpm, noSp2d, tglSp2d, jumlahPembayaran, namaPenerima, uraianAsli, statusSp2d,
+    nitTerpilih: kandidat.length === 1 ? kandidat[0].nit : '', kandidat,
+    valid: !pesan, pesan
+  };
+}
+
 export function HalamanLaporan() {
   const { session } = useAuth();
   const { toast } = useToast();
@@ -56,9 +136,12 @@ export function HalamanLaporan() {
   const [bulan, setBulan] = useState(bulanIni());
   const { data, memuat, galat, refresh } = useListCache<Laporan>('laporan.bulanan', { bulan });
   const rekonQ = useListCache<Rekonsiliasi>('sp2d.rekonsiliasi', { bulan });
+  const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', {});
+  const daftarTaruna = tarunaQ.data?.taruna ?? [];
 
   const [kategori, setKategori] = useState<'DALAM_KAMPUS' | 'LUAR_KAMPUS'>('DALAM_KAMPUS');
   const [barisSp2d, setBarisSp2d] = useState<BarisPreviewSp2d[]>([]);
+  const [barisPerTaruna, setBarisPerTaruna] = useState<BarisPreviewPerTaruna[]>([]);
   const [prosesImpor, setProsesImpor] = useState(false);
 
   function validasiBarisSp2d(kolomIdx: Record<string, number>, row: string[]): BarisPreviewSp2d {
@@ -87,12 +170,35 @@ export function HalamanLaporan() {
     if (semua.length < 2) { toast('File CSV kosong atau tidak valid.', 'galat'); return; }
 
     const header = semua[0].map((h) => h.trim().toLowerCase());
+    const iNamaPenerima = cariIndeksKolomSp2d(header, 'nama penerima');
+
+    if (iNamaPenerima >= 0) {
+      // ── Format per-taruna (SPANExt) — satu baris = satu taruna penerima ──
+      const kolomIdx: Record<string, number> = { nama_penerima: iNamaPenerima };
+      const tambah = (k: string, ...kandidat: string[]) => {
+        const idx = cariIndeksKolomSp2d(header, ...kandidat);
+        if (idx >= 0) kolomIdx[k] = idx;
+      };
+      tambah('no_sp2d', 'no sp2d');
+      tambah('no_penerima', 'no penerima');
+      tambah('nomor_referensi', 'nomor referensi');
+      tambah('tgl_sp2d', 'tanggal sp2d');
+      tambah('jumlah_pembayaran', 'jumlah');
+      tambah('uraian_asli', 'deskripsi');
+      tambah('status_sp2d', 'status');
+      setBarisSp2d([]);
+      setBarisPerTaruna(semua.slice(1).map((row) => validasiBarisPerTaruna(kolomIdx, row, daftarTaruna)));
+      return;
+    }
+
+    // ── Format agregat (lama, satu baris = satu kelompok Prodi+Tingkat+Bulan) ──
     const kolomIdx: Record<string, number> = {};
     header.forEach((h, i) => { const k = PETA_KOLOM_SP2D[h]; if (k) kolomIdx[k] = i; });
     if (kolomIdx.no_spm === undefined || kolomIdx.jumlah_pembayaran === undefined || kolomIdx.uraian_asli === undefined) {
-      toast('Header CSV wajib memuat: No. SPP/SPM, Jumlah Pembayaran, Uraian SPP/SPM (format persis file ekspor OM-SPAN).', 'galat');
+      toast('Header CSV tidak dikenali — wajib "Nama Penerima" (format per-taruna/SPANExt) atau No. SPP/SPM + Jumlah Pembayaran + Uraian SPP/SPM (format agregat lama).', 'galat');
       return;
     }
+    setBarisPerTaruna([]);
     setBarisSp2d(semua.slice(1).map((row) => validasiBarisSp2d(kolomIdx, row)));
   }
 
@@ -112,6 +218,34 @@ export function HalamanLaporan() {
       });
       toast(`${hasil.ditambah} baris baru ditambah, ${hasil.dilewati} baris dilewati (sudah ada).`, 'sukses');
       setBarisSp2d([]);
+      rekonQ.refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
+    } finally {
+      setProsesImpor(false);
+    }
+  }
+
+  function setNitBarisPerTaruna(i: number, nit: string) {
+    setBarisPerTaruna((prev) => prev.map((b, idx) => (idx === i ? { ...b, nitTerpilih: nit } : b)));
+  }
+
+  const jmlSiapImporPerTaruna = barisPerTaruna.filter((b) => b.valid && b.nitTerpilih).length;
+
+  async function imporPerTaruna() {
+    const siap = barisPerTaruna.filter((b) => b.valid && b.nitTerpilih);
+    if (siap.length === 0) { toast('Belum ada baris valid & tercocokkan ke taruna.', 'galat'); return; }
+    setProsesImpor(true);
+    try {
+      const hasil = await api<{ ditambah: number; dilewati: number }>('sp2d.import', {
+        kategori,
+        baris: siap.map((b) => ({
+          no_spm: b.noSpm, nit: b.nitTerpilih, no_sp2d: b.noSp2d, tgl_sp2d: b.tglSp2d,
+          jumlah_pembayaran: Number(b.jumlahPembayaran), status_sp2d: b.statusSp2d, uraian_asli: b.uraianAsli
+        }))
+      });
+      toast(`${hasil.ditambah} baris baru ditambah, ${hasil.dilewati} baris dilewati (sudah ada).`, 'sukses');
+      setBarisPerTaruna([]);
       rekonQ.refresh();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
@@ -247,6 +381,61 @@ export function HalamanLaporan() {
                   )}
                 </div>
 
+                {rekonQ.data.dalam_kampus_per_taruna.length > 0 && (
+                  <div>
+                    <p className="mb-1 text-xs font-semibold text-gray-500">Dalam Kampus — per Taruna (SPANExt)</p>
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-gray-200 text-left text-gray-500">
+                          <th className="py-1 pr-2">Nama</th><th className="py-1 pr-2">Prodi/Tingkat</th>
+                          <th className="py-1 pr-2 text-right">Sistem</th><th className="py-1 pr-2 text-right">SP2D</th>
+                          <th className="py-1 pr-2 text-right">Selisih</th><th className="py-1">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rekonQ.data.dalam_kampus_per_taruna.map((r) => (
+                          <tr key={r.nit} className={`border-b border-gray-100 ${r.cocok ? '' : 'bg-red-50'}`}>
+                            <td className="py-1 pr-2">{r.nama || r.nit}</td>
+                            <td className="py-1 pr-2">{r.prodi || '?'}/{r.tingkat || '?'}</td>
+                            <td className="py-1 pr-2 text-right">{formatRupiah(r.sistem)}</td>
+                            <td className="py-1 pr-2 text-right">{formatRupiah(r.sp2d)}</td>
+                            <td className="py-1 pr-2 text-right">{formatRupiah(r.selisih)}</td>
+                            <td className="py-1">{r.cocok ? <span className="text-green-700">Cocok</span> : <span className="text-red-600">Selisih</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {rekonQ.data.luar_kampus_per_taruna.length > 0 && (
+                  <div>
+                    <p className="mb-1 text-xs font-semibold text-gray-500">Luar Kampus — per Taruna (SPANExt)</p>
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-gray-200 text-left text-gray-500">
+                          <th className="py-1 pr-2">Nama</th><th className="py-1 pr-2">Kegiatan</th><th className="py-1 pr-2">Prodi/Tingkat</th>
+                          <th className="py-1 pr-2 text-right">Sistem</th><th className="py-1 pr-2 text-right">SP2D</th>
+                          <th className="py-1 pr-2 text-right">Selisih</th><th className="py-1">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rekonQ.data.luar_kampus_per_taruna.map((r, i) => (
+                          <tr key={`${r.nit}-${r.kegiatan}-${i}`} className={`border-b border-gray-100 ${r.cocok ? '' : 'bg-red-50'}`}>
+                            <td className="py-1 pr-2">{r.nama || r.nit}</td>
+                            <td className="py-1 pr-2">{r.kegiatan}</td>
+                            <td className="py-1 pr-2">{r.prodi || '?'}/{r.tingkat || '?'}</td>
+                            <td className="py-1 pr-2 text-right">{formatRupiah(r.sistem)}</td>
+                            <td className="py-1 pr-2 text-right">{formatRupiah(r.sp2d)}</td>
+                            <td className="py-1 pr-2 text-right">{formatRupiah(r.selisih)}</td>
+                            <td className="py-1">{r.cocok ? <span className="text-green-700">Cocok</span> : <span className="text-red-600">Selisih</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
                 {rekonQ.data.perlu_cek_manual.length > 0 && (
                   <div className="print:hidden">
                     <p className="mb-1 text-xs font-semibold text-amber-700">
@@ -269,8 +458,9 @@ export function HalamanLaporan() {
             <Card className="flex flex-col gap-2 print:hidden">
               <p className="text-sm font-semibold text-gray-600">Impor Monitoring SP2D</p>
               <p className="text-xs text-gray-500">
-                Unggah file "Monitoring SP2D" (ekspor OM-SPAN, simpan sebagai CSV) — header persis
-                file sumber. Hanya baris dengan No. SPP/SPM yang BELUM pernah masuk yang akan ditambah.
+                Unggah CSV — dua format didukung: (1) "Monitoring SP2D" OM-SPAN klasik (agregat, header
+                No. SPP/SPM dst.), atau (2) "SPANExt" per-taruna (header memuat "Nama Penerima") — dicocokkan
+                ke NIT di bawah sebelum disimpan. Hanya baris yang BELUM pernah masuk yang ditambah.
               </p>
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Kategori Sumber</label>
@@ -280,8 +470,12 @@ export function HalamanLaporan() {
                   <option value="LUAR_KAMPUS">Luar Kampus (PKL/KPA/PTB)</option>
                 </select>
               </div>
-              <input type="file" accept=".csv,text/csv" onChange={(e) => void pilihFileSp2d(e)}
-                className="min-h-tap rounded-xl border border-gray-300 px-3 py-2.5 text-sm" />
+              {tarunaQ.memuat && !tarunaQ.data ? (
+                <LoadingSpinner label="Memuat daftar Taruna dulu (perlu untuk cocokkan nama SPANExt)…" />
+              ) : (
+                <input type="file" accept=".csv,text/csv" onChange={(e) => void pilihFileSp2d(e)}
+                  className="min-h-tap rounded-xl border border-gray-300 px-3 py-2.5 text-sm" />
+              )}
 
               {barisSp2d.length > 0 && (
                 <>
@@ -310,6 +504,56 @@ export function HalamanLaporan() {
                   </div>
                   <Button onClick={() => void imporSp2d()} disabled={prosesImpor || jmlValidSp2d === 0}>
                     {prosesImpor ? 'Mengimpor…' : `Impor ${jmlValidSp2d} Baris`}
+                  </Button>
+                </>
+              )}
+
+              {barisPerTaruna.length > 0 && (
+                <>
+                  <p className="text-xs text-amber-700">
+                    ⚠️ Nama di file SPANExt bisa terpotong/ber-noise — pencocokan di bawah HANYA usulan,
+                    periksa/tentukan NIT tiap baris sebelum menyimpan.
+                  </p>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-green-700">{jmlSiapImporPerTaruna} dari {barisPerTaruna.length} baris siap diimpor (valid &amp; tercocokkan)</span>
+                  </div>
+                  <div className="max-h-[32rem] overflow-y-auto overflow-x-auto rounded-xl border border-gray-100">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-gray-200 text-left text-gray-500">
+                          <th className="py-1 pr-2">Nama Penerima</th><th className="py-1 pr-2">Tgl SP2D</th>
+                          <th className="py-1 pr-2 text-right">Jumlah</th><th className="py-1">Validasi</th>
+                          <th className="py-1">Cocokkan ke Taruna</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {barisPerTaruna.map((b, i) => (
+                          <tr key={i} className={`border-b border-gray-100 ${!b.valid ? 'bg-red-50' : !b.nitTerpilih ? 'bg-amber-50' : ''}`}>
+                            <td className="py-1 pr-2">{b.namaPenerima}</td>
+                            <td className="py-1 pr-2">{b.tglSp2d || '-'}</td>
+                            <td className="py-1 pr-2 text-right">{b.jumlahPembayaran ? formatRupiah(Number(b.jumlahPembayaran)) : '-'}</td>
+                            <td className="py-1">{b.valid ? <span className="text-green-700">OK</span> : <span className="text-red-600">{b.pesan}</span>}</td>
+                            <td className="py-1">
+                              <select value={b.nitTerpilih} onChange={(e) => setNitBarisPerTaruna(i, e.target.value)}
+                                className="w-full rounded border border-gray-300 px-1 py-1">
+                                <option value="">— pilih taruna —</option>
+                                {b.kandidat.length > 0 && (
+                                  <optgroup label="Usulan (cocok nama)">
+                                    {b.kandidat.map((k) => <option key={k.nit} value={k.nit}>{k.nama} ({k.nit})</option>)}
+                                  </optgroup>
+                                )}
+                                <optgroup label="Semua Taruna">
+                                  {daftarTaruna.map((t) => <option key={t.nit} value={t.nit}>{t.nama} ({t.nit})</option>)}
+                                </optgroup>
+                              </select>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <Button onClick={() => void imporPerTaruna()} disabled={prosesImpor || jmlSiapImporPerTaruna === 0}>
+                    {prosesImpor ? 'Mengimpor…' : `Impor ${jmlSiapImporPerTaruna} Baris`}
                   </Button>
                 </>
               )}

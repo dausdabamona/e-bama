@@ -377,30 +377,55 @@ dari teks bebas kolom "Uraian SPP/SPM" (lihat `_parseUraianSpm_` di
 boleh hilang) tapi ditandai `perlu_cek_manual='YA'` dan **dikecualikan**
 dari perbandingan otomatis — ditampilkan terpisah untuk dicek manual.
 
+**Dua format sumber, dua granularitas baris (lihat § "Format per-taruna"
+di bawah):**
+- **Format agregat** ("Monitoring SP2D" OM-SPAN klasik) — satu baris =
+  satu kelompok Prodi+Tingkat+Bulan(+Kegiatan). `nit` **kosong**;
+  `prodi`/`tingkat`/`jumlah_orang` **terisi langsung** dari hasil parsing
+  Uraian, karena pada baris ini atribut tsb memang properti asli baris itu
+  sendiri (satu SPM memang mewakili satu kelompok taruna).
+- **Format per-taruna** ("SPANExt") — satu baris = satu taruna penerima.
+  `nit` **terisi** (dicocokkan Admin/PPK dari nama penerima saat impor,
+  lihat frontend). Kolom `prodi`/`tingkat`/`jumlah_orang` **SENGAJA
+  dikosongkan** di baris ini — kalau ikut disalin dari taruna terkait,
+  itu jadi data ganda dari `TARUNA.prodi`/`TARUNA.tingkat` (dependensi
+  transitif lewat `nit`, bisa basi kalau taruna pindah prodi/tingkat).
+  `prodi`/`tingkat` pada baris per-taruna **diturunkan via join ke TARUNA
+  memakai `nit`** setiap kali `sp2d.rekonsiliasi` dipanggil, tidak pernah
+  disimpan dobel di sini. `bulan` pada baris ini diambil langsung dari
+  tanggal SP2D (`tgl_sp2d`), bukan diparse dari teks — lebih akurat
+  daripada regex Uraian.
+
 | Kolom | Tipe | Keterangan |
 |---|---|---|
-| no_spm | string | kunci; dari kolom "No. SPP/SPM" — dipakai deteksi baris baru saat impor ulang |
+| no_spm | string | kunci; dari kolom "No. SPP/SPM" (format agregat) atau "Nomor Referensi" transaksi (format per-taruna, lihat catatan) — dipakai deteksi baris baru saat impor ulang |
 | kategori | enum | `DALAM_KAMPUS` / `LUAR_KAMPUS` — dipilih pengguna saat impor (satu file = satu kategori) |
-| prodi | string | hasil parsing Uraian (`TPI`/`MP`/`TBP`), kosong bila gagal parse |
-| tingkat | string | hasil parsing Uraian (`I`/`II`/`III`) |
-| bulan | string | `YYYY-MM`, hasil parsing Uraian |
-| kegiatan | string | khusus Luar Kampus (`KPA`/`PKL2`/`PKL3`/`PTB`), kosong untuk Dalam Kampus |
-| jumlah_orang | integer | dari "...untuk N Orang" di Uraian |
-| jumlah_pembayaran | integer | dari kolom "Jumlah Pembayaran" file sumber |
+| nit | FK → TARUNA (opsional) | **kosong untuk baris agregat**; terisi untuk baris per-taruna (SPANExt) — dicocokkan Admin/PPK dari "Nama Penerima" file sumber |
+| prodi | string | format agregat: hasil parsing Uraian (`TPI`/`MP`/`TBP`); format per-taruna: **selalu kosong** (lihat catatan di atas), diturunkan via join TARUNA saat rekonsiliasi |
+| tingkat | string | idem — format agregat: hasil parsing Uraian (`I`/`II`/`III`); format per-taruna: **selalu kosong** |
+| bulan | string | `YYYY-MM` — format agregat: hasil parsing Uraian; format per-taruna: diambil dari `tgl_sp2d` |
+| kegiatan | string | khusus Luar Kampus (`KPA`/`PKL2`/`PKL3`/`PTB`), kosong untuk Dalam Kampus — diparse dari Uraian/Deskripsi di kedua format |
+| jumlah_orang | integer | hanya format agregat, dari "...untuk N Orang" di Uraian; **selalu kosong** untuk baris per-taruna (implisit 1, tidak perlu disimpan) |
+| jumlah_pembayaran | integer | dari kolom "Jumlah Pembayaran" (agregat) atau "Jumlah" (per-taruna, format "Rp. 1.144.000" diparse jadi integer di frontend) |
 | tgl_spm, no_sp2d, tgl_sp2d, status_sp2d | - | apa adanya dari file sumber (`-` → dikosongkan, artinya SP2D belum terbit) |
-| uraian_asli | string | teks Uraian SPP/SPM lengkap, disimpan apa adanya untuk verifikasi manual |
-| perlu_cek_manual | string | `'YA'` bila prodi/tingkat/bulan (atau kegiatan utk Luar Kampus) gagal diparse |
+| uraian_asli | string | teks Uraian SPP/SPM (agregat) atau Deskripsi (per-taruna) lengkap, disimpan apa adanya untuk verifikasi manual |
+| perlu_cek_manual | string | `'YA'` bila: format agregat → prodi/tingkat/bulan/jumlah_orang (atau kegiatan utk Luar Kampus) gagal diparse; format per-taruna → `bulan` tidak terbaca dari `tgl_sp2d`, kegiatan gagal diparse (Luar Kampus), atau `nit` tidak dikenal di TARUNA |
 
 **Impor (`sp2d.import`, role ADMIN/PPK):** PPK unduh file terbaru dari
-OM-SPAN tiap bulan, unggah CSV (header persis file sumber). Impor **HANYA
-menambah** baris dengan `no_spm` yang belum pernah ada — baris yang sudah
-ada TIDAK diproses ulang (dikonfirmasi Firdaus: cek bulanan cukup untuk
-penambahan, bukan mengulang proses seluruh riwayat).
+OM-SPAN tiap bulan, unggah CSV (header persis file sumber — agregat atau
+SPANExt per-taruna, terdeteksi otomatis dari header di frontend). Impor
+**HANYA menambah** baris dengan `no_spm` yang belum pernah ada — baris
+yang sudah ada TIDAK diproses ulang (dikonfirmasi Firdaus: cek bulanan
+cukup untuk penambahan, bukan mengulang proses seluruh riwayat).
 
 **Rekonsiliasi (`sp2d.rekonsiliasi`, role PPK/KPA/WADIR3/ADMIN, baca saja):**
 digabung ke halaman Laporan Bulanan yang sudah ada — payload `{bulan}`,
-mengembalikan perbandingan per kelompok untuk Dalam Kampus & Luar Kampus,
-plus daftar baris `perlu_cek_manual` bulan itu.
+mengembalikan perbandingan per kelompok (`dalam_kampus`/`luar_kampus`,
+dari baris agregat SAJA — baris ber-`nit` dikecualikan supaya tidak
+mengotori kelompok "prodi/tingkat kosong") **dan** perbandingan per taruna
+(`dalam_kampus_per_taruna`/`luar_kampus_per_taruna`, dari baris ber-`nit`
+SAJA, `prodi`/`tingkat` hasil join TARUNA saat itu), plus daftar baris
+`perlu_cek_manual` bulan itu.
 
 ---
 
