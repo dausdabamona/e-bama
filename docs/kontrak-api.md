@@ -179,6 +179,7 @@ luar sistem; diajukan ke PPK untuk diinput. Catatan murni, tanpa alur status.
 |---|---|---|---|
 | `rekening.lihat_lengkap` | **ADMIN, PPK SAJA** | `{nit}` atau `{nit_list}` → `{rekening:[{nit,no_rekening_lengkap,bank,nama_pemilik}]}` | Dipakai internal `cetak.form07`/`cetak.form08` dan modal "🔒 Rekening" (Admin) di `/taruna`. Setiap panggilan berhasil WAJIB 1 baris `AUDIT_LOG` (`ref_id`=NIT yang dilihat) — **tanpa** nomor rekening di `AUDIT_LOG`. Dibungkus `withLock` walau baca-saja. |
 | `rekening.simpan` | **ADMIN SAJA** | `{nit, no_rekening_lengkap, bank, nama_pemilik}` → `{nit, bank, nama_pemilik}` | PPK tidak bisa menulis, supaya input data sensitif tetap satu pintu. `AUDIT_LOG` mencatat field yang berubah, bukan nomor rekeningnya. |
+| `rekening.simpan_batch` | **ADMIN SAJA** | `{baris:[{nit,no_rekening_lengkap,bank,nama_pemilik}]}` → `{disimpan}` | Versi batch `rekening.simpan` — dipakai halaman "Impor Rekening dari Laporan Bank" (`/taruna/impor-rekening`) setelah Admin mencocokkan manual nama di laporan bank (yang biasanya terpotong) ke NIT. Validasi all-or-nothing sebelum menulis; tiap baris tetap diaudit satu-satu. |
 
 ### Rekonsiliasi SP2D (`SP2D_MONITORING`) — dibandingkan per kelompok, bukan ditautkan per baris
 

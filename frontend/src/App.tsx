@@ -38,6 +38,7 @@ import { HalamanTagihanDetail } from './pages/tagihan/tagihan-detail';
 import { HalamanTagihanGagalDebet } from './pages/tagihan/tagihan-gagal-debet';
 import { HalamanTarunaList } from './pages/taruna/taruna-list';
 import { HalamanTarunaImpor } from './pages/taruna/taruna-import';
+import { HalamanTarunaImporRekening } from './pages/taruna/taruna-impor-rekening';
 import { HalamanVerifikasi } from './pages/verifikasi';
 
 /** Beranda: arahkan ke item nav pertama sesuai role. */
@@ -86,6 +87,7 @@ export default function App() {
               {/* Admin */}
               <Route path="/taruna" element={<WajibLogin roles={['ADMIN', 'BAAK']}><HalamanTarunaList /></WajibLogin>} />
               <Route path="/taruna/impor" element={<WajibLogin roles={['ADMIN', 'BAAK']}><HalamanTarunaImpor /></WajibLogin>} />
+              <Route path="/taruna/impor-rekening" element={<WajibLogin roles={['ADMIN']}><HalamanTarunaImporRekening /></WajibLogin>} />
               <Route path="/pengguna" element={<WajibLogin roles={['ADMIN']}><HalamanPengguna /></WajibLogin>} />
               {/* Admin, PPK, KPA, Wadir3 */}
               <Route path="/audit" element={<WajibLogin roles={['ADMIN', 'PPK', 'KPA', 'WADIR3']}><HalamanAudit /></WajibLogin>} />

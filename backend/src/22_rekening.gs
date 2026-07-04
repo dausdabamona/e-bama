@@ -1,7 +1,8 @@
 /**
  * 22_rekening.gs — TARUNA_REKENING: nomor rekening LENGKAP taruna (docs/skema-sheet.md §16)
  *
- * ACTION: rekening.lihat_lengkap (ADMIN, PPK), rekening.simpan (ADMIN)
+ * ACTION: rekening.lihat_lengkap (ADMIN, PPK), rekening.simpan (ADMIN),
+ *         rekening.simpan_batch (ADMIN)
  *
  * PENGECUALIAN KEAMANAN TERBATAS — satu-satunya tempat di e-BAMA yang boleh
  * menyimpan nomor rekening PENUH (di luar sheet ini, semua tempat lain HANYA
@@ -87,5 +88,60 @@ function rekeningSimpan(payload, session) {
       { bank: bank, nama_pemilik: namaPemilik, rekening_diubah: true });
 
     return { nit: nit, bank: bank, nama_pemilik: namaPemilik };
+  });
+}
+
+/**
+ * rekening.simpan_batch {baris:[{nit, no_rekening_lengkap, bank, nama_pemilik}]}
+ * — versi batch rekening.simpan, dipakai utk isi massal dari sumber terpercaya
+ * (mis. laporan Autotran bank yang sudah dicocokkan manual ke NIT oleh Admin di
+ * frontend — lihat halaman Impor Rekening). Role ADMIN SAJA, sama seperti
+ * rekening.simpan. Tiap baris tetap diaudit SATU-SATU (granularitas sama
+ * dengan rekening.simpan tunggal), bukan satu baris audit gabungan.
+ */
+function rekeningSimpanBatch(payload, session) {
+  var baris = (payload && payload.baris) || [];
+  if (!baris.length) throw _fail_('baris tidak boleh kosong.');
+
+  var tarunaValid = {};
+  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaValid[String(t.nit)] = true; });
+
+  // Validasi semua baris DULU sebelum menulis apa pun (all-or-nothing).
+  baris.forEach(function (b) {
+    var nit = (b && b.nit != null) ? String(b.nit).trim() : '';
+    if (!nit) throw _fail_('nit wajib diisi pada setiap baris.');
+    if (!tarunaValid[nit]) throw _fail_('Taruna tidak ditemukan: ' + nit);
+    if (!(b.no_rekening_lengkap && String(b.no_rekening_lengkap).trim())) throw _fail_('no_rekening_lengkap wajib diisi untuk NIT ' + nit + '.');
+    if (ENUM.BANK.indexOf(b.bank) < 0) throw _fail_('bank tidak valid untuk NIT ' + nit + '.');
+    if (!(b.nama_pemilik && String(b.nama_pemilik).trim())) throw _fail_('nama_pemilik wajib diisi untuk NIT ' + nit + '.');
+  });
+
+  return withLock(function () {
+    var existingByNit = {};
+    sheetRead(SHEETS.TARUNA_REKENING).forEach(function (r) { existingByNit[String(r.nit)] = r; });
+
+    var n = 0;
+    baris.forEach(function (b) {
+      var nit = String(b.nit).trim();
+      var noRek = String(b.no_rekening_lengkap).trim();
+      var bank = b.bank;
+      var namaPemilik = String(b.nama_pemilik).trim();
+      var ada = existingByNit[nit];
+      var nilai = {
+        nit: nit, no_rekening_lengkap: noRek, bank: bank, nama_pemilik: namaPemilik,
+        updated_by: session.user_id, updated_at: new Date()
+      };
+      if (ada) {
+        sheetUpdate(SHEETS.TARUNA_REKENING, 'nit', nit, nilai);
+      } else {
+        sheetAppend(SHEETS.TARUNA_REKENING, nilai);
+      }
+      auditLog(session, 'rekening.simpan', 'TARUNA_REKENING', nit,
+        ada ? { bank: ada.bank, nama_pemilik: ada.nama_pemilik } : null,
+        { bank: bank, nama_pemilik: namaPemilik, rekening_diubah: true, sumber: 'rekening.simpan_batch' });
+      n++;
+    });
+
+    return { disimpan: n };
   });
 }

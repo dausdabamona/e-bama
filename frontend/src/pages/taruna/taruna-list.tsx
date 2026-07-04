@@ -33,6 +33,9 @@ export function HalamanTarunaList() {
         <h1 className="text-xl font-bold text-primary-dark">Data Taruna</h1>
         <div className="flex gap-2">
           <Link to="/taruna/impor"><Button varian="garis">Impor CSV</Button></Link>
+          {session?.role === 'ADMIN' && (
+            <Link to="/taruna/impor-rekening"><Button varian="garis">🔒 Impor Rekening</Button></Link>
+          )}
           <Button onClick={() => setModal('baru')}>+ Tambah</Button>
         </div>
       </div>
