@@ -2,7 +2,7 @@
 // Tombol "Rekening Lengkap" HANYA tampil untuk role ADMIN (persembunyian
 // frontend saja — backend tetap yang menegakkan lewat rekening.simpan
 // role:['ADMIN'], lihat 22_rekening.gs & CLAUDE.md §4/§7).
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/auth-context';
 import { Badge } from '../../components/ui/badge';
@@ -27,31 +27,91 @@ export function HalamanTarunaList() {
   const [modal, setModal] = useState<Taruna | 'baru' | null>(null);
   const [modalRekening, setModalRekening] = useState<Taruna | null>(null);
 
+  const [cari, setCari] = useState('');
+  const [filterProdi, setFilterProdi] = useState('');
+  const [filterTingkat, setFilterTingkat] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+
+  const semua = data?.taruna;
+  const prodiOpsi = useMemo(() => Array.from(new Set((semua ?? []).map((t) => t.prodi).filter(Boolean))).sort(), [semua]);
+  const tingkatOpsi = useMemo(() => Array.from(new Set((semua ?? []).map((t) => t.tingkat).filter(Boolean))).sort(), [semua]);
+
+  const hasil = useMemo(() => {
+    const q = cari.trim().toLowerCase();
+    return (semua ?? [])
+      .filter((t) => {
+        if (q && !(t.nama.toLowerCase().includes(q) || t.nit.toLowerCase().includes(q))) return false;
+        if (filterProdi && t.prodi !== filterProdi) return false;
+        if (filterTingkat && t.tingkat !== filterTingkat) return false;
+        if (filterStatus && t.status !== filterStatus) return false;
+        return true;
+      })
+      .sort((a, b) => a.nama.localeCompare(b.nama));
+  }, [semua, cari, filterProdi, filterTingkat, filterStatus]);
+
+  const adaFilter = !!(cari || filterProdi || filterTingkat || filterStatus);
+
   return (
     <div className="flex flex-col gap-4">
-      {/* Header aksi — sticky di bawah header aplikasi. Offset sedikit di bawah
-          tinggi header (~68px mobile) supaya header aplikasi yang opak menutup
-          tumpang tindih tanpa celah. -mx supaya latar membentang penuh kolom. */}
-      <div className="sticky top-[64px] z-30 -mx-4 flex items-center justify-between gap-2 border-b border-gray-100 bg-ivory px-4 py-3 lg:top-[72px] lg:-mx-8 lg:px-8">
-        <h1 className="text-xl font-bold text-primary-dark">Data Taruna</h1>
-        <div className="flex gap-2">
-          <Link to="/taruna/impor"><Button varian="garis">Impor CSV</Button></Link>
-          {session?.role === 'ADMIN' && (
-            <Link to="/taruna/impor-rekening"><Button varian="garis">🔒 Impor Rekening</Button></Link>
+      {/* Header + search + filter — sticky di bawah header aplikasi. Offset sedikit
+          di bawah tinggi header (~68px mobile) supaya header aplikasi yang opak
+          menutup tumpang tindih tanpa celah. -mx supaya latar membentang penuh kolom. */}
+      <div className="sticky top-[64px] z-30 -mx-4 flex flex-col gap-2 border-b border-gray-200 bg-ivory px-4 py-3 lg:top-[72px] lg:-mx-8 lg:px-8">
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="text-xl font-bold text-primary-dark">Data Taruna</h1>
+          <div className="flex gap-2">
+            <Link to="/taruna/impor"><Button varian="garis">Impor CSV</Button></Link>
+            {session?.role === 'ADMIN' && (
+              <Link to="/taruna/impor-rekening"><Button varian="garis">🔒 Impor Rekening</Button></Link>
+            )}
+            <Button onClick={() => setModal('baru')}>+ Tambah</Button>
+          </div>
+        </div>
+
+        <input
+          type="search"
+          placeholder="Cari nama atau NIT…"
+          value={cari}
+          onChange={(e) => setCari(e.target.value)}
+          className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light"
+        />
+
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={filterProdi} onChange={(e) => setFilterProdi(e.target.value)}
+            className="min-h-tap min-w-[6rem] flex-1 rounded-xl border border-gray-300 px-2 py-1.5 text-sm">
+            <option value="">Semua Prodi</option>
+            {prodiOpsi.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <select value={filterTingkat} onChange={(e) => setFilterTingkat(e.target.value)}
+            className="min-h-tap min-w-[6rem] flex-1 rounded-xl border border-gray-300 px-2 py-1.5 text-sm">
+            <option value="">Semua Tingkat</option>
+            {tingkatOpsi.map((t) => <option key={t} value={t}>Tk.{t}</option>)}
+          </select>
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
+            className="min-h-tap min-w-[6rem] flex-1 rounded-xl border border-gray-300 px-2 py-1.5 text-sm">
+            <option value="">Semua Status</option>
+            {STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+
+        <div className="flex items-center justify-between text-xs text-gray-500">
+          <span>{hasil.length} taruna{adaFilter ? ' (terfilter)' : ''}</span>
+          {adaFilter && (
+            <button className="font-semibold text-primary"
+              onClick={() => { setCari(''); setFilterProdi(''); setFilterTingkat(''); setFilterStatus(''); }}>
+              Reset filter
+            </button>
           )}
-          <Button onClick={() => setModal('baru')}>+ Tambah</Button>
         </div>
       </div>
 
       {memuat && !data && <LoadingSpinner label="Memuat data taruna…" />}
       {galat && !data && <ErrorMessage pesan={galat} onRetry={refresh} />}
       {data && data.taruna.length === 0 && <EmptyState pesan="Belum ada data taruna." />}
+      {data && data.taruna.length > 0 && hasil.length === 0 && <EmptyState pesan="Tidak ada taruna yang cocok dengan pencarian/filter." />}
 
       <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-4 xl:grid-cols-3">
-        {(data?.taruna ?? [])
-          .slice()
-          .sort((a, b) => a.nama.localeCompare(b.nama))
-          .map((t) => (
+        {hasil.map((t) => (
             <Card key={t.nit} className="flex items-center justify-between gap-2">
               <div className="min-w-0 flex-1 active:bg-primary-light/30" onClick={() => setModal(t)}>
                 <p className="font-semibold">{t.nama}</p>
