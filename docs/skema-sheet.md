@@ -392,9 +392,11 @@ di bawah):**
   transitif lewat `nit`, bisa basi kalau taruna pindah prodi/tingkat).
   `prodi`/`tingkat` pada baris per-taruna **diturunkan via join ke TARUNA
   memakai `nit`** setiap kali `sp2d.rekonsiliasi` dipanggil, tidak pernah
-  disimpan dobel di sini. `bulan` pada baris ini diambil langsung dari
-  tanggal SP2D (`tgl_sp2d`), bukan diparse dari teks — lebih akurat
-  daripada regex Uraian.
+  disimpan dobel di sini. `bulan` = bulan **makan**, diparse dari teks
+  Deskripsi ("...Bulan Januari 2026...") sama seperti format agregat —
+  **BUKAN** dari `tgl_sp2d` (tanggal pencairan sering beda bulan dari bulan
+  makan, mis. makan Januari dicairkan Februari; `REKAP_BULANAN` dikunci per
+  bulan makan, jadi pakai `tgl_sp2d` akan bikin rekonsiliasi selalu selisih).
 
 | Kolom | Tipe | Keterangan |
 |---|---|---|
@@ -403,7 +405,7 @@ di bawah):**
 | nit | FK → TARUNA (opsional) | **kosong untuk baris agregat**; terisi untuk baris per-taruna (SPANExt) — dicocokkan Admin/PPK dari "Nama Penerima" file sumber |
 | prodi | string | format agregat: hasil parsing Uraian (`TPI`/`MP`/`TBP`); format per-taruna: **selalu kosong** (lihat catatan di atas), diturunkan via join TARUNA saat rekonsiliasi |
 | tingkat | string | idem — format agregat: hasil parsing Uraian (`I`/`II`/`III`); format per-taruna: **selalu kosong** |
-| bulan | string | `YYYY-MM` — format agregat: hasil parsing Uraian; format per-taruna: diambil dari `tgl_sp2d` |
+| bulan | string | `YYYY-MM` bulan **makan** — kedua format: hasil parsing teks (Uraian agregat / Deskripsi per-taruna), BUKAN dari `tgl_sp2d` (tanggal cair bisa beda bulan) |
 | kegiatan | string | khusus Luar Kampus (`KPA`/`PKL2`/`PKL3`/`PTB`), kosong untuk Dalam Kampus — diparse dari Uraian/Deskripsi di kedua format |
 | jumlah_orang | integer | hanya format agregat, dari "...untuk N Orang" di Uraian; **selalu kosong** untuk baris per-taruna (implisit 1, tidak perlu disimpan) |
 | jumlah_pembayaran | integer | dari kolom "Jumlah Pembayaran" (agregat) atau "Jumlah" (per-taruna, format "Rp. 1.144.000" diparse jadi integer di frontend) |

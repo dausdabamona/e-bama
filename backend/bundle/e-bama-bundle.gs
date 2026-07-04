@@ -3178,20 +3178,24 @@ function _parseUraianSpm_(uraian, kategori) {
 }
 
 /**
- * Hasil parsing satu baris ber-nit (format SPANExt, per-taruna): bulan diambil
- * dari tgl_sp2d (bukan diparse dari teks), prodi/tingkat SENGAJA tidak
- * dihitung di sini (lihat catatan modul & docs/skema-sheet.md §17) — diturunkan
- * via join TARUNA saat sp2dRekonsiliasi. kegiatan tetap diparse (properti
- * transaksi itu sendiri, bukan turunan TARUNA). gagal=true kalau bulan tidak
- * terbaca, kegiatan wajib (Luar Kampus) tidak ketemu, atau nit tidak dikenal.
+ * Hasil parsing satu baris ber-nit (format SPANExt, per-taruna). bulan =
+ * bulan MAKAN, diparse dari teks Deskripsi ("...Bulan Januari 2026...") —
+ * BUKAN dari tgl_sp2d (tanggal pencairan; sering beda bulan dari bulan makan,
+ * mis. makan Januari dibayar Februari). REKAP_BULANAN dikunci per bulan makan,
+ * jadi kalau pakai tgl_sp2d rekonsiliasi akan salah kelompok / selalu selisih.
+ * prodi/tingkat/jumlah_orang SENGAJA tidak dihitung di sini (lihat catatan
+ * modul & docs/skema-sheet.md §17) — diturunkan via join TARUNA saat
+ * sp2dRekonsiliasi. kegiatan tetap diparse (properti transaksi, bukan turunan
+ * TARUNA). gagal=true kalau bulan tidak terbaca, kegiatan wajib (Luar Kampus)
+ * tidak ketemu, atau nit tidak dikenal.
  */
-function _parseBarisPerTaruna_(nit, uraian, tglSp2d, kategori, tarunaValid) {
+function _parseBarisPerTaruna_(nit, uraian, kategori, tarunaValid) {
   var teks = String(uraian || '');
-  var bulan = _bulanStr_(tglSp2d);
+  var bulan = _parseBulanUraian_(teks);
   var kegiatan = kategori === 'LUAR_KAMPUS' ? _parseKegiatanUraian_(teks) : null;
-  var gagal = !/^\d{4}-\d{2}$/.test(bulan) || (kategori === 'LUAR_KAMPUS' && !kegiatan) || !tarunaValid[nit];
+  var gagal = !bulan || (kategori === 'LUAR_KAMPUS' && !kegiatan) || !tarunaValid[nit];
   return {
-    prodi: '', tingkat: '', bulan: /^\d{4}-\d{2}$/.test(bulan) ? bulan : '',
+    prodi: '', tingkat: '', bulan: bulan || '',
     kegiatan: kegiatan || '', jumlah_orang: null, gagal: gagal
   };
 }
@@ -3224,7 +3228,7 @@ function sp2dImport(payload, session) {
       var nit = (b && b.nit) ? String(b.nit).trim() : '';
       var uraian = String((b && b.uraian_asli) || '');
       var hasil = nit
-        ? _parseBarisPerTaruna_(nit, uraian, b.tgl_sp2d, kategori, tarunaValid)
+        ? _parseBarisPerTaruna_(nit, uraian, kategori, tarunaValid)
         : _parseUraianSpm_(uraian, kategori);
       sheetAppend(SHEETS.SP2D_MONITORING, {
         no_spm: noSpm, kategori: kategori, nit: nit,
