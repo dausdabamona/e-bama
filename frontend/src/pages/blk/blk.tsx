@@ -13,7 +13,7 @@ import { ErrorMessage } from '../../components/ui/error-message';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
 import { useToast } from '../../components/ui/toast';
 import { api } from '../../lib/api';
-import { bacaFileTeks, parseCsv } from '../../lib/csv';
+import { bacaFileTeks, deteksiPemisah, parseCsv } from '../../lib/csv';
 import { useListCache } from '../../lib/use-list-cache';
 import { formatRupiah } from '../tagihan/tipe';
 import { parsePeriodeBulan, type BantuanLuarKampus } from './tipe';
@@ -82,7 +82,7 @@ export function HalamanBantuanLuarKampus() {
     const file = e.target.files?.[0];
     if (!file) return;
     const teks = await bacaFileTeks(file);
-    const semua = parseCsv(teks);
+    const semua = parseCsv(teks, deteksiPemisah(teks));
     if (semua.length < 2) { toast('File CSV kosong atau tidak valid.', 'galat'); return; }
 
     const header = semua[0].map((h) => h.trim().toLowerCase());

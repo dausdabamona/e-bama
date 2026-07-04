@@ -12,7 +12,7 @@ import { Modal } from '../../components/ui/modal';
 import { useToast } from '../../components/ui/toast';
 import { api } from '../../lib/api';
 import { ambilBerkasInput, berkasKeBase64 } from '../../lib/berkas';
-import { bacaFileTeks, parseCsv } from '../../lib/csv';
+import { bacaFileTeks, deteksiPemisah, parseCsv } from '../../lib/csv';
 import { useListCache } from '../../lib/use-list-cache';
 import { urlDrive, type Lampiran } from '../pesanan/tipe';
 import { formatRupiah } from '../tagihan/tipe';
@@ -341,7 +341,7 @@ function ModalMenu({ kontrakId, onClose }: { kontrakId: string; onClose: () => v
     if (!file) return;
     try {
       const teks = await bacaFileTeks(file);
-      const semua = parseCsv(teks);
+      const semua = parseCsv(teks, deteksiPemisah(teks));
       if (semua.length < 2) { toast('File CSV kosong atau tidak valid.', 'galat'); return; }
       const header = semua[0].map((h) => h.trim().toLowerCase());
       const cari = (...kandidat: string[]) => header.findIndex((h) => kandidat.includes(h));
