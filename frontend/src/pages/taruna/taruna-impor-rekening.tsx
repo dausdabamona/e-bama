@@ -44,7 +44,7 @@ export function HalamanTarunaImporRekening() {
   const nav = useNavigate();
   const { toast } = useToast();
   const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', {});
-  const daftarTaruna = tarunaQ.data?.taruna ?? [];
+  const daftarTaruna = (tarunaQ.data?.taruna ?? []).slice().sort((a, b) => a.nama.localeCompare(b.nama));
 
   const [bank, setBank] = useState<'BNI' | 'BSI'>('BNI');
   const [baris, setBaris] = useState<BarisImporRekening[]>([]);

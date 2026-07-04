@@ -137,7 +137,7 @@ export function HalamanLaporan() {
   const { data, memuat, galat, refresh } = useListCache<Laporan>('laporan.bulanan', { bulan });
   const rekonQ = useListCache<Rekonsiliasi>('sp2d.rekonsiliasi', { bulan });
   const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', {});
-  const daftarTaruna = tarunaQ.data?.taruna ?? [];
+  const daftarTaruna = (tarunaQ.data?.taruna ?? []).slice().sort((a, b) => a.nama.localeCompare(b.nama));
 
   const [kategori, setKategori] = useState<'DALAM_KAMPUS' | 'LUAR_KAMPUS'>('DALAM_KAMPUS');
   const [barisSp2d, setBarisSp2d] = useState<BarisPreviewSp2d[]>([]);
