@@ -56,7 +56,8 @@ var ENUM = {
   BANK:              ['BNI', 'BSI'],                        // TARUNA.bank
   KONTRAK_STATUS:    ['DRAFT', 'DISETUJUI_PPK'],
   HARI:              ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU', 'MINGGU'], // MENU_KONTRAK.hari
-  STATUS_HARIAN:     ['PESIAR', 'CUTI', 'SAKIT_RUMAH', 'PENUNDAAN_STUDI', 'KEGIATAN_LUAR_KAMPUS'],
+  STATUS_HARIAN:     ['PESIAR', 'CUTI', 'SAKIT_RUMAH', 'PENUNDAAN_STUDI', 'KEGIATAN_LUAR_KAMPUS',
+                      'PKL_1', 'PKL_2', 'PKL_3', 'KPA', 'MAGANG', 'PTB'],
   PESANAN_STATUS:    ['DRAFT', 'DIAJUKAN', 'DIKEMBALIKAN', 'DISETUJUI', 'TERKIRIM'],
   PEMBAYARAN_STATUS: ['DIAJUKAN', 'SP2D_TERBIT', 'DITRANSFER', 'DIKONFIRMASI', 'SELESAI'],
   TAGIHAN_STATUS:    ['TERTAGIH', 'LUNAS', 'DIHAPUSKAN', 'ESKALASI_MANUAL'],
@@ -71,6 +72,11 @@ var ENUM = {
                       'BUKTI_DEBET', 'MENU_GIZI', 'NOTULEN', 'LAINNYA'],
   SP2D_KATEGORI:     ['DALAM_KAMPUS', 'LUAR_KAMPUS']         // SP2D_MONITORING.kategori
 };
+
+// Status harian yang tergolong "kegiatan luar kampus" — taruna berhak BANTUAN
+// makan luar kampus (dihitung di Form-08). Subset dari ENUM.STATUS_HARIAN;
+// PESIAR/CUTI/SAKIT_RUMAH/PENUNDAAN_STUDI TIDAK termasuk (tidak dapat bantuan).
+var STATUS_LUAR_KAMPUS = ['KEGIATAN_LUAR_KAMPUS', 'PKL_1', 'PKL_2', 'PKL_3', 'KPA', 'MAGANG', 'PTB'];
 
 // ── Data pejabat penandatangan surat ────────────────────────────────────────
 var PEJABAT = {

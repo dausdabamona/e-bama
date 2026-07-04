@@ -109,7 +109,7 @@ Taruna yang TIDAK berhak makan pada tanggal tertentu (SOP: Peringatan no. 2).
 | status_id | string | kunci; `STH-000001` |
 | tanggal | date | |
 | nit | FK → TARUNA | unik per (tanggal, nit) — upsert |
-| status | enum | `PESIAR` / `CUTI` / `SAKIT_RUMAH` / `PENUNDAAN_STUDI` / `KEGIATAN_LUAR_KAMPUS` (PKL/Magang/KPA — Form-03) |
+| status | enum | `PESIAR` / `CUTI` / `SAKIT_RUMAH` / `PENUNDAAN_STUDI` / `KEGIATAN_LUAR_KAMPUS` / `PKL_1` / `PKL_2` / `PKL_3` / `KPA` / `MAGANG` / `PTB`. **7 status kegiatan luar kampus** (KEGIATAN_LUAR_KAMPUS + PKL_1/2/3 + KPA + MAGANG + PTB) = berhak bantuan makan luar kampus → dihitung Form-08 (lihat `STATUS_LUAR_KAMPUS` di `00_config.gs`). PESIAR/CUTI/SAKIT_RUMAH/PENUNDAAN_STUDI **tidak** dapat bantuan. KEGIATAN_LUAR_KAMPUS tetap ada sebagai catch-all kegiatan luar kampus lainnya (dikonfirmasi Firdaus) |
 | input_by | FK → PENGGUNA | |
 | timestamp | datetime | |
 

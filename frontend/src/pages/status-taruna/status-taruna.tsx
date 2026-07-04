@@ -16,7 +16,23 @@ import { useToast } from '../../components/ui/toast';
 interface Taruna { nit: string; nama: string; kelas: string; status: string }
 interface StatusHarian { status_id: string; tanggal: string; nit: string; status: string }
 
-const ENUM_STATUS = ['PESIAR', 'CUTI', 'SAKIT_RUMAH', 'PENUNDAAN_STUDI', 'KEGIATAN_LUAR_KAMPUS'];
+// Urutan tampil: alasan non-kegiatan dulu, lalu kegiatan luar kampus (PKL/KPA/
+// Magang/PTB), KEGIATAN_LUAR_KAMPUS sebagai catch-all "lainnya" di akhir.
+const ENUM_STATUS = [
+  'PESIAR', 'CUTI', 'SAKIT_RUMAH', 'PENUNDAAN_STUDI',
+  'PKL_1', 'PKL_2', 'PKL_3', 'KPA', 'MAGANG', 'PTB', 'KEGIATAN_LUAR_KAMPUS'
+];
+
+const LABEL_STATUS: Record<string, string> = {
+  PESIAR: 'Pesiar', CUTI: 'Cuti', SAKIT_RUMAH: 'Sakit (Rumah)', PENUNDAAN_STUDI: 'Penundaan Studi',
+  PKL_1: 'PKL I', PKL_2: 'PKL II', PKL_3: 'PKL III', KPA: 'KPA', MAGANG: 'Magang', PTB: 'PTB',
+  KEGIATAN_LUAR_KAMPUS: 'Kegiatan Luar Kampus (lainnya)'
+};
+
+/** Label tampilan status; fallback ganti underscore jadi spasi utk nilai tak dikenal. */
+function labelStatus(s: string): string {
+  return LABEL_STATUS[s] ?? s.replace(/_/g, ' ');
+}
 
 function hariIni(): string {
   return new Date().toISOString().slice(0, 10);
@@ -113,7 +129,7 @@ export function HalamanStatusTaruna() {
         <label className="block text-sm font-medium text-gray-700">Status</label>
         <select value={statusPilih} onChange={(e) => setStatusPilih(e.target.value)}
           className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2.5">
-          {ENUM_STATUS.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+          {ENUM_STATUS.map((s) => <option key={s} value={s}>{labelStatus(s)}</option>)}
         </select>
 
         {mode === 'individu' ? (
@@ -175,7 +191,7 @@ export function HalamanStatusTaruna() {
                   <p className="font-medium">{t?.nama ?? s.nit}</p>
                   <p className="text-xs text-gray-400">{s.tanggal}</p>
                 </div>
-                <Badge status="DIKEMBALIKAN">{s.status.replace(/_/g, ' ')}</Badge>
+                <Badge status="DIKEMBALIKAN">{labelStatus(s.status)}</Badge>
               </Card>
             );
           })}

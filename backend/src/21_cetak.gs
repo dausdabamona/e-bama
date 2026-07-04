@@ -375,7 +375,7 @@ function cetakForm08(payload, session) {
     // bukan total_hari hasil impor CSV.
     var hariStatusHarianByNit = {};
     sheetRead(SHEETS.STATUS_HARIAN, function (r) {
-      return _bulanStr_(r.tanggal) === bulan && r.status === 'KEGIATAN_LUAR_KAMPUS';
+      return _bulanStr_(r.tanggal) === bulan && STATUS_LUAR_KAMPUS.indexOf(r.status) >= 0;
     }).forEach(function (r) {
       var nit = String(r.nit);
       hariStatusHarianByNit[nit] = (hariStatusHarianByNit[nit] || 0) + 1;

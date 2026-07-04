@@ -123,8 +123,9 @@ export function HalamanCetakForm08() {
               <span>{formatRupiah(data.total_nominal)}</span>
             </div>
             <p className="mt-2 text-xs text-gray-400 print:text-black">
-              Jml Hari dihitung dari catatan Status Harian (KEGIATAN_LUAR_KAMPUS) bulan berjalan —
-              sumber kebenaran hari kegiatan (dikonfirmasi Firdaus), bukan angka hasil impor CSV.
+              Jml Hari dihitung dari catatan Status Harian kegiatan luar kampus (PKL I/II/III, KPA,
+              Magang, PTB, atau Kegiatan Luar Kampus lainnya) bulan berjalan — sumber kebenaran hari
+              kegiatan (dikonfirmasi Firdaus), bukan angka hasil impor CSV.
             </p>
             {data.baris.some((b) => !b.hari_cocok) && (
               <p className="mt-1 text-xs text-red-600 print:hidden">

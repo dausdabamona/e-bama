@@ -66,7 +66,8 @@ var ENUM = {
   BANK:              ['BNI', 'BSI'],                        // TARUNA.bank
   KONTRAK_STATUS:    ['DRAFT', 'DISETUJUI_PPK'],
   HARI:              ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU', 'MINGGU'], // MENU_KONTRAK.hari
-  STATUS_HARIAN:     ['PESIAR', 'CUTI', 'SAKIT_RUMAH', 'PENUNDAAN_STUDI', 'KEGIATAN_LUAR_KAMPUS'],
+  STATUS_HARIAN:     ['PESIAR', 'CUTI', 'SAKIT_RUMAH', 'PENUNDAAN_STUDI', 'KEGIATAN_LUAR_KAMPUS',
+                      'PKL_1', 'PKL_2', 'PKL_3', 'KPA', 'MAGANG', 'PTB'],
   PESANAN_STATUS:    ['DRAFT', 'DIAJUKAN', 'DIKEMBALIKAN', 'DISETUJUI', 'TERKIRIM'],
   PEMBAYARAN_STATUS: ['DIAJUKAN', 'SP2D_TERBIT', 'DITRANSFER', 'DIKONFIRMASI', 'SELESAI'],
   TAGIHAN_STATUS:    ['TERTAGIH', 'LUNAS', 'DIHAPUSKAN', 'ESKALASI_MANUAL'],
@@ -81,6 +82,11 @@ var ENUM = {
                       'BUKTI_DEBET', 'MENU_GIZI', 'NOTULEN', 'LAINNYA'],
   SP2D_KATEGORI:     ['DALAM_KAMPUS', 'LUAR_KAMPUS']         // SP2D_MONITORING.kategori
 };
+
+// Status harian yang tergolong "kegiatan luar kampus" — taruna berhak BANTUAN
+// makan luar kampus (dihitung di Form-08). Subset dari ENUM.STATUS_HARIAN;
+// PESIAR/CUTI/SAKIT_RUMAH/PENUNDAAN_STUDI TIDAK termasuk (tidak dapat bantuan).
+var STATUS_LUAR_KAMPUS = ['KEGIATAN_LUAR_KAMPUS', 'PKL_1', 'PKL_2', 'PKL_3', 'KPA', 'MAGANG', 'PTB'];
 
 // ── Data pejabat penandatangan surat ────────────────────────────────────────
 var PEJABAT = {
@@ -958,8 +964,11 @@ function tarunaUpsert(payload, session) {
 // ▼▼▼ 11_status_harian.gs ▼▼▼
 // ═════════════════════════════════════════════════════════════════════════════
 /**
- * 11_status_harian.gs — Status harian taruna yang TIDAK berhak makan
- * (SOP: Peringatan no. 2). Enum: PESIAR / CUTI / SAKIT_RUMAH / PENUNDAAN_STUDI.
+ * 11_status_harian.gs — Status harian taruna yang TIDAK berhak makan di kampus
+ * (SOP: Peringatan no. 2). Enum: PESIAR / CUTI / SAKIT_RUMAH / PENUNDAAN_STUDI /
+ * KEGIATAN_LUAR_KAMPUS / PKL_1 / PKL_2 / PKL_3 / KPA / MAGANG / PTB. Yang
+ * tergolong kegiatan luar kampus (dapat bantuan makan luar kampus) ada di
+ * STATUS_LUAR_KAMPUS (00_config.gs) — dipakai Form-08.
  *
  * ACTION: status.set (Admin, Pembina), status.batch (Admin, Pembina),
  *         status.list (semua login)
@@ -2907,7 +2916,7 @@ function cetakForm08(payload, session) {
     // bukan total_hari hasil impor CSV.
     var hariStatusHarianByNit = {};
     sheetRead(SHEETS.STATUS_HARIAN, function (r) {
-      return _bulanStr_(r.tanggal) === bulan && r.status === 'KEGIATAN_LUAR_KAMPUS';
+      return _bulanStr_(r.tanggal) === bulan && STATUS_LUAR_KAMPUS.indexOf(r.status) >= 0;
     }).forEach(function (r) {
       var nit = String(r.nit);
       hariStatusHarianByNit[nit] = (hariStatusHarianByNit[nit] || 0) + 1;
