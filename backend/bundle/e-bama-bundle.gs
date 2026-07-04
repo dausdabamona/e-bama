@@ -3129,10 +3129,10 @@ function rekeningSimpanBatch(payload, session) {
  *
  * Format kedua ("SPANExt") — satu baris per TARUNA penerima (bukan per
  * kelompok). Dikirim dengan `nit` terisi (dicocokkan Admin/PPK dari nama
- * penerima di frontend). Untuk baris ber-nit, `prodi`/`tingkat`/`jumlah_orang`
- * SENGAJA TIDAK disimpan (lihat docs/skema-sheet.md §17) — kalau disalin dari
- * TARUNA itu jadi dependensi transitif via nit yang bisa basi; keduanya
- * diturunkan via join ke TARUNA saat sp2dRekonsiliasi, bukan saat impor.
+ * penerima di frontend). `prodi`/`tingkat` diparse dari Deskripsi sebagai
+ * SNAPSHOT saat pembayaran (dikonfirmasi Firdaus) supaya tabel SP2D_MONITORING
+ * langsung terbaca; kalau gagal parse, dikosongkan (tetap bisa diturunkan via
+ * join TARUNA saat rekonsiliasi). `jumlah_orang` tetap kosong (per baris = 1).
  */
 
 var _SP2D_BULAN_MAP_ = {
@@ -3200,19 +3200,23 @@ function _parseUraianSpm_(uraian, kategori) {
  * BUKAN dari tgl_sp2d (tanggal pencairan; sering beda bulan dari bulan makan,
  * mis. makan Januari dibayar Februari). REKAP_BULANAN dikunci per bulan makan,
  * jadi kalau pakai tgl_sp2d rekonsiliasi akan salah kelompok / selalu selisih.
- * prodi/tingkat/jumlah_orang SENGAJA tidak dihitung di sini (lihat catatan
- * modul & docs/skema-sheet.md §17) — diturunkan via join TARUNA saat
- * sp2dRekonsiliasi. kegiatan tetap diparse (properti transaksi, bukan turunan
- * TARUNA). gagal=true kalau bulan tidak terbaca, kegiatan wajib (Luar Kampus)
- * tidak ketemu, atau nit tidak dikenal.
+ * prodi/tingkat DIPARSE dari Deskripsi juga (dikonfirmasi Firdaus) sebagai
+ * SNAPSHOT saat pembayaran, supaya tabel SP2D_MONITORING langsung terbaca —
+ * best-effort: kalau gagal parse, dikosongkan TANPA menandai perlu_cek_manual
+ * (nit tetap kunci; prodi/tingkat bisa diturunkan via join TARUNA saat
+ * rekonsiliasi). jumlah_orang tetap kosong (per baris = 1 taruna; "N Orang" di
+ * Deskripsi itu ukuran kelompok, bukan per-individu). gagal=true hanya kalau
+ * bulan tidak terbaca, kegiatan wajib (Luar Kampus) tidak ketemu, atau nit
+ * tidak dikenal.
  */
 function _parseBarisPerTaruna_(nit, uraian, kategori, tarunaValid) {
   var teks = String(uraian || '');
   var bulan = _parseBulanUraian_(teks);
   var kegiatan = kategori === 'LUAR_KAMPUS' ? _parseKegiatanUraian_(teks) : null;
+  var pt = _parseProdiTingkat_(teks); // best-effort — tidak mempengaruhi gagal
   var gagal = !bulan || (kategori === 'LUAR_KAMPUS' && !kegiatan) || !tarunaValid[nit];
   return {
-    prodi: '', tingkat: '', bulan: bulan || '',
+    prodi: pt ? pt.prodi : '', tingkat: pt ? pt.tingkat : '', bulan: bulan || '',
     kegiatan: kegiatan || '', jumlah_orang: null, gagal: gagal
   };
 }

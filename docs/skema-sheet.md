@@ -396,25 +396,26 @@ di bawah):**
   sendiri (satu SPM memang mewakili satu kelompok taruna).
 - **Format per-taruna** ("SPANExt") — satu baris = satu taruna penerima.
   `nit` **terisi** (dicocokkan Admin/PPK dari nama penerima saat impor,
-  lihat frontend). Kolom `prodi`/`tingkat`/`jumlah_orang` **SENGAJA
-  dikosongkan** di baris ini — kalau ikut disalin dari taruna terkait,
-  itu jadi data ganda dari `TARUNA.prodi`/`TARUNA.tingkat` (dependensi
-  transitif lewat `nit`, bisa basi kalau taruna pindah prodi/tingkat).
-  `prodi`/`tingkat` pada baris per-taruna **diturunkan via join ke TARUNA
-  memakai `nit`** setiap kali `sp2d.rekonsiliasi` dipanggil, tidak pernah
-  disimpan dobel di sini. `bulan` = bulan **makan**, diparse dari teks
-  Deskripsi ("...Bulan Januari 2026...") sama seperti format agregat —
-  **BUKAN** dari `tgl_sp2d` (tanggal pencairan sering beda bulan dari bulan
-  makan, mis. makan Januari dicairkan Februari; `REKAP_BULANAN` dikunci per
-  bulan makan, jadi pakai `tgl_sp2d` akan bikin rekonsiliasi selalu selisih).
+  lihat frontend). `prodi`/`tingkat` **diparse dari Deskripsi** (mis.
+  "Program Studi I TPI") sebagai **snapshot saat pembayaran** (dikonfirmasi
+  Firdaus) supaya tabel langsung terbaca — best-effort: kalau gagal parse,
+  dikosongkan TANPA menandai `perlu_cek_manual` (kunci tetap `nit`;
+  prodi/tingkat masih bisa diturunkan via join TARUNA saat rekonsiliasi).
+  `jumlah_orang` **dikosongkan** (per baris = 1 taruna; angka "N Orang" di
+  Deskripsi itu ukuran kelompok, bukan per-individu). `bulan` = bulan
+  **makan**, diparse dari Deskripsi ("...Bulan Januari 2026...") sama seperti
+  format agregat — **BUKAN** dari `tgl_sp2d` (tanggal pencairan sering beda
+  bulan dari bulan makan, mis. makan Januari dicairkan Februari;
+  `REKAP_BULANAN` dikunci per bulan makan, jadi pakai `tgl_sp2d` akan bikin
+  rekonsiliasi selalu selisih).
 
 | Kolom | Tipe | Keterangan |
 |---|---|---|
 | no_spm | string | kunci; dari kolom "No. SPP/SPM" (format agregat) atau "Nomor Referensi" transaksi (format per-taruna, lihat catatan) — dipakai deteksi baris baru saat impor ulang |
 | kategori | enum | `DALAM_KAMPUS` / `LUAR_KAMPUS` — dipilih pengguna saat impor (satu file = satu kategori) |
 | nit | FK → TARUNA (opsional) | **kosong untuk baris agregat**; terisi untuk baris per-taruna (SPANExt) — dicocokkan Admin/PPK dari "Nama Penerima" file sumber |
-| prodi | string | format agregat: hasil parsing Uraian (`TPI`/`MP`/`TBP`); format per-taruna: **selalu kosong** (lihat catatan di atas), diturunkan via join TARUNA saat rekonsiliasi |
-| tingkat | string | idem — format agregat: hasil parsing Uraian (`I`/`II`/`III`); format per-taruna: **selalu kosong** |
+| prodi | string | hasil parsing Uraian/Deskripsi (`TPI`/`MP`/`TBP`) — **kedua format** (per-taruna sebagai snapshot, best-effort; kosong bila gagal parse) |
+| tingkat | string | idem — hasil parsing Uraian/Deskripsi (`I`/`II`/`III`), kedua format |
 | bulan | string | `YYYY-MM` bulan **makan** — kedua format: hasil parsing teks (Uraian agregat / Deskripsi per-taruna), BUKAN dari `tgl_sp2d` (tanggal cair bisa beda bulan) |
 | kegiatan | string | khusus Luar Kampus (`KPA`/`PKL2`/`PKL3`/`PTB`), kosong untuk Dalam Kampus — diparse dari Uraian/Deskripsi di kedua format |
 | jumlah_orang | integer | hanya format agregat, dari "...untuk N Orang" di Uraian; **selalu kosong** untuk baris per-taruna (implisit 1, tidak perlu disimpan) |
