@@ -411,7 +411,8 @@ di bawah):**
 | jumlah_pembayaran | integer | dari kolom "Jumlah Pembayaran" (agregat) atau "Jumlah" (per-taruna, format "Rp. 1.144.000" diparse jadi integer di frontend) |
 | tgl_spm, no_sp2d, tgl_sp2d, status_sp2d | - | apa adanya dari file sumber (`-` → dikosongkan, artinya SP2D belum terbit) |
 | uraian_asli | string | teks Uraian SPP/SPM (agregat) atau Deskripsi (per-taruna) lengkap, disimpan apa adanya untuk verifikasi manual |
-| perlu_cek_manual | string | `'YA'` bila: format agregat → prodi/tingkat/bulan/jumlah_orang (atau kegiatan utk Luar Kampus) gagal diparse; format per-taruna → `bulan` tidak terbaca dari `tgl_sp2d`, kegiatan gagal diparse (Luar Kampus), atau `nit` tidak dikenal di TARUNA |
+| no_sp2d | string | Nomor SP2D (15 digit) — ada di KEDUA format (kolom "No. SP2D" agregat / "NO SP2D" SPANExt). **Kunci penaut agregat↔rincian** untuk cross-check (1 SP2D = 1 kelompok tingkat, dikonfirmasi Firdaus). Kosong bila SP2D belum terbit (`-`) |
+| perlu_cek_manual | string | `'YA'` bila: format agregat → prodi/tingkat/bulan/jumlah_orang (atau kegiatan utk Luar Kampus) gagal diparse; format per-taruna → `bulan` tidak terbaca dari Deskripsi, kegiatan gagal diparse (Luar Kampus), atau `nit` tidak dikenal di TARUNA |
 
 **Impor (`sp2d.import`, role ADMIN/PPK):** PPK unduh file terbaru dari
 OM-SPAN tiap bulan, unggah CSV (header persis file sumber — agregat atau
@@ -426,8 +427,16 @@ mengembalikan perbandingan per kelompok (`dalam_kampus`/`luar_kampus`,
 dari baris agregat SAJA — baris ber-`nit` dikecualikan supaya tidak
 mengotori kelompok "prodi/tingkat kosong") **dan** perbandingan per taruna
 (`dalam_kampus_per_taruna`/`luar_kampus_per_taruna`, dari baris ber-`nit`
-SAJA, `prodi`/`tingkat` hasil join TARUNA saat itu), plus daftar baris
+SAJA, `prodi`/`tingkat` hasil join TARUNA saat itu), **cross-check per SP2D**
+(`cross_check_sp2d` — menautkan total agregat dengan SUM+COUNT rincian lewat
+`no_sp2d`; membuktikan agregat & rincian saling konsisten), plus daftar baris
 `perlu_cek_manual` bulan itu.
+
+**Rekonsiliasi 3 lapis:** (1) *Sistem* (REKAP_BULANAN) = berapa SEHARUSNYA;
+(2) *SP2D Agregat* (Monitoring) = total per SP2D yang KPPN cairkan (acuan);
+(3) *SP2D Rincian* (SPANExt) = siapa penerima + nominal masing-masing.
+`cross_check_sp2d` mengecek lapis 2 vs 3 (internal SP2D); perbandingan per
+kelompok/per taruna mengecek lapis 1 vs (2/3).
 
 ---
 

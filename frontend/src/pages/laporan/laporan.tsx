@@ -29,10 +29,30 @@ interface BarisRekon { prodi: string; tingkat: string; sistem: number; sp2d: num
 interface BarisRekonLuar extends BarisRekon { kegiatan: string }
 interface BarisRekonPerTaruna { nit: string; nama: string; prodi: string; tingkat: string; sistem: number; sp2d: number; selisih: number; cocok: boolean }
 interface BarisRekonLuarPerTaruna extends BarisRekonPerTaruna { kegiatan: string }
+interface CrossCheckSp2d {
+  no_sp2d: string; kategori: string; prodi: string; tingkat: string; kegiatan: string;
+  ada_agregat: boolean; ada_rincian: boolean;
+  agregat_total: number; rincian_total: number; agregat_orang: number; rincian_orang: number;
+  selisih_total: number; total_cocok: boolean; orang_cocok: boolean;
+}
 interface PerluCekManual { no_spm: string; kategori: string; jumlah_pembayaran: number; uraian_asli: string }
+
+/** Ringkasan selisih cross-check SP2D: apakah rincian masih KURANG atau LEBIH dari agregat. */
+function statusKurangLebih(r: CrossCheckSp2d): string {
+  const bagian: string[] = [];
+  const selisihOrang = r.agregat_orang - r.rincian_orang;
+  if (selisihOrang > 0) bagian.push(`kurang ${selisihOrang} org`);
+  else if (selisihOrang < 0) bagian.push(`lebih ${-selisihOrang} org`);
+  // selisih_total = agregat - rincian: positif = rincian kurang uang
+  if (r.selisih_total > 0) bagian.push(`kurang ${formatRupiah(r.selisih_total)}`);
+  else if (r.selisih_total < 0) bagian.push(`lebih ${formatRupiah(-r.selisih_total)}`);
+  return bagian.length ? bagian.join(', ') : 'beda';
+}
+
 interface Rekonsiliasi {
   bulan: string; dalam_kampus: BarisRekon[]; luar_kampus: BarisRekonLuar[];
   dalam_kampus_per_taruna: BarisRekonPerTaruna[]; luar_kampus_per_taruna: BarisRekonLuarPerTaruna[];
+  cross_check_sp2d: CrossCheckSp2d[];
   perlu_cek_manual: PerluCekManual[];
 }
 
@@ -433,6 +453,50 @@ export function HalamanLaporan() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                )}
+
+                {rekonQ.data.cross_check_sp2d.length > 0 && (
+                  <div>
+                    <p className="mb-1 text-xs font-semibold text-gray-500">
+                      Cross-check per SP2D — Agregat (acuan) vs Rincian (per taruna)
+                    </p>
+                    <p className="mb-2 text-xs text-gray-400 print:hidden">
+                      Tiap No. SP2D menautkan total dari file Monitoring dengan rincian penerima file SPANExt.
+                      SUM &amp; jumlah orang rincian harus sama dengan agregat.
+                    </p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-gray-200 text-left text-gray-500">
+                            <th className="py-1 pr-2">No. SP2D</th><th className="py-1 pr-2">Kelompok</th>
+                            <th className="py-1 pr-2 text-right">Agregat</th><th className="py-1 pr-2 text-right">Rincian</th>
+                            <th className="py-1 pr-2 text-right">Org (A/R)</th><th className="py-1">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rekonQ.data.cross_check_sp2d.map((r) => {
+                            const belum = !r.ada_agregat || !r.ada_rincian;
+                            const cocok = r.total_cocok && r.orang_cocok;
+                            return (
+                              <tr key={r.no_sp2d} className={`border-b border-gray-100 ${belum ? 'bg-amber-50' : cocok ? '' : 'bg-red-50'}`}>
+                                <td className="py-1 pr-2 font-mono">{r.no_sp2d}</td>
+                                <td className="py-1 pr-2">{(r.kegiatan ? r.kegiatan + ' ' : '') + (r.prodi || '?') + '/' + (r.tingkat || '?')}</td>
+                                <td className="py-1 pr-2 text-right">{r.ada_agregat ? formatRupiah(r.agregat_total) : '—'}</td>
+                                <td className="py-1 pr-2 text-right">{r.ada_rincian ? formatRupiah(r.rincian_total) : '—'}</td>
+                                <td className="py-1 pr-2 text-right">{(r.ada_agregat ? r.agregat_orang : '—')}/{(r.ada_rincian ? r.rincian_orang : '—')}</td>
+                                <td className="py-1">
+                                  {!r.ada_agregat ? <span className="text-amber-700">Agregat belum ada</span>
+                                    : !r.ada_rincian ? <span className="text-amber-700">Rincian kurang {r.agregat_orang} org</span>
+                                    : cocok ? <span className="text-green-700">✓ Cukup</span>
+                                    : <span className="text-red-600">{statusKurangLebih(r)}</span>}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
 

@@ -3276,6 +3276,13 @@ function _kelompokkanJumlah_(items, kunciFn, nilaiFn) {
  * prodi+tingkat) vs SUM jumlah_pembayaran SP2D_MONITORING kelompok yang sama.
  * Baris SP2D yang perlu_cek_manual='YA' DIKECUALIKAN dari perbandingan, tapi
  * tetap dikembalikan terpisah sebagai daftar untuk dicek manual.
+ *
+ * Juga menghitung CROSS-CHECK per No. SP2D (cross_check_sp2d): menautkan baris
+ * AGREGAT (Monitoring, acuan total) dengan baris RINCIAN (SPANExt, per taruna)
+ * lewat `no_sp2d` — dikonfirmasi Firdaus 1 No. SP2D = 1 kelompok tingkat
+ * penerima. Cek: SUM(rincian) harus = jumlah_pembayaran agregat, dan
+ * COUNT(rincian) harus = "untuk N Orang" di agregat. Ini membuktikan agregat &
+ * rincian saling konsisten (rincian tidak ada yang hilang/dobel/salah input).
  */
 function sp2dRekonsiliasi(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
@@ -3399,9 +3406,60 @@ function sp2dRekonsiliasi(payload, session) {
     });
   }
 
+  // ── Cross-check per No. SP2D: Agregat (acuan) vs Rincian (per taruna) ──
+  // Dikonfirmasi Firdaus: 1 No. SP2D = 1 kelompok tingkat penerima. Tiap
+  // no_sp2d menautkan SATU baris agregat (Monitoring) dengan N baris rincian
+  // (SPANExt). Dipakai SEMUA baris bulan ini (termasuk perlu_cek_manual) selama
+  // punya no_sp2d — cross-check ini soal kebenaran nominal, bukan hasil parse
+  // prodi/kegiatan. Baris tanpa no_sp2d (SP2D belum terbit) dilewati.
+  var perSp2d = {};
+  sp2dBulan.forEach(function (r) {
+    var noSp2d = String(r.no_sp2d || '').trim();
+    if (!noSp2d) return;
+    if (!perSp2d[noSp2d]) {
+      perSp2d[noSp2d] = {
+        no_sp2d: noSp2d, prodi: '', tingkat: '', kegiatan: '', kategori: r.kategori,
+        agregat_total: 0, agregat_orang: 0, ada_agregat: false,
+        rincian_total: 0, rincian_orang: 0
+      };
+    }
+    var g = perSp2d[noSp2d];
+    var jml = _int_(r.jumlah_pembayaran || 0, 'jumlah_pembayaran');
+    if (r.nit) {
+      // baris rincian (per taruna)
+      g.rincian_total += jml;
+      g.rincian_orang += 1;
+      if (!g.prodi) { // prodi/tingkat via join TARUNA (kalau agregat belum ada)
+        var t = tarunaByNit[String(r.nit)] || {};
+        if (t.prodi) { g.prodi = t.prodi; g.tingkat = t.tingkat; }
+      }
+    } else {
+      // baris agregat (acuan) — biasanya cuma 1 per no_sp2d, SUM utk jaga-jaga
+      g.agregat_total += jml;
+      g.agregat_orang += _int_(r.jumlah_orang || 0, 'jumlah_orang');
+      g.ada_agregat = true;
+      if (r.prodi) { g.prodi = r.prodi; g.tingkat = r.tingkat; }
+      if (r.kegiatan) g.kegiatan = r.kegiatan;
+    }
+  });
+  var crossCheckSp2d = Object.keys(perSp2d).sort().map(function (k) {
+    var g = perSp2d[k];
+    var adaRincian = g.rincian_orang > 0;
+    return {
+      no_sp2d: g.no_sp2d, kategori: g.kategori, prodi: g.prodi, tingkat: g.tingkat, kegiatan: g.kegiatan,
+      ada_agregat: g.ada_agregat, ada_rincian: adaRincian,
+      agregat_total: g.agregat_total, rincian_total: g.rincian_total,
+      agregat_orang: g.agregat_orang, rincian_orang: g.rincian_orang,
+      selisih_total: g.agregat_total - g.rincian_total,
+      total_cocok: g.ada_agregat && adaRincian && g.agregat_total === g.rincian_total,
+      orang_cocok: g.ada_agregat && adaRincian && g.agregat_orang === g.rincian_orang
+    };
+  });
+
   return {
     bulan: bulan, dalam_kampus: dalamKampus, luar_kampus: luarKampus,
     dalam_kampus_per_taruna: dalamKampusPerTaruna, luar_kampus_per_taruna: luarKampusPerTaruna,
+    cross_check_sp2d: crossCheckSp2d,
     perlu_cek_manual: perluCekManual
   };
 }
