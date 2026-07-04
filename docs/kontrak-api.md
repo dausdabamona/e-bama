@@ -31,9 +31,9 @@
 
 | Action | Role | Payload → Data | Keterangan |
 |---|---|---|---|
-| `auth.login` | publik | `{user_id, pin}` → `{token, role, nama}` | gagal 5× → blokir 15 menit (CacheService) |
+| `auth.login` | publik | `{user_id, pin}` → `{token, role, nama}` | field `pin` = **kata sandi** (min 6 karakter bebas — nama field dipertahankan demi kompatibilitas); gagal 5× → blokir 15 menit (CacheService) |
 | `auth.logout` | semua | `{}` | hapus token |
-| `auth.change_pin` | semua | `{pin_lama, pin_baru}` | pin_lama wajib benar; pin 6 digit |
+| `auth.change_pin` | semua | `{pin_lama, pin_baru}` | pin_lama wajib benar; `pin_baru` = kata sandi baru min 6 karakter (huruf/angka/simbol). Kolom simpan tetap `pin_hash`, kata sandi lama 6-digit tetap valid tanpa reset |
 
 ### Master (Admin)
 
@@ -84,7 +84,7 @@ Transisi ilegal → error eksplisit (mis. "Pesanan berstatus DRAFT, tidak bisa d
 | Action | Role | Keterangan |
 |---|---|---|
 | `realisasi.create` | PEMBINA, SENAT | pesanan wajib TERKIRIM; porsi, ketidaksesuaian, geotag; foto via lampiran `jenis=FOTO` |
-| `realisasi.ttd` | PEMBINA, SENAT | mengisi `ttd_{role}_at` miliknya (konfirmasi PIN); kedua ttd terisi → otomatis `rekapUpdate(tanggal)` |
+| `realisasi.ttd` | PEMBINA, SENAT | mengisi `ttd_{role}_at` miliknya (konfirmasi kata sandi ulang, field payload tetap `pin`); kedua ttd terisi → otomatis `rekapUpdate(tanggal)` |
 | `realisasi.list` | semua login | |
 
 ### Rekap Bulanan (SOP no. 10)

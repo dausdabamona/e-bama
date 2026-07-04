@@ -1,4 +1,5 @@
-// Dialog konfirmasi PIN — dipakai untuk tanda tangan digital (realisasi.ttd).
+// Dialog konfirmasi kata sandi — dipakai untuk tanda tangan digital (realisasi.ttd).
+// Kredensial yang sama dengan login (min 6 karakter, boleh huruf/angka/simbol).
 import { useState } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -13,18 +14,18 @@ export function PinConfirmModal({
   judul?: string;
   keterangan?: string;
   onBatal: () => void;
-  onKonfirmasi: (pin: string) => Promise<void>;
+  onKonfirmasi: (kataSandi: string) => Promise<void>;
 }) {
-  const [pin, setPin] = useState('');
+  const [kataSandi, setKataSandi] = useState('');
   const [proses, setProses] = useState(false);
   const [galat, setGalat] = useState('');
 
   async function kirim() {
-    if (!/^\d{6}$/.test(pin)) { setGalat('PIN harus 6 digit angka.'); return; }
+    if (kataSandi.length < 6) { setGalat('Kata sandi minimal 6 karakter.'); return; }
     setProses(true);
     setGalat('');
     try {
-      await onKonfirmasi(pin);
+      await onKonfirmasi(kataSandi);
     } catch (e) {
       setGalat(e instanceof Error ? e.message : 'Gagal.');
     } finally {
@@ -37,13 +38,12 @@ export function PinConfirmModal({
       <div className="flex flex-col gap-3">
         {keterangan && <p className="text-sm text-gray-600">{keterangan}</p>}
         <Input
-          label="Masukkan PIN Anda (6 digit)"
+          label="Masukkan Kata Sandi Anda"
           type="password"
-          inputMode="numeric"
-          maxLength={6}
+          autoComplete="current-password"
           autoFocus
-          value={pin}
-          onChange={(e) => setPin(e.target.value)}
+          value={kataSandi}
+          onChange={(e) => setKataSandi(e.target.value)}
         />
         {galat && <p className="text-sm text-red-600">{galat}</p>}
         <div className="flex gap-2">

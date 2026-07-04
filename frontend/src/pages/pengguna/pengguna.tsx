@@ -1,4 +1,4 @@
-// /pengguna (Admin) — lihat semua pengguna saat ini + CRUD lengkap & reset PIN.
+// /pengguna (Admin) — lihat semua pengguna saat ini + CRUD lengkap & reset kata sandi.
 // "Hapus" = nonaktifkan (status NONAKTIF) — akun tidak dihapus permanen agar
 // riwayat AUDIT_LOG (FK ke user_id) tetap utuh.
 import { useMemo, useState } from 'react';
@@ -41,8 +41,9 @@ export function HalamanPengguna() {
 
   async function resetPin(userId: string) {
     try {
+      // Action tetap pengguna.reset_pin (kontrak API) — mereset kata sandi ke default.
       await api('pengguna.reset_pin', { user_id: userId });
-      toast(`PIN ${userId} direset ke default (123456).`, 'sukses');
+      toast(`Kata sandi ${userId} direset ke default (123456).`, 'sukses');
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
     }
@@ -102,7 +103,7 @@ export function HalamanPengguna() {
             </div>
             <div className="flex gap-2">
               <Button varian="garis" className="flex-1" onClick={() => setModal(p)}>Ubah</Button>
-              <Button varian="garis" className="flex-1" onClick={() => void resetPin(p.user_id)}>Reset PIN</Button>
+              <Button varian="garis" className="flex-1" onClick={() => void resetPin(p.user_id)}>Reset Sandi</Button>
             </div>
             <Button
               varian={p.status === 'AKTIF' ? 'bahaya' : 'utama'}
@@ -142,7 +143,7 @@ function ModalForm({ awal, onClose, onSukses }: {
     setProses(true); setGalat('');
     try {
       await api('pengguna.upsert', { user_id: userId.trim(), nama: nama.trim(), role, status });
-      toast(awal ? 'Pengguna diperbarui.' : 'Pengguna baru dibuat (PIN default 123456).', 'sukses');
+      toast(awal ? 'Pengguna diperbarui.' : 'Pengguna baru dibuat (kata sandi default 123456).', 'sukses');
       onSukses();
     } catch (e) {
       setGalat(e instanceof Error ? e.message : 'Gagal.');
@@ -171,7 +172,7 @@ function ModalForm({ awal, onClose, onSukses }: {
             <option value="NONAKTIF">NONAKTIF</option>
           </select>
         </div>
-        {!awal && <p className="text-xs text-gray-400">Akun baru dibuat dengan PIN default 123456 — segera ganti setelah login pertama.</p>}
+        {!awal && <p className="text-xs text-gray-400">Akun baru dibuat dengan kata sandi default 123456 — segera ganti setelah login pertama.</p>}
         {galat && <p className="text-sm text-red-600">{galat}</p>}
         <Button onClick={() => void simpan()} disabled={proses}>
           {proses ? 'Menyimpan…' : 'Simpan'}

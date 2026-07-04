@@ -23,7 +23,7 @@
 | user_id | string | kunci; kode singkat, mis. `ppk01`, `senat01` |
 | nama | string | |
 | role | enum | `KPA` / `PPK` / `SENAT` / `PEMBINA` / `ADMIN` / `WADIR3` / `BAAK` |
-| pin_hash | string | SHA-256(pin + SALT); SALT di Script Properties |
+| pin_hash | string | SHA-256(kata_sandi + SALT); SALT di Script Properties. Nama kolom dipertahankan (`pin_hash`) walau kredensialnya kini kata sandi bebas min 6 karakter (bukan PIN 6 digit) — hash sama, tak perlu migrasi |
 | token | string | token sesi aktif (UUID) |
 | token_exp | datetime | kadaluarsa 24 jam sejak login |
 | status | enum | `AKTIF` / `NONAKTIF` |

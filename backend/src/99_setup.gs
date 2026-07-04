@@ -7,7 +7,7 @@
  *   1) setupSemua()        → jalankan ketiga langkah sekaligus (disarankan)
  *    atau satu per satu:
  *   2) setupDatabase()     → buat 17 sheet + header + validasi + format + proteksi
- *   3) seedAwal()          → 5 akun contoh (PIN default 123456, di-hash SHA-256+SALT)
+ *   3) seedAwal()          → 5 akun contoh (kata sandi default 123456, di-hash SHA-256+SALT)
  *   4) setupFolderDrive()  → folder Drive e-BAMA/{LAMPIRAN,SURAT_PERINGATAN,TEMPLATE}
  *
  * Semua nama sheet dirujuk dari SHEETS (00_config.gs). Aman dijalankan ulang:
@@ -212,7 +212,7 @@ function setupDatabase() {
 }
 
 /**
- * seedAwal() — 5 akun contoh. PIN default 123456 di-hash SHA-256(pin+SALT).
+ * seedAwal() — 5 akun contoh. Kata sandi default 123456 di-hash SHA-256(sandi+SALT).
  * Idempotent: akun dengan user_id yang sudah ada dilewati.
  */
 function seedAwal() {
@@ -221,7 +221,7 @@ function seedAwal() {
   if (!sheet) throw new Error('Sheet PENGGUNA belum ada. Jalankan setupDatabase() dulu.');
 
   var salt = _getSalt_();
-  var pinHash = _sha256Hex_('123456' + salt); // PIN default seragam untuk seed
+  var pinHash = _sha256Hex_('123456' + salt); // kata sandi default seragam untuk seed
 
   var akun = [
     { user_id: 'kpa01',     nama: PEJABAT.KPA.nama, role: ROLES.KPA },
@@ -249,7 +249,7 @@ function seedAwal() {
   });
 
   Logger.log('seedAwal() selesai: ' + ditambah + ' akun ditambahkan, ' +
-    (akun.length - ditambah) + ' sudah ada. PIN default 123456 (WAJIB diganti sebelum go-live).');
+    (akun.length - ditambah) + ' sudah ada. Kata sandi default 123456 (WAJIB diganti sebelum go-live).');
 }
 
 /**

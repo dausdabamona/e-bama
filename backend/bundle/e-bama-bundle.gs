@@ -307,7 +307,7 @@ function _json_(obj) {
  *         pengguna.list, pengguna.upsert, pengguna.reset_pin
  */
 
-var _PIN_DEFAULT_ = '123456';       // PIN reset (wajib diganti pengguna)
+var _PIN_DEFAULT_ = '123456';       // kata sandi reset default (wajib diganti pengguna)
 var _TOKEN_TTL_MS_ = 24 * 60 * 60 * 1000;
 var _LOGIN_MAX_GAGAL_ = 5;
 var _LOGIN_BLOKIR_DETIK_ = 15 * 60; // 15 menit
@@ -316,7 +316,7 @@ var _LOGIN_BLOKIR_DETIK_ = 15 * 60; // 15 menit
 function authLogin(payload) {
   var uid = (payload && payload.user_id != null) ? String(payload.user_id).trim() : '';
   var pin = (payload && payload.pin != null) ? String(payload.pin) : '';
-  if (!uid || !pin) throw _fail_('user_id dan PIN wajib diisi.');
+  if (!uid || !pin) throw _fail_('user_id dan kata sandi wajib diisi.');
 
   var cache = CacheService.getScriptCache();
   var fkey = 'fail_' + uid;
@@ -330,7 +330,7 @@ function authLogin(payload) {
   if (!cocok || (u && u.status === 'NONAKTIF')) {
     cache.put(fkey, String(fails + 1), _LOGIN_BLOKIR_DETIK_);
     if (u && u.status === 'NONAKTIF') throw _fail_('Akun nonaktif. Hubungi Admin.');
-    throw _fail_('user_id atau PIN salah.');
+    throw _fail_('user_id atau kata sandi salah.');
   }
 
   cache.remove(fkey);
@@ -372,15 +372,21 @@ function authLogout(payload, session) {
   return { ok: true };
 }
 
-/** Ganti PIN (pin_lama wajib benar; pin_baru 6 digit). */
+/**
+ * Ganti kata sandi (payload {pin_lama, pin_baru}; kunci payload tetap `pin_*`
+ * demi kompatibilitas kontrak API — nilainya kini kata sandi bebas, bukan
+ * PIN 6 digit). pin_lama wajib benar; pin_baru minimal 6 karakter (boleh
+ * huruf/angka/simbol). Kolom penyimpanan tetap `pin_hash` (SHA-256 sama seperti
+ * sebelumnya) — kata sandi lama 6-digit tetap valid tanpa reset.
+ */
 function authChangePin(payload, session) {
   var lama = (payload && payload.pin_lama != null) ? String(payload.pin_lama) : '';
   var baru = (payload && payload.pin_baru != null) ? String(payload.pin_baru) : '';
-  if (!/^\d{6}$/.test(baru)) throw _fail_('PIN baru harus 6 digit angka.');
+  if (baru.length < 6) throw _fail_('Kata sandi baru minimal 6 karakter.');
   var salt = _getSalt_();
   var u = sheetRead(SHEETS.PENGGUNA, function (r) { return String(r.user_id) === String(session.user_id); })[0];
   if (!u) throw _fail_('Pengguna tidak ditemukan.');
-  if (String(u.pin_hash) !== _sha256Hex_(lama + salt)) throw _fail_('PIN lama salah.');
+  if (String(u.pin_hash) !== _sha256Hex_(lama + salt)) throw _fail_('Kata sandi lama salah.');
   sheetUpdate(SHEETS.PENGGUNA, 'user_id', session.user_id, { pin_hash: _sha256Hex_(baru + salt) });
   auditLog(session, 'auth.change_pin', 'PENGGUNA', session.user_id, null, null);
   return { ok: true };
@@ -1305,18 +1311,20 @@ function realisasiCreate(payload, session) {
 }
 
 /**
- * Tanda tangan digital (konfirmasi PIN ulang). Payload {real_id, pin}.
+ * Tanda tangan digital (konfirmasi kata sandi ulang). Payload {real_id, pin} —
+ * kunci `pin` dipertahankan demi kompatibilitas kontrak, nilainya kata sandi
+ * pemilik sesi (kredensial yang sama dengan login).
  * PEMBINA mengisi ttd_pembina_at, SENAT mengisi ttd_senat_at.
  * Kedua ttd terisi → rekapUpdate(tanggal) otomatis.
  */
 function realisasiTtd(payload, session) {
   var r = _realisasi_(payload && payload.real_id);
 
-  // Konfirmasi PIN pemilik sesi
+  // Konfirmasi kata sandi pemilik sesi
   var pin = (payload && payload.pin != null) ? String(payload.pin) : '';
   var u = sheetRead(SHEETS.PENGGUNA, function (x) { return String(x.user_id) === String(session.user_id); })[0];
   if (!u || String(u.pin_hash) !== _sha256Hex_(pin + _getSalt_())) {
-    throw _fail_('PIN salah — tanda tangan dibatalkan.');
+    throw _fail_('Kata sandi salah — tanda tangan dibatalkan.');
   }
 
   var kolom;
@@ -3410,7 +3418,7 @@ function sp2dRekonsiliasi(payload, session) {
  *   1) setupSemua()        → jalankan ketiga langkah sekaligus (disarankan)
  *    atau satu per satu:
  *   2) setupDatabase()     → buat 17 sheet + header + validasi + format + proteksi
- *   3) seedAwal()          → 5 akun contoh (PIN default 123456, di-hash SHA-256+SALT)
+ *   3) seedAwal()          → 5 akun contoh (kata sandi default 123456, di-hash SHA-256+SALT)
  *   4) setupFolderDrive()  → folder Drive e-BAMA/{LAMPIRAN,SURAT_PERINGATAN,TEMPLATE}
  *
  * Semua nama sheet dirujuk dari SHEETS (00_config.gs). Aman dijalankan ulang:
@@ -3615,7 +3623,7 @@ function setupDatabase() {
 }
 
 /**
- * seedAwal() — 5 akun contoh. PIN default 123456 di-hash SHA-256(pin+SALT).
+ * seedAwal() — 5 akun contoh. Kata sandi default 123456 di-hash SHA-256(sandi+SALT).
  * Idempotent: akun dengan user_id yang sudah ada dilewati.
  */
 function seedAwal() {
@@ -3624,7 +3632,7 @@ function seedAwal() {
   if (!sheet) throw new Error('Sheet PENGGUNA belum ada. Jalankan setupDatabase() dulu.');
 
   var salt = _getSalt_();
-  var pinHash = _sha256Hex_('123456' + salt); // PIN default seragam untuk seed
+  var pinHash = _sha256Hex_('123456' + salt); // kata sandi default seragam untuk seed
 
   var akun = [
     { user_id: 'kpa01',     nama: PEJABAT.KPA.nama, role: ROLES.KPA },
@@ -3652,7 +3660,7 @@ function seedAwal() {
   });
 
   Logger.log('seedAwal() selesai: ' + ditambah + ' akun ditambahkan, ' +
-    (akun.length - ditambah) + ' sudah ada. PIN default 123456 (WAJIB diganti sebelum go-live).');
+    (akun.length - ditambah) + ' sudah ada. Kata sandi default 123456 (WAJIB diganti sebelum go-live).');
 }
 
 /**

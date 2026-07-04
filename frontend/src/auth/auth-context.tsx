@@ -14,7 +14,7 @@ export interface Session {
 
 interface AuthNilai {
   session: Session | null;
-  login: (userId: string, pin: string) => Promise<void>;
+  login: (userId: string, kataSandi: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -45,9 +45,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('ebama:sesi-habis', habis);
   }, []);
 
-  const login = useCallback(async (userId: string, pin: string) => {
+  // Kunci payload tetap `pin` demi kompatibilitas kontrak API (auth.login);
+  // nilainya kini kata sandi bebas min 6 karakter, bukan PIN 6 digit.
+  const login = useCallback(async (userId: string, kataSandi: string) => {
     const data = await api<{ token: string; role: Role; nama: string }>('auth.login', {
-      user_id: userId, pin
+      user_id: userId, pin: kataSandi
     });
     const s: Session = { token: data.token, role: data.role, nama: data.nama, user_id: userId };
     localStorage.setItem(KUNCI, JSON.stringify(s));

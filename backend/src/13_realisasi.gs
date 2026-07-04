@@ -72,18 +72,20 @@ function realisasiCreate(payload, session) {
 }
 
 /**
- * Tanda tangan digital (konfirmasi PIN ulang). Payload {real_id, pin}.
+ * Tanda tangan digital (konfirmasi kata sandi ulang). Payload {real_id, pin} —
+ * kunci `pin` dipertahankan demi kompatibilitas kontrak, nilainya kata sandi
+ * pemilik sesi (kredensial yang sama dengan login).
  * PEMBINA mengisi ttd_pembina_at, SENAT mengisi ttd_senat_at.
  * Kedua ttd terisi → rekapUpdate(tanggal) otomatis.
  */
 function realisasiTtd(payload, session) {
   var r = _realisasi_(payload && payload.real_id);
 
-  // Konfirmasi PIN pemilik sesi
+  // Konfirmasi kata sandi pemilik sesi
   var pin = (payload && payload.pin != null) ? String(payload.pin) : '';
   var u = sheetRead(SHEETS.PENGGUNA, function (x) { return String(x.user_id) === String(session.user_id); })[0];
   if (!u || String(u.pin_hash) !== _sha256Hex_(pin + _getSalt_())) {
-    throw _fail_('PIN salah — tanda tangan dibatalkan.');
+    throw _fail_('Kata sandi salah — tanda tangan dibatalkan.');
   }
 
   var kolom;

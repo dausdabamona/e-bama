@@ -1,45 +1,32 @@
-// Halaman login: user_id + PIN 6 digit dengan keypad numerik besar.
+// Halaman login: user_id + kata sandi (min 6 karakter, boleh huruf/angka/simbol).
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/auth-context';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 
-const TOMBOL = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'hapus', '0', 'masuk'] as const;
-
 export function HalamanLogin() {
   const { login } = useAuth();
   const nav = useNavigate();
   const [userId, setUserId] = useState('');
-  const [pin, setPin] = useState('');
+  const [kataSandi, setKataSandi] = useState('');
   const [galat, setGalat] = useState('');
   const [proses, setProses] = useState(false);
 
-  async function masuk(pinFinal: string) {
+  async function masuk() {
     if (!userId.trim()) { setGalat('Isi ID pengguna dulu.'); return; }
-    if (pinFinal.length !== 6) { setGalat('PIN harus 6 digit.'); return; }
+    if (kataSandi.length < 6) { setGalat('Kata sandi minimal 6 karakter.'); return; }
     setProses(true);
     setGalat('');
     try {
-      await login(userId.trim(), pinFinal);
+      await login(userId.trim(), kataSandi);
       nav('/', { replace: true });
     } catch (e) {
       setGalat(e instanceof Error ? e.message : 'Gagal masuk.');
-      setPin('');
+      setKataSandi('');
     } finally {
       setProses(false);
     }
-  }
-
-  function tekan(t: (typeof TOMBOL)[number]) {
-    setGalat('');
-    if (t === 'hapus') { setPin((p) => p.slice(0, -1)); return; }
-    if (t === 'masuk') { void masuk(pin); return; }
-    setPin((p) => {
-      const baru = (p + t).slice(0, 6);
-      if (baru.length === 6) void masuk(baru); // otomatis masuk saat 6 digit
-      return baru;
-    });
   }
 
   return (
@@ -52,43 +39,41 @@ export function HalamanLogin() {
         <p className="text-sm text-gray-500">Bantuan Uang Makan Taruna — Poltek KP Sorong</p>
       </div>
 
-      <Input
-        label="ID Pengguna"
-        name="user_id"
-        autoComplete="username"
-        placeholder="mis. senat01"
-        value={userId}
-        onChange={(e) => setUserId(e.target.value)}
-        disabled={proses}
-      />
+      <form
+        className="flex flex-col gap-4"
+        onSubmit={(e) => { e.preventDefault(); void masuk(); }}
+      >
+        <Input
+          label="ID Pengguna"
+          name="user_id"
+          autoComplete="username"
+          placeholder="mis. senat01"
+          value={userId}
+          onChange={(e) => setUserId(e.target.value)}
+          disabled={proses}
+        />
 
-      {/* Indikator PIN 6 titik */}
-      <div className="flex justify-center gap-3" aria-label="PIN 6 digit">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <span
-            key={i}
-            className={`h-4 w-4 rounded-full border-2 border-primary ${i < pin.length ? 'bg-primary' : 'bg-white'}`}
-          />
-        ))}
-      </div>
+        <Input
+          label="Kata Sandi"
+          name="password"
+          type="password"
+          autoComplete="current-password"
+          placeholder="minimal 6 karakter"
+          value={kataSandi}
+          onChange={(e) => setKataSandi(e.target.value)}
+          disabled={proses}
+        />
 
-      {galat && <p className="text-center text-sm text-red-600">{galat}</p>}
-      {proses && <p className="text-center text-sm text-gray-500">Memproses…</p>}
+        {galat && <p className="text-center text-sm text-red-600">{galat}</p>}
 
-      {/* Keypad numerik besar */}
-      <div className="grid grid-cols-3 gap-3">
-        {TOMBOL.map((t) => (
-          <Button
-            key={t}
-            varian={t === 'masuk' ? 'utama' : 'garis'}
-            className="min-h-[56px] text-xl"
-            disabled={proses}
-            onClick={() => tekan(t)}
-          >
-            {t === 'hapus' ? '⌫' : t === 'masuk' ? '➜' : t}
-          </Button>
-        ))}
-      </div>
+        <Button
+          type="submit"
+          className="min-h-[52px] text-lg"
+          disabled={proses}
+        >
+          {proses ? 'Memproses…' : 'Masuk'}
+        </Button>
+      </form>
     </div>
   );
 }

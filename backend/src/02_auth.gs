@@ -6,7 +6,7 @@
  *         pengguna.list, pengguna.upsert, pengguna.reset_pin
  */
 
-var _PIN_DEFAULT_ = '123456';       // PIN reset (wajib diganti pengguna)
+var _PIN_DEFAULT_ = '123456';       // kata sandi reset default (wajib diganti pengguna)
 var _TOKEN_TTL_MS_ = 24 * 60 * 60 * 1000;
 var _LOGIN_MAX_GAGAL_ = 5;
 var _LOGIN_BLOKIR_DETIK_ = 15 * 60; // 15 menit
@@ -15,7 +15,7 @@ var _LOGIN_BLOKIR_DETIK_ = 15 * 60; // 15 menit
 function authLogin(payload) {
   var uid = (payload && payload.user_id != null) ? String(payload.user_id).trim() : '';
   var pin = (payload && payload.pin != null) ? String(payload.pin) : '';
-  if (!uid || !pin) throw _fail_('user_id dan PIN wajib diisi.');
+  if (!uid || !pin) throw _fail_('user_id dan kata sandi wajib diisi.');
 
   var cache = CacheService.getScriptCache();
   var fkey = 'fail_' + uid;
@@ -29,7 +29,7 @@ function authLogin(payload) {
   if (!cocok || (u && u.status === 'NONAKTIF')) {
     cache.put(fkey, String(fails + 1), _LOGIN_BLOKIR_DETIK_);
     if (u && u.status === 'NONAKTIF') throw _fail_('Akun nonaktif. Hubungi Admin.');
-    throw _fail_('user_id atau PIN salah.');
+    throw _fail_('user_id atau kata sandi salah.');
   }
 
   cache.remove(fkey);
@@ -71,15 +71,21 @@ function authLogout(payload, session) {
   return { ok: true };
 }
 
-/** Ganti PIN (pin_lama wajib benar; pin_baru 6 digit). */
+/**
+ * Ganti kata sandi (payload {pin_lama, pin_baru}; kunci payload tetap `pin_*`
+ * demi kompatibilitas kontrak API — nilainya kini kata sandi bebas, bukan
+ * PIN 6 digit). pin_lama wajib benar; pin_baru minimal 6 karakter (boleh
+ * huruf/angka/simbol). Kolom penyimpanan tetap `pin_hash` (SHA-256 sama seperti
+ * sebelumnya) — kata sandi lama 6-digit tetap valid tanpa reset.
+ */
 function authChangePin(payload, session) {
   var lama = (payload && payload.pin_lama != null) ? String(payload.pin_lama) : '';
   var baru = (payload && payload.pin_baru != null) ? String(payload.pin_baru) : '';
-  if (!/^\d{6}$/.test(baru)) throw _fail_('PIN baru harus 6 digit angka.');
+  if (baru.length < 6) throw _fail_('Kata sandi baru minimal 6 karakter.');
   var salt = _getSalt_();
   var u = sheetRead(SHEETS.PENGGUNA, function (r) { return String(r.user_id) === String(session.user_id); })[0];
   if (!u) throw _fail_('Pengguna tidak ditemukan.');
-  if (String(u.pin_hash) !== _sha256Hex_(lama + salt)) throw _fail_('PIN lama salah.');
+  if (String(u.pin_hash) !== _sha256Hex_(lama + salt)) throw _fail_('Kata sandi lama salah.');
   sheetUpdate(SHEETS.PENGGUNA, 'user_id', session.user_id, { pin_hash: _sha256Hex_(baru + salt) });
   auditLog(session, 'auth.change_pin', 'PENGGUNA', session.user_id, null, null);
   return { ok: true };
