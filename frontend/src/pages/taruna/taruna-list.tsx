@@ -29,7 +29,10 @@ export function HalamanTarunaList() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      {/* Header aksi — sticky di bawah header aplikasi. Offset sedikit di bawah
+          tinggi header (~68px mobile) supaya header aplikasi yang opak menutup
+          tumpang tindih tanpa celah. -mx supaya latar membentang penuh kolom. */}
+      <div className="sticky top-[64px] z-30 -mx-4 flex items-center justify-between gap-2 border-b border-gray-100 bg-ivory px-4 py-3 lg:top-[72px] lg:-mx-8 lg:px-8">
         <h1 className="text-xl font-bold text-primary-dark">Data Taruna</h1>
         <div className="flex gap-2">
           <Link to="/taruna/impor"><Button varian="garis">Impor CSV</Button></Link>
