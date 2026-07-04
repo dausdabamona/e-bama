@@ -200,7 +200,13 @@ function sp2dRekonsiliasi(payload, session) {
   var tarunaByNit = {};
   sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
-  var sp2dBulan = sheetRead(SHEETS.SP2D_MONITORING, function (r) { return String(r.bulan) === bulan; });
+  // _bulanStr_ (BUKAN String() polos) — cermin cara REKAP_BULANAN/BANTUAN_LUAR_KAMPUS
+  // difilter di bawah. Kolom `bulan` bertipe teks ('2026-04'), tapi kalau Google
+  // Sheets pernah menafsirkannya sebagai tanggal (Date), String(Date) TIDAK PERNAH
+  // sama dengan '2026-04' — bikin sp2dBulan selalu kosong padahal datanya ada
+  // (gejala: kolom "Sistem" di rekonsiliasi terisi normal, tapi "SP2D" selalu Rp0
+  // utk SEMUA kelompok bulan itu). _bulanStr_ menangani String MAUPUN Date.
+  var sp2dBulan = sheetRead(SHEETS.SP2D_MONITORING, function (r) { return _bulanStr_(r.bulan) === bulan; });
   var sp2dValid = sp2dBulan.filter(function (r) { return r.perlu_cek_manual !== 'YA'; });
   var perluCekManual = sp2dBulan
     .filter(function (r) { return r.perlu_cek_manual === 'YA'; })
