@@ -12,6 +12,7 @@ import { Modal } from '../../components/ui/modal';
 import { useToast } from '../../components/ui/toast';
 import { api } from '../../lib/api';
 import { ambilBerkasInput, berkasKeBase64 } from '../../lib/berkas';
+import { bacaFileTeks, parseCsv } from '../../lib/csv';
 import { useListCache } from '../../lib/use-list-cache';
 import { urlDrive, type Lampiran } from '../pesanan/tipe';
 import { formatRupiah } from '../tagihan/tipe';
@@ -332,6 +333,49 @@ function ModalMenu({ kontrakId, onClose }: { kontrakId: string; onClose: () => v
     toast('Contoh menu SOP diisi — periksa lalu Simpan Semua.', 'info');
   }
 
+  // Muat menu dari CSV (header: hari, menu_pagi, menu_siang, menu_malam — satu
+  // item per baris di dalam sel). Hanya mengisi FORM; belum menyimpan sampai
+  // "Simpan Semua Menu" ditekan (pola sama seperti impor lain).
+  async function muatDariCsv(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const teks = await bacaFileTeks(file);
+      const semua = parseCsv(teks);
+      if (semua.length < 2) { toast('File CSV kosong atau tidak valid.', 'galat'); return; }
+      const header = semua[0].map((h) => h.trim().toLowerCase());
+      const cari = (...kandidat: string[]) => header.findIndex((h) => kandidat.includes(h));
+      const iHari = cari('hari');
+      const iPagi = cari('menu_pagi', 'pagi');
+      const iSiang = cari('menu_siang', 'siang');
+      const iMalam = cari('menu_malam', 'malam');
+      if (iHari < 0 || iPagi < 0 || iSiang < 0 || iMalam < 0) {
+        toast('Header CSV wajib memuat: hari, menu_pagi, menu_siang, menu_malam.', 'galat');
+        return;
+      }
+      const f = formMenuKosong();
+      let terisi = 0;
+      semua.slice(1).forEach((row) => {
+        const hari = (row[iHari] ?? '').trim().toUpperCase();
+        if (!HARI.includes(hari)) return;
+        f[hari] = {
+          pagi: (row[iPagi] ?? '').trim(),
+          siang: (row[iSiang] ?? '').trim(),
+          malam: (row[iMalam] ?? '').trim()
+        };
+        terisi++;
+      });
+      if (terisi === 0) { toast('Tidak ada baris hari yang dikenali (SENIN…MINGGU).', 'galat'); return; }
+      setForm(f);
+      setSudahDimuat(true); // cegah useEffect menimpa dengan data server
+      toast(`${terisi} hari dimuat dari CSV — periksa lalu Simpan Semua Menu.`, 'sukses');
+    } catch {
+      toast('Gagal membaca file CSV.', 'galat');
+    } finally {
+      e.target.value = ''; // reset supaya file yang sama bisa dipilih lagi
+    }
+  }
+
   async function simpanSemua() {
     setProses(true);
     try {
@@ -357,7 +401,16 @@ function ModalMenu({ kontrakId, onClose }: { kontrakId: string; onClose: () => v
         {memuat && !data && <LoadingSpinner />}
         {galat && !data && <ErrorMessage pesan={galat} onRetry={refresh} />}
 
-        <Button varian="garis" onClick={isiContohSop}>📋 Isi Contoh Menu SOP</Button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button varian="garis" className="flex-1" onClick={isiContohSop}>📋 Isi Contoh Menu SOP</Button>
+          <label className="flex min-h-tap flex-1 cursor-pointer items-center justify-center rounded-xl border-2 border-primary px-4 py-2.5 text-base font-semibold text-primary transition-colors active:bg-primary-light">
+            📄 Muat dari CSV
+            <input type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => void muatDariCsv(e)} />
+          </label>
+        </div>
+        <p className="text-xs text-gray-400">
+          CSV: kolom <code>hari, menu_pagi, menu_siang, menu_malam</code> — satu item menu per baris di dalam sel.
+        </p>
 
         <div className="flex max-h-[55vh] flex-col gap-4 overflow-y-auto pr-1">
           {HARI.map((h) => (
