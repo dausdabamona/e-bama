@@ -189,12 +189,30 @@ export function HalamanLaporan() {
     const semua = parseCsv(teks);
     if (semua.length < 2) { toast('File CSV kosong atau tidak valid.', 'galat'); return; }
 
-    const header = semua[0].map((h) => h.trim().toLowerCase());
-    const iNamaPenerima = cariIndeksKolomSp2d(header, 'nama penerima');
+    // File Monitoring OM-SPAN diawali baris JUDUL + baris kosong sebelum header
+    // asli — jadi jangan asumsikan header = baris 0. Scan ≤15 baris pertama untuk
+    // menemukan baris yang benar-benar memuat kolom tanda-pengenal.
+    let idxHeader = -1;
+    let formatFile: 'spanext' | 'agregat' | null = null;
+    for (let i = 0; i < Math.min(semua.length, 15); i++) {
+      const h = semua[i].map((x) => x.trim().toLowerCase());
+      if (cariIndeksKolomSp2d(h, 'nama penerima') >= 0) { idxHeader = i; formatFile = 'spanext'; break; }
+      const punyaSpm = cariIndeksKolomSp2d(h, 'no. spp/spm') >= 0;
+      const punyaJml = cariIndeksKolomSp2d(h, 'jumlah pembayaran') >= 0;
+      const punyaUraian = cariIndeksKolomSp2d(h, 'uraian spp/spm') >= 0;
+      if (punyaSpm && punyaJml && punyaUraian) { idxHeader = i; formatFile = 'agregat'; break; }
+    }
+    if (idxHeader < 0 || !formatFile) {
+      toast('Header CSV tidak dikenali — wajib "Nama Penerima" (format per-taruna/SPANExt) atau No. SPP/SPM + Jumlah Pembayaran + Uraian SPP/SPM (format Monitoring/agregat).', 'galat');
+      return;
+    }
 
-    if (iNamaPenerima >= 0) {
+    const header = semua[idxHeader].map((h) => h.trim().toLowerCase());
+    const dataRows = semua.slice(idxHeader + 1);
+
+    if (formatFile === 'spanext') {
       // ── Format per-taruna (SPANExt) — satu baris = satu taruna penerima ──
-      const kolomIdx: Record<string, number> = { nama_penerima: iNamaPenerima };
+      const kolomIdx: Record<string, number> = { nama_penerima: cariIndeksKolomSp2d(header, 'nama penerima') };
       const tambah = (k: string, ...kandidat: string[]) => {
         const idx = cariIndeksKolomSp2d(header, ...kandidat);
         if (idx >= 0) kolomIdx[k] = idx;
@@ -207,19 +225,19 @@ export function HalamanLaporan() {
       tambah('uraian_asli', 'deskripsi');
       tambah('status_sp2d', 'status');
       setBarisSp2d([]);
-      setBarisPerTaruna(semua.slice(1).map((row) => validasiBarisPerTaruna(kolomIdx, row, daftarTaruna)));
+      setBarisPerTaruna(dataRows.map((row) => validasiBarisPerTaruna(kolomIdx, row, daftarTaruna)));
       return;
     }
 
-    // ── Format agregat (lama, satu baris = satu kelompok Prodi+Tingkat+Bulan) ──
+    // ── Format agregat (Monitoring, satu baris = satu kelompok Prodi+Tingkat+Bulan) ──
     const kolomIdx: Record<string, number> = {};
     header.forEach((h, i) => { const k = PETA_KOLOM_SP2D[h]; if (k) kolomIdx[k] = i; });
     if (kolomIdx.no_spm === undefined || kolomIdx.jumlah_pembayaran === undefined || kolomIdx.uraian_asli === undefined) {
-      toast('Header CSV tidak dikenali — wajib "Nama Penerima" (format per-taruna/SPANExt) atau No. SPP/SPM + Jumlah Pembayaran + Uraian SPP/SPM (format agregat lama).', 'galat');
+      toast('Header CSV tidak dikenali — wajib "Nama Penerima" (format per-taruna/SPANExt) atau No. SPP/SPM + Jumlah Pembayaran + Uraian SPP/SPM (format Monitoring/agregat).', 'galat');
       return;
     }
     setBarisPerTaruna([]);
-    setBarisSp2d(semua.slice(1).map((row) => validasiBarisSp2d(kolomIdx, row)));
+    setBarisSp2d(dataRows.map((row) => validasiBarisSp2d(kolomIdx, row)));
   }
 
   const jmlValidSp2d = barisSp2d.filter((b) => b.valid).length;
