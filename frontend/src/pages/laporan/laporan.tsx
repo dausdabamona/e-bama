@@ -121,16 +121,21 @@ function validasiBarisPerTaruna(kolomIdx: Record<string, number>, row: string[],
   const ambil = (k: string) => (kolomIdx[k] !== undefined ? (row[kolomIdx[k]] ?? '').trim() : '');
   const namaPenerima = ambil('nama_penerima').replace(/^penerima\s*:\s*/i, '').trim();
   const noSp2d = ambil('no_sp2d');
-  const noPenerima = ambil('no_penerima');
-  const nomorReferensi = ambil('nomor_referensi');
+  // "Nomor Referensi" sering placeholder "Ref No : -" (bukan referensi asli) —
+  // dan "NO PENERIMA" TERNYATA sama untuk SELURUH baris dalam satu batch SP2D
+  // (bukan unik per taruna seperti namanya), jadi TIDAK aman dipakai kunci
+  // cadangan. Kunci cadangan yang aman & unik per taruna: No SP2D + nama
+  // penerima (tanpa menyimpan nomor rekening di mana pun).
+  const nomorReferensiMentah = ambil('nomor_referensi').replace(/^ref\s*no\s*:\s*/i, '').trim();
+  const nomorReferensi = nomorReferensiMentah && nomorReferensiMentah !== '-' ? nomorReferensiMentah : '';
   const tglSp2d = parseTglDDMMYYYYSp2d(ambil('tgl_sp2d'));
   const jumlahPembayaran = parseRupiahSp2d(ambil('jumlah_pembayaran'));
   const uraianAsli = ambil('uraian_asli');
   const statusSp2d = ambil('status_sp2d');
-  const noSpm = nomorReferensi || `${noSp2d}-${noPenerima}`;
+  const noSpm = nomorReferensi || `${noSp2d}-${normalisasiNamaSp2d(namaPenerima)}`;
 
   let pesan = '';
-  if (!noSpm.trim() || noSpm === '-') pesan = 'Nomor Referensi / No SP2D+No Penerima kosong.';
+  if (!noSpm.trim() || noSpm === '-') pesan = 'Nomor Referensi / No SP2D+Nama Penerima kosong.';
   else if (!tglSp2d) pesan = 'Tanggal SP2D tidak terbaca (harus DD-MM-YYYY).';
   else if (!jumlahPembayaran) pesan = 'Jumlah tidak terbaca sebagai angka.';
   else if (!namaPenerima) pesan = 'Nama Penerima kosong.';
@@ -235,7 +240,6 @@ export function HalamanLaporan() {
         if (idx >= 0) kolomIdx[k] = idx;
       };
       tambah('no_sp2d', 'no sp2d');
-      tambah('no_penerima', 'no penerima');
       tambah('nomor_referensi', 'nomor referensi');
       tambah('tgl_sp2d', 'tanggal sp2d');
       tambah('jumlah_pembayaran', 'jumlah');
