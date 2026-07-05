@@ -35,6 +35,15 @@ export function BlokTtd2Kolom({ kiri, kanan }: { kiri: TtdPihak; kanan: TtdPihak
   );
 }
 
+/** Satu tanda tangan di TENGAH (mis. pejabat tertinggi di bawah dua penanda tangan). */
+export function BlokTtdTengah({ pihak }: { pihak: TtdPihak }) {
+  return (
+    <div className="mt-2 flex justify-center text-center text-xs">
+      <div className="w-1/2"><TtdKolom pihak={pihak} /></div>
+    </div>
+  );
+}
+
 /** Berjenjang: tiap pihak menjorok makin ke kanan, mencerminkan urutan alur (mis. Senat → Pembina → PPK). */
 export function BlokTtd3Berjenjang({ pihak1, pihak2, pihak3 }: {
   pihak1: TtdPihak; pihak2: TtdPihak; pihak3: TtdPihak;

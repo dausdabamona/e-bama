@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BulanPicker, bulanIni, labelBulan } from '../../components/bulan-picker';
-import { BlokTtd3Berjenjang } from '../../components/cetak/blok-ttd';
+import { BlokTtd2Kolom, BlokTtdTengah } from '../../components/cetak/blok-ttd';
 import { KopSurat } from '../../components/cetak/kop-surat';
 import { BarisCetak, SelCetak, TabelCetak } from '../../components/cetak/tabel-cetak';
 import { Button } from '../../components/ui/button';
@@ -71,14 +71,19 @@ interface Form07Data {
   rekening_penyedia_nama?: { BNI?: string; BSI?: string };
 }
 
-/** Blok TTD surat ke bank: Ketua Senat → Wakil Direktur III → Direktur (pengirim surat). */
+/**
+ * Blok TTD surat ke bank (pengirim surat): Ketua Senat (kiri) & Wakil Direktur III
+ * (kanan) sejajar, Direktur di TENGAH bawah (jabatan tertinggi mengesahkan).
+ */
 function TtdSuratBank({ pejabat }: { pejabat: Form07Data['pejabat'] }) {
   return (
-    <BlokTtd3Berjenjang
-      pihak1={{ label: 'Ketua Senat Taruna,', jabatan: 'Politeknik KP Sorong' }}
-      pihak2={{ label: 'Wakil Direktur III,', jabatan: 'Bidang Kemahasiswaan', nama: pejabat.WADIR3.nama, nip: pejabat.WADIR3.nip }}
-      pihak3={{ label: 'Direktur,', jabatan: 'Politeknik KP Sorong', nama: pejabat.DIREKTUR.nama, nip: pejabat.DIREKTUR.nip }}
-    />
+    <div className="mt-4">
+      <BlokTtd2Kolom
+        kiri={{ label: 'Ketua Senat Taruna,', jabatan: 'Politeknik KP Sorong' }}
+        kanan={{ label: 'Wakil Direktur III,', jabatan: 'Bidang Kemahasiswaan', nama: pejabat.WADIR3.nama, nip: pejabat.WADIR3.nip }}
+      />
+      <BlokTtdTengah pihak={{ label: 'Direktur,', jabatan: 'Politeknik KP Sorong', nama: pejabat.DIREKTUR.nama, nip: pejabat.DIREKTUR.nip }} />
+    </div>
   );
 }
 
