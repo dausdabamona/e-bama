@@ -11,6 +11,12 @@ interface ItemNav {
   ikon: string;
 }
 
+// Label role untuk indikator "sedang aktif sebagai" di header.
+const LABEL_ROLE: Record<Role, string> = {
+  KPA: 'KPA', PPK: 'PPK', SENAT: 'Senat', PEMBINA: 'Pembina',
+  ADMIN: 'Admin', WADIR3: 'Wadir 3', BAAK: 'BAAK', PENYEDIA: 'Penyedia'
+};
+
 // Bottom-nav per role (sesuai PROMPT 5)
 export const NAV_PER_ROLE: Record<Role, ItemNav[]> = {
   SENAT: [
@@ -132,14 +138,24 @@ export function Layout() {
             />
             {online ? 'Online' : 'Offline'}
           </div>
-          <NavLink to="/antrian" className="relative min-h-tap min-w-tap p-2 text-xl lg:text-gray-700" aria-label="Antrian aksi">
-            📤
-            {nAntrian > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
-                {nAntrian}
-              </span>
+          <div className="flex items-center gap-2">
+            {session && (
+              <NavLink to="/akun" className="flex items-center gap-1.5" aria-label="Akun & role aktif" title={`Masuk sebagai ${session.nama} (${LABEL_ROLE[session.role]})`}>
+                <span className="hidden max-w-[9rem] truncate text-sm sm:inline">{session.nama}</span>
+                <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-semibold lg:bg-primary-light lg:text-primary-dark">
+                  {LABEL_ROLE[session.role]}
+                </span>
+              </NavLink>
             )}
-          </NavLink>
+            <NavLink to="/antrian" className="relative min-h-tap min-w-tap p-2 text-xl lg:text-gray-700" aria-label="Antrian aksi">
+              📤
+              {nAntrian > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
+                  {nAntrian}
+                </span>
+              )}
+            </NavLink>
+          </div>
         </header>
 
         {/* Isi halaman */}
