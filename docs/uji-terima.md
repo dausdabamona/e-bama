@@ -42,15 +42,15 @@
 | B.5 | PPK → **Pembayaran** → **Buat Pembayaran** (rekap `FINAL`) → **berhasil**, `nilai_total` = SUM rekap | ☐ | | |
 | B.6 | Sebelum B.4: **Buat Pembayaran** saat status belum `FINAL` → **ditolak**: "belum FINAL — alur: Wadir 3 → PPK verifikasi → PPK finalkan" | ☐ | | |
 
-## C. Pembayaran Penuh (SOP 11–17)
+## C. Pembayaran Penuh (SOP 11–17) — mesin status disederhanakan (DIAJUKAN → SELESAI)
 
 | # | Langkah | Hasil | Tanggal | Paraf |
 |---|---|---|---|---|
-| C.1 | PPK isi **No. SPM** + tanggal | ☐ | | |
-| C.2 | PPK isi **No. SP2D** + tanggal → status naik `SP2D_TERBIT` | ☐ | | |
-| C.3 | PPK **Tandai Sudah Ditransfer** → status `DITRANSFER` | ☐ | | |
-| C.4 | Senat **Konfirmasi Diterima** → status `DIKONFIRMASI` | ☐ | | |
-| C.5 | PPK **Tutup Pembayaran** → status `SELESAI` | ☐ | | |
+| C.1 | PPK isi **No. SPM** + tanggal (status tetap `DIAJUKAN`) | ☐ | | |
+| C.2 | PPK isi **No. SP2D** + tanggal → status **langsung** `SELESAI` (dana sudah cair ke taruna, tanpa konfirmasi Senat) | ☐ | | |
+| C.3 | Kartu "🚨 MENDESAK — Cetak & Kirim Surat Blokir ke Bank" muncul begitu No. SP2D tersimpan → link **Cetak Form 07** | ☐ | | |
+| C.4 | Kartu **Cetak Form 09** (Pendebetan Senat → Penyedia) ikut muncul untuk PPK & Senat | ☐ | | |
+| C.5 | PPK tetap bisa unggah lampiran (Surat Blokir/Bukti Debet/Invoice) walau status sudah `SELESAI` | ☐ | | |
 
 ## D. Gagal Debet & Surat Peringatan (piutang)
 

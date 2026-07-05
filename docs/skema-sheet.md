@@ -177,7 +177,14 @@ Foto dokumentasi (terkompres ±200KB) → LAMPIRAN `ref_type=REALISASI`, `jenis=
 ### 9. PEMBAYARAN
 
 LS via KPPN (SOP no. 11–17).
-Mesin status: `DIAJUKAN → SP2D_TERBIT → DITRANSFER → DIKONFIRMASI → SELESAI`.
+**Mesin status disederhanakan (dikonfirmasi Firdaus): `DIAJUKAN → SELESAI`.**
+No. SP2D terisi = dana SUDAH cair ke rekening taruna (mekanisme LS) →
+pembayaran otomatis `SELESAI`, TANPA konfirmasi Senat/tutup manual terpisah.
+Pendebetan 2 tahap (taruna→Senat→Penyedia) tetap berjalan lewat dokumen cetak
+terpisah (Form-07 lalu Form-09) yang TIDAK mengunci status ini — lihat § Cetak
+Form Manual SOP di `docs/kontrak-api.md`. `bayar.close` tersisa sebagai
+fallback manual untuk baris historis berstatus lama (`SP2D_TERBIT`/
+`DITRANSFER`/`DIKONFIRMASI`) dari sebelum penyederhanaan.
 
 | Kolom | Tipe | Keterangan |
 |---|---|---|
@@ -187,10 +194,10 @@ Mesin status: `DIAJUKAN → SP2D_TERBIT → DITRANSFER → DIKONFIRMASI → SELE
 | nilai_total 📸 | integer | snapshot SUM(nominal) REKAP_BULANAN FINAL bulan tsb |
 | no_spm | string | input manual PPK |
 | tgl_spm | date | |
-| no_sp2d | string | input manual PPK |
+| no_sp2d | string | input manual PPK; terisi → status langsung `SELESAI` |
 | tgl_sp2d | date | |
-| konfirmasi_senat_at | datetime | invoice diterima penyedia (SOP 15–16) |
-| status | enum | lihat mesin status di atas |
+| konfirmasi_senat_at | datetime | **legacy** — tidak lagi diisi (dulu: invoice diterima penyedia, SOP 15–16); dipertahankan hanya untuk baris historis |
+| status | enum | `DIAJUKAN` / `SELESAI` (nilai lama `SP2D_TERBIT`/`DITRANSFER`/`DIKONFIRMASI` hanya mungkin muncul di baris historis) |
 
 Surat blokir, bukti debet bank, invoice penyedia → LAMPIRAN `ref_type=PEMBAYARAN`.
 

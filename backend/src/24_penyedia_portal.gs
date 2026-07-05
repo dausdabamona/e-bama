@@ -112,6 +112,10 @@ function penyediaPortal(payload, session) {
         no_sp2d: String(p.no_sp2d || ''),
         tgl_sp2d: p.tgl_sp2d ? _tglStr_(p.tgl_sp2d) : '',
         status: p.status,
+        // konfirmasi_senat_at tidak lagi diisi sejak mesin status PEMBAYARAN
+        // disederhanakan (DIAJUKAN→SELESAI langsung, lihat 15_pembayaran.gs) —
+        // field ini akan selalu false untuk pembayaran baru; dipertahankan
+        // untuk baris historis lama saja.
         invoice_dikonfirmasi: p.konfirmasi_senat_at ? true : false
       };
     });

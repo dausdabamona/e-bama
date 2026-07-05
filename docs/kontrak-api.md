@@ -103,19 +103,23 @@ Transisi ilegal → error eksplisit (mis. "Pesanan berstatus DRAFT, tidak bisa d
 
 `rekapUpdate(tanggal)` internal (bukan action publik): incremental per hari, uang integer.
 
-### Pembayaran (SOP no. 11–17) — mesin status `DIAJUKAN → SP2D_TERBIT → DITRANSFER → DIKONFIRMASI → SELESAI`
+### Pembayaran (SOP no. 11–17) — mesin status `DIAJUKAN → SELESAI` (disederhanakan)
 
-> Pembayaran mencakup pencairan ke rekening taruna (SP2D dari KPPN) yang lalu
-> auto-debet ke rekening Senat → penyedia — satu mekanisme LS. Persetujuan
-> lengkap (Wadir 3 → PPK verifikasi → PPK finalkan) sudah dilalui saat rekap
-> berstatus `FINAL`, yang menjadi syarat `bayar.create`.
+> **Disederhanakan (dikonfirmasi Firdaus):** No. SP2D terisi = dana SUDAH cair
+> ke rekening taruna (SP2D dari KPPN, mekanisme LS) → pembayaran OTOMATIS
+> `SELESAI` saat itu juga, TANPA konfirmasi Senat atau tutup manual terpisah.
+> Pendebetan 2 tahap (taruna→Senat→Penyedia) TETAP berjalan, tapi lewat
+> DOKUMEN CETAK terpisah (Form-07 lalu Form-09, § Cetak Form Manual SOP) yang
+> TIDAK mengunci/menunggu status PEMBAYARAN ini — begitu No. SP2D diketahui,
+> mencetak & mengirim Form-07 ke bank jadi MENDESAK (dana sudah cair).
+> Persetujuan rekap (Wadir 3 → PPK verifikasi → PPK finalkan) sudah dilalui
+> saat rekap berstatus `FINAL`, yang menjadi syarat `bayar.create`.
 
 | Action | Role | Keterangan |
 |---|---|---|
 | `bayar.create` | PPK | syarat REKAP bulan tsb `FINAL` (setelah Wadir 3 setujui → PPK verifikasi → PPK finalkan); `nilai_total` = SUM(nominal) snapshot |
-| `bayar.update` | PPK | isi no_spm/tgl_spm, no_sp2d/tgl_sp2d — status naik sesuai urutan; lampiran surat blokir / bukti debet / invoice |
-| `bayar.confirm` | SENAT | `DITRANSFER → DIKONFIRMASI` (SOP 15–16) |
-| `bayar.close` | PPK | `→ SELESAI` (SOP 17) |
+| `bayar.update` | PPK | isi no_spm/tgl_spm, no_sp2d/tgl_sp2d; No. SP2D terisi → status **langsung `SELESAI`**; lampiran surat blokir / bukti debet / invoice (bisa diunggah kapan saja) |
+| `bayar.close` | PPK | fallback manual → `SELESAI`; **bukan bagian alur normal** — hanya untuk baris historis yang masih berstatus lama (`SP2D_TERBIT`/`DITRANSFER`/`DIKONFIRMASI`) dari sebelum penyederhanaan ini |
 | `bayar.list` / `bayar.get` | PPK, KPA, SENAT, WADIR3 | |
 
 ### Tagihan Gagal Debet — status `TERTAGIH → LUNAS | DIHAPUSKAN | ESKALASI_MANUAL`

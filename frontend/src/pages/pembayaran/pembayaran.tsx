@@ -1,4 +1,8 @@
-// /pembayaran — PPK: buat & kelola SPM/SP2D bertahap; Senat: konfirmasi; KPA: lihat.
+// /pembayaran — PPK: buat & kelola SPM/SP2D; mesin status disederhanakan
+// (dikonfirmasi Firdaus): DIAJUKAN → SELESAI langsung begitu No. SP2D diisi
+// (SP2D = dana SUDAH cair ke rekening taruna). Tidak ada lagi konfirmasi
+// Senat/tutup manual di alur normal — pendebetan taruna→Senat→Penyedia
+// berjalan lewat dokumen cetak terpisah (Form-07 lalu Form-09).
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/auth-context';
@@ -17,7 +21,7 @@ import { useListCache } from '../../lib/use-list-cache';
 import { formatRupiah } from '../tagihan/tipe';
 import type { Pembayaran } from './tipe';
 
-const URUTAN_STATUS: Pembayaran['status'][] = ['DIAJUKAN', 'SP2D_TERBIT', 'DITRANSFER', 'DIKONFIRMASI', 'SELESAI'];
+const URUTAN_STATUS: Pembayaran['status'][] = ['DIAJUKAN', 'SELESAI'];
 
 export function HalamanPembayaran() {
   const { session } = useAuth();
@@ -64,20 +68,7 @@ export function HalamanPembayaran() {
     setProses(true);
     try {
       await api('bayar.update', { bayar_id: b!.bayar_id, no_sp2d: noSp2d, tgl_sp2d: tglSp2d });
-      toast('SP2D tersimpan — status naik ke SP2D_TERBIT.', 'sukses');
-      refresh();
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
-    } finally {
-      setProses(false);
-    }
-  }
-
-  async function tandaiDitransfer() {
-    setProses(true);
-    try {
-      await api('bayar.update', { bayar_id: b!.bayar_id, ditransfer: true });
-      toast('Ditandai DITRANSFER.', 'sukses');
+      toast('SP2D tersimpan — dana sudah cair ke taruna, pembayaran SELESAI. Segera cetak Form 07!', 'sukses');
       refresh();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
@@ -102,24 +93,12 @@ export function HalamanPembayaran() {
     }
   }
 
-  async function konfirmasiSenat() {
-    setProses(true);
-    try {
-      await api('bayar.confirm', { bayar_id: b!.bayar_id });
-      toast('Pembayaran dikonfirmasi.', 'sukses');
-      refresh();
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
-    } finally {
-      setProses(false);
-    }
-  }
-
-  async function tutup() {
+  /** Fallback: baris historis yang kadung berstatus lama (sebelum penyederhanaan). */
+  async function tutupManual() {
     setProses(true);
     try {
       await api('bayar.close', { bayar_id: b!.bayar_id });
-      toast('Pembayaran ditutup — SELESAI.', 'sukses');
+      toast('Ditutup manual — SELESAI.', 'sukses');
       refresh();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
@@ -129,6 +108,8 @@ export function HalamanPembayaran() {
   }
 
   const idx = b ? URUTAN_STATUS.indexOf(b.status) : -1;
+  const statusLegacy = b && idx < 0; // status lama (SP2D_TERBIT/DITRANSFER/DIKONFIRMASI) dari sebelum disederhanakan
+  const sp2dSudahAda = b ? !!b.no_sp2d : false;
 
   return (
     <div className="flex flex-col gap-4">
@@ -155,23 +136,38 @@ export function HalamanPembayaran() {
               <p className="text-lg font-bold">{formatRupiah(b.nilai_total)}</p>
               <Badge status={b.status} />
             </div>
-            <ol className="mt-2 flex flex-col gap-1 text-sm">
-              {URUTAN_STATUS.map((s, i) => (
-                <li key={s} className="flex items-center gap-2">
-                  <span className={`h-2.5 w-2.5 rounded-full ${i <= idx ? 'bg-primary' : 'bg-gray-200'}`} />
-                  <span className={i <= idx ? 'font-medium' : 'text-gray-400'}>{s.replace(/_/g, ' ')}</span>
-                </li>
-              ))}
-            </ol>
+            {!statusLegacy && (
+              <ol className="mt-2 flex flex-col gap-1 text-sm">
+                {URUTAN_STATUS.map((s, i) => (
+                  <li key={s} className="flex items-center gap-2">
+                    <span className={`h-2.5 w-2.5 rounded-full ${i <= idx ? 'bg-primary' : 'bg-gray-200'}`} />
+                    <span className={i <= idx ? 'font-medium' : 'text-gray-400'}>{s.replace(/_/g, ' ')}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
           </Card>
 
-          {session?.role === 'PPK' && (b.status === 'DIAJUKAN' || b.status === 'SP2D_TERBIT') && (
+          {session?.role === 'PPK' && statusLegacy && (
+            <Card className="flex flex-col gap-2 border-l-4 border-l-amber-500 bg-amber-50">
+              <p className="text-sm font-semibold text-amber-800">⚠️ Status lama: {b.status.replace(/_/g, ' ')}</p>
+              <p className="text-xs text-amber-700">
+                Mesin status pembayaran sudah disederhanakan (DIAJUKAN → SELESAI langsung).
+                Baris ini masih dari sebelum perubahan — tutup manual ke SELESAI.
+              </p>
+              <Button varian="bahaya" onClick={() => void tutupManual()} disabled={proses}>
+                Tutup Manual ke SELESAI
+              </Button>
+            </Card>
+          )}
+
+          {session?.role === 'PPK' && b.status === 'DIAJUKAN' && !sp2dSudahAda && (
             <Card className="flex flex-col gap-2 border-l-4 border-l-primary">
               <p className="text-sm font-semibold text-gray-600">📄 Dokumen: Blokir &amp; Pendebetan Bank</p>
               <p className="text-xs text-gray-500">
-                Sebelum menandai "Sudah Ditransfer", cetak &amp; kirimkan surat permohonan blokir
-                dan pendebetan massal rekening taruna ke rekening Senat — <strong>terpisah untuk
-                Bank BSI dan BNI</strong>.
+                Bisa disiapkan dari sekarang — tidak perlu menunggu SP2D terbit. Cetak &amp; kirimkan
+                surat permohonan blokir dan pendebetan massal rekening taruna ke rekening Senat —
+                <strong> terpisah untuk Bank BSI dan BNI</strong>.
               </p>
               <Link to={`/cetak/form-07/${bulan}`}>
                 <Button varian="garis" className="w-full">🖨️ Cetak Form 07 — Usulan Penahanan &amp; Pendebetan Bank</Button>
@@ -179,11 +175,24 @@ export function HalamanPembayaran() {
             </Card>
           )}
 
-          {(session?.role === 'PPK' || session?.role === 'SENAT') && b.status === 'DITRANSFER' && (
+          {session?.role === 'PPK' && sp2dSudahAda && (
+            <Card className="flex flex-col gap-2 border-l-4 border-l-red-500 bg-red-50">
+              <p className="text-sm font-semibold text-red-800">🚨 MENDESAK — Cetak &amp; Kirim Surat Blokir ke Bank</p>
+              <p className="text-xs text-red-700">
+                No. SP2D sudah terbit — dana <strong>SUDAH cair ke rekening taruna</strong>. Segera cetak
+                dan kirimkan surat blokir &amp; pendebetan massal ke Bank BSI dan BNI sebelum dana ditarik.
+              </p>
+              <Link to={`/cetak/form-07/${bulan}`}>
+                <Button className="w-full">🖨️ Cetak Form 07 — Usulan Penahanan &amp; Pendebetan Bank</Button>
+              </Link>
+            </Card>
+          )}
+
+          {(session?.role === 'PPK' || session?.role === 'SENAT') && sp2dSudahAda && (
             <Card className="flex flex-col gap-2 border-l-4 border-l-primary">
               <p className="text-sm font-semibold text-gray-600">📄 Dokumen: Pendebetan Senat → Penyedia</p>
               <p className="text-xs text-gray-500">
-                Dana sudah masuk rekening Senat. Sebelum konfirmasi diterima penyedia, ajukan
+                Setelah rekening taruna diblokir &amp; didebet ke rekening Senat, lanjutkan pengajuan
                 pendebetan rekening Senat ke rekening penyedia — <strong>per bank (BSI &amp; BNI)</strong>.
               </p>
               <Link to={`/cetak/form-09/${bulan}`}>
@@ -199,26 +208,14 @@ export function HalamanPembayaran() {
               <Input label="Tanggal SPM" type="date" value={tglSpm} onChange={(e) => setTglSpm(e.target.value)} />
               <Button onClick={() => void simpanSpm()} disabled={proses}>Simpan SPM</Button>
 
-              <p className="mt-2 text-sm font-semibold text-gray-600">Input SP2D (naikkan ke SP2D_TERBIT)</p>
+              <p className="mt-2 text-sm font-semibold text-gray-600">Input SP2D (langsung SELESAI)</p>
               <Input label="No. SP2D" value={noSp2d} onChange={(e) => setNoSp2d(e.target.value)} />
               <Input label="Tanggal SP2D" type="date" value={tglSp2d} onChange={(e) => setTglSp2d(e.target.value)} />
               <Button onClick={() => void simpanSp2d()} disabled={proses}>Simpan SP2D</Button>
             </Card>
           )}
 
-          {session?.role === 'PPK' && b.status === 'SP2D_TERBIT' && (
-            <Button onClick={() => void tandaiDitransfer()} disabled={proses}>Tandai Sudah Ditransfer</Button>
-          )}
-
-          {session?.role === 'SENAT' && b.status === 'DITRANSFER' && (
-            <Button onClick={() => void konfirmasiSenat()} disabled={proses}>Konfirmasi Diterima Penyedia</Button>
-          )}
-
-          {session?.role === 'PPK' && b.status === 'DIKONFIRMASI' && (
-            <Button onClick={() => void tutup()} disabled={proses}>Tutup Pembayaran (SELESAI)</Button>
-          )}
-
-          {session?.role === 'PPK' && b.status !== 'SELESAI' && (
+          {session?.role === 'PPK' && (
             <Card className="flex flex-col gap-2">
               <p className="text-sm font-semibold text-gray-600">Unggah Lampiran</p>
               <div className="flex flex-wrap gap-2">

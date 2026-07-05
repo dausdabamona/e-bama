@@ -70,7 +70,14 @@ var ENUM = {
   STATUS_HARIAN:     ['PESIAR', 'CUTI', 'SAKIT_RUMAH', 'PENUNDAAN_STUDI', 'KEGIATAN_LUAR_KAMPUS',
                       'PKL_1', 'PKL_2', 'PKL_3', 'KPA', 'MAGANG', 'PTB'],
   PESANAN_STATUS:    ['DRAFT', 'DIAJUKAN', 'DIKEMBALIKAN', 'DISETUJUI', 'TERKIRIM'],
-  PEMBAYARAN_STATUS: ['DIAJUKAN', 'SP2D_TERBIT', 'DITRANSFER', 'DIKONFIRMASI', 'SELESAI'],
+  // Disederhanakan (dikonfirmasi Firdaus): No. SP2D terisi = dana SUDAH cair ke
+  // rekening taruna → langsung SELESAI, tanpa konfirmasi Senat/tutup manual
+  // terpisah. Pendebetan taruna→Senat→Penyedia tetap jalan lewat dokumen
+  // cetak terpisah (Form-07/09, lihat 21_cetak.gs) — tidak lagi dilacak di
+  // sini. Nilai lama (SP2D_TERBIT/DITRANSFER/DIKONFIRMASI) TIDAK dipakai lagi
+  // untuk baris baru, tapi baris historis yang kadung memilikinya tetap valid
+  // dibaca (bukan divalidasi ulang saat baca).
+  PEMBAYARAN_STATUS: ['DIAJUKAN', 'SELESAI'],
   TAGIHAN_STATUS:    ['TERTAGIH', 'LUNAS', 'DIHAPUSKAN', 'ESKALASI_MANUAL'],
   TAGIHAN_SEBAB:     ['GAGAL_DEBET', 'SALDO_KURANG', 'REKENING_BERMASALAH'],
   // Alur persetujuan (dikonfirmasi Firdaus): DRAFT → DISETUJUI_WADIR3 (Wadir 3
@@ -262,7 +269,7 @@ var ACTION_MAP = {
   'bayar.get':        { handler: bayarGet,       roles: ['PPK', 'KPA', 'SENAT', 'WADIR3'] },
   'bayar.create':     { handler: bayarCreate,    roles: ['PPK'] },
   'bayar.update':     { handler: bayarUpdate,    roles: ['PPK'] },
-  'bayar.confirm':    { handler: bayarConfirm,   roles: ['SENAT'] },
+  // bayar.close: fallback manual (baris historis status lama) — bukan alur normal, lihat 15_pembayaran.gs
   'bayar.close':      { handler: bayarClose,     roles: ['PPK'] },
 
   // Tagihan gagal debet (TAHAP 4A)
@@ -1718,11 +1725,20 @@ function rekapInputHistoris(payload, session) {
 // ═════════════════════════════════════════════════════════════════════════════
 /**
  * 15_pembayaran.gs — Pembayaran LS via KPPN (SOP no. 11–17)
- * Mesin status: DIAJUKAN → SP2D_TERBIT → DITRANSFER → DIKONFIRMASI → SELESAI
  *
- * ACTION: bayar.list, bayar.get (PPK, KPA, Senat),
- *         bayar.create, bayar.update, bayar.close (PPK),
- *         bayar.confirm (Senat)
+ * Mesin status DISEDERHANAKAN (dikonfirmasi Firdaus): DIAJUKAN → SELESAI.
+ * No. SP2D terisi = dana SUDAH cair ke rekening taruna (SP2D dari KPPN,
+ * mekanisme LS) → pembayaran OTOMATIS SELESAI saat itu juga, TANPA langkah
+ * konfirmasi Senat atau tutup manual terpisah. Pendebetan 2 tahap
+ * (taruna→Senat→Penyedia) TETAP berjalan — tapi lewat DOKUMEN CETAK terpisah
+ * (Form-07 lalu Form-09, lihat 21_cetak.gs), yang TIDAK mengunci/menunggu
+ * status PEMBAYARAN ini. Begitu No. SP2D diketahui, mencetak & mengirim
+ * Form-07 ke bank jadi MENDESAK (uang sudah cair, jendela blokir singkat).
+ *
+ * ACTION: bayar.list, bayar.get (PPK, KPA, Senat), bayar.create, bayar.update (PPK).
+ * bayar.close tersisa sebagai fallback manual (mis. baris historis yang masih
+ * berstatus lama SP2D_TERBIT/DITRANSFER/DIKONFIRMASI dari sebelum
+ * penyederhanaan ini) — bukan bagian alur normal lagi.
  *
  * nilai_total = SNAPSHOT SUM(nominal) REKAP_BULANAN FINAL — beku setelah ditulis.
  * Lampiran (surat blokir, bukti debet, invoice) → LAMPIRAN ref_type=PEMBAYARAN.
@@ -1803,14 +1819,14 @@ function bayarCreate(payload, session) {
 }
 
 /**
- * Isi SPM/SP2D bertahap — status naik sesuai urutan:
- * DIAJUKAN + no_sp2d terisi → SP2D_TERBIT; SP2D_TERBIT + ditransfer:true → DITRANSFER.
- * Payload {bayar_id, no_spm?, tgl_spm?, no_sp2d?, tgl_sp2d?, ditransfer?, berkas?}.
+ * Isi SPM/SP2D — begitu No. SP2D terisi (dana SUDAH cair ke rekening taruna),
+ * status LANGSUNG SELESAI (dikonfirmasi Firdaus — lihat catatan modul).
+ * Payload {bayar_id, no_spm?, tgl_spm?, no_sp2d?, tgl_sp2d?, berkas?}.
  */
 function bayarUpdate(payload, session) {
   var b = _bayar_(payload && payload.bayar_id);
-  if (b.status === 'DIKONFIRMASI' || b.status === 'SELESAI') {
-    throw _fail_('Pembayaran berstatus ' + b.status + ' — tidak bisa diubah lagi.');
+  if (b.status === 'SELESAI') {
+    throw _fail_('Pembayaran berstatus SELESAI — tidak bisa diubah lagi.');
   }
 
   var patch = {};
@@ -1819,10 +1835,9 @@ function bayarUpdate(payload, session) {
   if (payload.no_sp2d !== undefined) patch.no_sp2d = String(payload.no_sp2d);
   if (payload.tgl_sp2d) patch.tgl_sp2d = _wajibTgl_(payload.tgl_sp2d, 'tgl_sp2d');
 
-  // Kenaikan status berurutan
+  // No. SP2D terisi = dana SUDAH cair ke rekening taruna → langsung SELESAI.
   var statusBaru = b.status;
-  if (b.status === 'DIAJUKAN' && (patch.no_sp2d || b.no_sp2d)) statusBaru = 'SP2D_TERBIT';
-  if ((statusBaru === 'SP2D_TERBIT') && payload.ditransfer === true) statusBaru = 'DITRANSFER';
+  if (b.status === 'DIAJUKAN' && (patch.no_sp2d || b.no_sp2d)) statusBaru = 'SELESAI';
   if (statusBaru !== b.status) patch.status = statusBaru;
 
   if (Object.keys(patch).length) {
@@ -1837,25 +1852,15 @@ function bayarUpdate(payload, session) {
   return { bayar_id: b.bayar_id, status: statusBaru };
 }
 
-/** Senat: DITRANSFER → DIKONFIRMASI (invoice diterima penyedia, SOP 15–16). */
-function bayarConfirm(payload, session) {
-  var b = _bayar_(payload && payload.bayar_id);
-  if (b.status !== 'DITRANSFER') {
-    throw _fail_('Pembayaran berstatus ' + b.status + ', tidak bisa dikonfirmasi (butuh DITRANSFER).');
-  }
-  sheetUpdate(SHEETS.PEMBAYARAN, 'bayar_id', b.bayar_id,
-    { status: 'DIKONFIRMASI', konfirmasi_senat_at: new Date() });
-  auditLog(session, 'bayar.confirm', 'PEMBAYARAN', b.bayar_id,
-    { status: b.status }, { status: 'DIKONFIRMASI' });
-  return { bayar_id: b.bayar_id, status: 'DIKONFIRMASI' };
-}
-
-/** PPK: DIKONFIRMASI → SELESAI (SOP 17). */
+/**
+ * PPK: tutup manual → SELESAI. BUKAN bagian alur normal lagi (alur normal
+ * sudah otomatis lewat bayarUpdate saat No. SP2D diisi) — fallback untuk
+ * baris historis yang kadung berstatus lama (SP2D_TERBIT/DITRANSFER/
+ * DIKONFIRMASI) dari sebelum penyederhanaan mesin status ini.
+ */
 function bayarClose(payload, session) {
   var b = _bayar_(payload && payload.bayar_id);
-  if (b.status !== 'DIKONFIRMASI') {
-    throw _fail_('Pembayaran berstatus ' + b.status + ', tidak bisa ditutup (butuh DIKONFIRMASI).');
-  }
+  if (b.status === 'SELESAI') throw _fail_('Pembayaran sudah SELESAI.');
   sheetUpdate(SHEETS.PEMBAYARAN, 'bayar_id', b.bayar_id, { status: 'SELESAI' });
   auditLog(session, 'bayar.close', 'PEMBAYARAN', b.bayar_id, { status: b.status }, { status: 'SELESAI' });
   return { bayar_id: b.bayar_id, status: 'SELESAI' };
@@ -3817,6 +3822,10 @@ function penyediaPortal(payload, session) {
         no_sp2d: String(p.no_sp2d || ''),
         tgl_sp2d: p.tgl_sp2d ? _tglStr_(p.tgl_sp2d) : '',
         status: p.status,
+        // konfirmasi_senat_at tidak lagi diisi sejak mesin status PEMBAYARAN
+        // disederhanakan (DIAJUKAN→SELESAI langsung, lihat 15_pembayaran.gs) —
+        // field ini akan selalu false untuk pembayaran baru; dipertahankan
+        // untuk baris historis lama saja.
         invoice_dikonfirmasi: p.konfirmasi_senat_at ? true : false
       };
     });

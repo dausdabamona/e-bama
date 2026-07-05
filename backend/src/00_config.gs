@@ -60,7 +60,14 @@ var ENUM = {
   STATUS_HARIAN:     ['PESIAR', 'CUTI', 'SAKIT_RUMAH', 'PENUNDAAN_STUDI', 'KEGIATAN_LUAR_KAMPUS',
                       'PKL_1', 'PKL_2', 'PKL_3', 'KPA', 'MAGANG', 'PTB'],
   PESANAN_STATUS:    ['DRAFT', 'DIAJUKAN', 'DIKEMBALIKAN', 'DISETUJUI', 'TERKIRIM'],
-  PEMBAYARAN_STATUS: ['DIAJUKAN', 'SP2D_TERBIT', 'DITRANSFER', 'DIKONFIRMASI', 'SELESAI'],
+  // Disederhanakan (dikonfirmasi Firdaus): No. SP2D terisi = dana SUDAH cair ke
+  // rekening taruna → langsung SELESAI, tanpa konfirmasi Senat/tutup manual
+  // terpisah. Pendebetan taruna→Senat→Penyedia tetap jalan lewat dokumen
+  // cetak terpisah (Form-07/09, lihat 21_cetak.gs) — tidak lagi dilacak di
+  // sini. Nilai lama (SP2D_TERBIT/DITRANSFER/DIKONFIRMASI) TIDAK dipakai lagi
+  // untuk baris baru, tapi baris historis yang kadung memilikinya tetap valid
+  // dibaca (bukan divalidasi ulang saat baca).
+  PEMBAYARAN_STATUS: ['DIAJUKAN', 'SELESAI'],
   TAGIHAN_STATUS:    ['TERTAGIH', 'LUNAS', 'DIHAPUSKAN', 'ESKALASI_MANUAL'],
   TAGIHAN_SEBAB:     ['GAGAL_DEBET', 'SALDO_KURANG', 'REKENING_BERMASALAH'],
   // Alur persetujuan (dikonfirmasi Firdaus): DRAFT → DISETUJUI_WADIR3 (Wadir 3

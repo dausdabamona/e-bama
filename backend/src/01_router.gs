@@ -65,7 +65,7 @@ var ACTION_MAP = {
   'bayar.get':        { handler: bayarGet,       roles: ['PPK', 'KPA', 'SENAT', 'WADIR3'] },
   'bayar.create':     { handler: bayarCreate,    roles: ['PPK'] },
   'bayar.update':     { handler: bayarUpdate,    roles: ['PPK'] },
-  'bayar.confirm':    { handler: bayarConfirm,   roles: ['SENAT'] },
+  // bayar.close: fallback manual (baris historis status lama) — bukan alur normal, lihat 15_pembayaran.gs
   'bayar.close':      { handler: bayarClose,     roles: ['PPK'] },
 
   // Tagihan gagal debet (TAHAP 4A)
