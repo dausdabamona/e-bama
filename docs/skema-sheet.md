@@ -22,11 +22,25 @@
 |---|---|---|
 | user_id | string | kunci; kode singkat, mis. `ppk01`, `senat01` |
 | nama | string | |
-| role | enum | `KPA` / `PPK` / `SENAT` / `PEMBINA` / `ADMIN` / `WADIR3` / `BAAK` |
+| role | enum | `KPA` / `PPK` / `SENAT` / `PEMBINA` / `ADMIN` / `WADIR3` / `BAAK` / `PENYEDIA` |
 | pin_hash | string | SHA-256(kata_sandi + SALT); SALT di Script Properties. Nama kolom dipertahankan (`pin_hash`) walau kredensialnya kini kata sandi bebas min 6 karakter (bukan PIN 6 digit) — hash sama, tak perlu migrasi |
 | token | string | token sesi aktif (UUID) |
 | token_exp | datetime | kadaluarsa 24 jam sejak login |
+| penyedia_id | FK → PENYEDIA | **hanya untuk role `PENYEDIA`** (akun portal rekanan katering). Menautkan akun ke SATU penyedia — semua data yang dilihat akun ini dibatasi ke `penyedia_id` ini (row-level scoping). Kosong untuk role internal. Wajib & harus valid saat role=`PENYEDIA` (divalidasi `pengguna.upsert`) |
 | status | enum | `AKTIF` / `NONAKTIF` |
+
+**Role `PENYEDIA` (rekanan eksternal) — pagar akses ketat.** Berbeda dari 7 role
+internal, akun `PENYEDIA` adalah rekanan di luar kampus yang login sendiri untuk
+melihat kontrak/jadwal/pembayarannya. Karena banyak action ber-`roles:[]` ("semua
+pengguna login") mengekspos data seluruh sistem (mis. `taruna.list` memuat
+`rek_mask`, `pesanan.list` seluruh pesanan, `penyedia.list` seluruh rekanan),
+role `PENYEDIA` **TIDAK** tunduk pada semantik `roles:[]`. Router hanya
+mengizinkan akun `PENYEDIA` memanggil action yang ada di allowlist eksplisit
+(`PENYEDIA_ACTIONS` di `01_router.gs`): `penyedia.portal`, `auth.logout`,
+`auth.change_pin`. Selain itu ditolak — apa pun `roles`-nya. Data yang dikembalikan
+`penyedia.portal` di-scope ke `session.penyedia_id` dan hanya memuat field
+non-sensitif (TANPA data per-taruna, TANPA rekening, TANPA geotag realisasi,
+TANPA identitas staf internal).
 
 ### 2. TARUNA
 

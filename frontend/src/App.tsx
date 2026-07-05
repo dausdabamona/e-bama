@@ -23,6 +23,7 @@ import { HalamanLaporanResmi } from './pages/laporan/laporan-resmi';
 import { HalamanLogin } from './pages/login';
 import { HalamanPembayaran } from './pages/pembayaran/pembayaran';
 import { HalamanPengguna } from './pages/pengguna/pengguna';
+import { HalamanPenyediaPortal } from './pages/penyedia-portal/penyedia-portal';
 import { HalamanPesananList } from './pages/pesanan/pesanan-list';
 import { HalamanPesananBuat } from './pages/pesanan/pesanan-buat';
 import { HalamanPesananDetail } from './pages/pesanan/pesanan-detail';
@@ -89,6 +90,8 @@ export default function App() {
               <Route path="/taruna/impor" element={<WajibLogin roles={['ADMIN', 'BAAK']}><HalamanTarunaImpor /></WajibLogin>} />
               <Route path="/taruna/impor-rekening" element={<WajibLogin roles={['ADMIN']}><HalamanTarunaImporRekening /></WajibLogin>} />
               <Route path="/pengguna" element={<WajibLogin roles={['ADMIN']}><HalamanPengguna /></WajibLogin>} />
+              {/* Penyedia (rekanan eksternal) — portal terbatas */}
+              <Route path="/penyedia-portal" element={<WajibLogin roles={['PENYEDIA']}><HalamanPenyediaPortal /></WajibLogin>} />
               {/* Admin, PPK, KPA, Wadir3 */}
               <Route path="/audit" element={<WajibLogin roles={['ADMIN', 'PPK', 'KPA', 'WADIR3']}><HalamanAudit /></WajibLogin>} />
               {/* Semua role */}

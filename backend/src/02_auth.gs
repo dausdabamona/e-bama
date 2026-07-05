@@ -40,7 +40,7 @@ function authLogin(payload) {
   return { token: token, role: u.role, nama: u.nama };
 }
 
-/** Validasi token → session {user_id, nama, role} atau null. */
+/** Validasi token → session {user_id, nama, role, penyedia_id} atau null. */
 function validateToken(token) {
   if (!token) return null;
   var u = sheetRead(SHEETS.PENGGUNA, function (r) { return String(r.token) === String(token); })[0];
@@ -48,7 +48,20 @@ function validateToken(token) {
   var exp = u.token_exp;
   var expMs = (exp instanceof Date) ? exp.getTime() : (exp ? new Date(exp).getTime() : 0);
   if (!expMs || expMs < Date.now()) return null;
-  return { user_id: u.user_id, nama: u.nama, role: u.role };
+  // penyedia_id hanya terisi untuk role PENYEDIA — dipakai row-level scoping di penyedia.portal.
+  return { user_id: u.user_id, nama: u.nama, role: u.role, penyedia_id: String(u.penyedia_id || '') };
+}
+
+/**
+ * _hanyaPenyedia_(session) — pagar tambahan di DALAM handler portal rekanan.
+ * Mirror _hanyaAdminPPK_: proteksi tidak boleh bergantung SATU-SATUNYA pada
+ * router. Wajib role PENYEDIA DAN punya penyedia_id tertaut (kalau kosong,
+ * akun salah konfigurasi → tolak, jangan bocorkan data penyedia lain).
+ */
+function _hanyaPenyedia_(session) {
+  if (!session || session.role !== ROLES.PENYEDIA) throw _fail_('Khusus akun penyedia.');
+  if (!session.penyedia_id) throw _fail_('Akun penyedia belum tertaut ke data penyedia. Hubungi Admin.');
+  return session.penyedia_id;
 }
 
 /**
@@ -98,9 +111,23 @@ function penggunaList(payload, session) {
   var rows = sheetRead(SHEETS.PENGGUNA);
   return {
     pengguna: rows.map(function (u) {
-      return { user_id: u.user_id, nama: u.nama, role: u.role, status: u.status };
+      return { user_id: u.user_id, nama: u.nama, role: u.role, status: u.status, penyedia_id: String(u.penyedia_id || '') };
     })
   };
+}
+
+/**
+ * Validasi & normalisasi penyedia_id sesuai role.
+ * - role PENYEDIA: penyedia_id WAJIB & harus ada di sheet PENYEDIA.
+ * - role lain: penyedia_id DIPAKSA kosong (akun internal tak boleh tertaut penyedia).
+ */
+function _penyediaIdUntukRole_(role, penyediaIdRaw) {
+  if (role !== ROLES.PENYEDIA) return '';
+  var pid = String(penyediaIdRaw || '').trim();
+  if (!pid) throw _fail_('penyedia_id wajib diisi untuk akun role PENYEDIA.');
+  var ada = sheetRead(SHEETS.PENYEDIA, function (r) { return String(r.penyedia_id) === pid; })[0];
+  if (!ada) throw _fail_('Penyedia tidak ditemukan: ' + pid);
+  return pid;
 }
 
 /** Tambah/ubah pengguna. Pengguna baru → PIN default. */
@@ -113,21 +140,23 @@ function penggunaUpsert(payload, session) {
   if (!nama) throw _fail_('nama wajib diisi.');
   if (ENUM.ROLE.indexOf(role) < 0) throw _fail_('role tidak valid.');
   if (ENUM.AKTIF_STATUS.indexOf(status) < 0) throw _fail_('status tidak valid.');
+  var penyediaId = _penyediaIdUntukRole_(role, payload && payload.penyedia_id);
 
   var ada = sheetRead(SHEETS.PENGGUNA, function (r) { return String(r.user_id) === uid; })[0];
   if (ada) {
-    var baru = sheetUpdate(SHEETS.PENGGUNA, 'user_id', uid, { nama: nama, role: role, status: status });
+    var patch = { nama: nama, role: role, status: status, penyedia_id: penyediaId };
+    var baru = sheetUpdate(SHEETS.PENGGUNA, 'user_id', uid, patch);
     auditLog(session, 'pengguna.upsert', 'PENGGUNA', uid,
-      { nama: ada.nama, role: ada.role, status: ada.status }, { nama: nama, role: role, status: status });
-    return { pengguna: { user_id: uid, nama: baru.nama, role: baru.role, status: baru.status } };
+      { nama: ada.nama, role: ada.role, status: ada.status, penyedia_id: String(ada.penyedia_id || '') }, patch);
+    return { pengguna: { user_id: uid, nama: baru.nama, role: baru.role, status: baru.status, penyedia_id: penyediaId } };
   }
   sheetAppend(SHEETS.PENGGUNA, {
     user_id: uid, nama: nama, role: role,
     pin_hash: _sha256Hex_(_PIN_DEFAULT_ + _getSalt_()),
-    token: '', token_exp: '', status: status
+    token: '', token_exp: '', penyedia_id: penyediaId, status: status
   });
-  auditLog(session, 'pengguna.upsert', 'PENGGUNA', uid, null, { nama: nama, role: role, status: status });
-  return { pengguna: { user_id: uid, nama: nama, role: role, status: status } };
+  auditLog(session, 'pengguna.upsert', 'PENGGUNA', uid, null, { nama: nama, role: role, status: status, penyedia_id: penyediaId });
+  return { pengguna: { user_id: uid, nama: nama, role: role, status: status, penyedia_id: penyediaId } };
 }
 
 /** Reset PIN pengguna ke default. */

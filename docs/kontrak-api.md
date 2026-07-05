@@ -53,7 +53,7 @@ Modul: `taruna.*` → `10_taruna.gs`; `penyedia.*`, `kontrak.*` & `menu.*` → `
 | `kontrak.lampiran_upload` | PPK | `{kontrak_id, berkas:{base64,nama_file,jenis}}` — menu & nilai gizi (`jenis=MENU_GIZI`), BA penunjukan (`BA`), notulen (`NOTULEN`); boleh kapan saja |
 | `menu.list` | semua login | `{kontrak_id}` → `{menu: [...]}` urut Senin→Minggu |
 | `menu.upsert` | PPK | `{kontrak_id, hari, menu_pagi, menu_siang, menu_malam}` — menu mingguan terjadwal (referensi hari-dalam-minggu, bukan snapshot tanggal); kunci gabungan (kontrak_id, hari) |
-| `pengguna.list` / `pengguna.upsert` / `pengguna.reset_pin` | ADMIN | |
+| `pengguna.list` / `pengguna.upsert` / `pengguna.reset_pin` | ADMIN | `pengguna.upsert` menerima `penyedia_id` — **wajib & harus valid** bila `role=PENYEDIA` (menautkan akun ke satu penyedia), dipaksa kosong untuk role lain |
 
 ### Status Harian (SOP: Peringatan no. 2)
 
@@ -192,6 +192,19 @@ luar sistem; diajukan ke PPK untuk diinput. Catatan murni, tanpa alur status.
 |---|---|---|---|
 | `sp2d.import` | PPK, ADMIN | `{kategori:'DALAM_KAMPUS'\|'LUAR_KAMPUS', baris:[{no_spm,nit?,tgl_spm?,no_sp2d?,tgl_sp2d?,jumlah_pembayaran,status_sp2d?,uraian_asli}]}` → `{ditambah, dilewati}` | Dua format CSV didukung (terdeteksi dari header di frontend): (1) agregat — header persis file ekspor OM-SPAN klasik ("No. SPP/SPM", "Uraian SPP/SPM", dst.), `nit` kosong, Prodi/Tingkat/Bulan/Kegiatan diparse dari Uraian; (2) per-taruna ("SPANExt") — `nit` terisi (dicocokkan Admin/PPK dari nama penerima di frontend sebelum kirim), `prodi`/`tingkat` **TIDAK** disimpan (lihat skema §17 — diturunkan via join TARUNA saat rekonsiliasi supaya tidak dobel), `bulan` = bulan makan diparse dari Deskripsi (BUKAN `tgl_sp2d`, karena tanggal cair sering beda bulan dari bulan makan). **HANYA menambah** `no_spm` yang belum ada — baris lama tidak diproses ulang (dikonfirmasi Firdaus). Gagal parse (format apa pun) → `perlu_cek_manual='YA'`, baris tetap masuk. |
 | `sp2d.rekonsiliasi` | PPK, KPA, WADIR3, ADMIN (baca saja) | `{bulan}` → `{bulan, dalam_kampus:[…], luar_kampus:[…], dalam_kampus_per_taruna:[…], luar_kampus_per_taruna:[…], cross_check_sp2d:[{no_sp2d,kategori,prodi,tingkat,kegiatan,ada_agregat,ada_rincian,agregat_total,rincian_total,agregat_orang,rincian_orang,selisih_total,total_cocok,orang_cocok}], perlu_cek_manual:[…]}` | `dalam_kampus`/`luar_kampus`: dari baris **agregat** saja (SUM `REKAP_BULANAN`/`BANTUAN_LUAR_KAMPUS` join `TARUNA`, vs SUM baris SP2D tanpa `nit`). `*_per_taruna`: dari baris **ber-`nit`** saja (prodi/tingkat hasil join `TARUNA`). **`cross_check_sp2d`**: menautkan baris AGREGAT (Monitoring, acuan total) dengan baris RINCIAN (SPANExt, per taruna) lewat `no_sp2d` (1 SP2D = 1 kelompok tingkat, dikonfirmasi Firdaus) — `total_cocok` = SUM(rincian) == agregat, `orang_cocok` = COUNT(rincian) == "untuk N Orang" agregat; baris tanpa `no_sp2d` (SP2D belum terbit) dilewati. Baris `perlu_cek_manual` ditampilkan terpisah. |
+
+### Portal Penyedia (`penyedia.portal`) — rekanan katering eksternal, akses SANGAT terbatas
+
+> Modul `backend/src/24_penyedia_portal.gs`. Role `PENYEDIA` adalah rekanan di
+> luar kampus yang login sendiri. **Pagar akses ganda:** (1) router hanya
+> mengizinkan akun `PENYEDIA` memanggil action di allowlist `PENYEDIA_ACTIONS`
+> (`penyedia.portal`, `auth.logout`, `auth.change_pin`) — TIDAK ikut semantik
+> `roles:[]` yang mengekspos data seluruh sistem; (2) handler memakai
+> `_hanyaPenyedia_(session)` dan men-scope semua data ke `session.penyedia_id`.
+
+| Action | Role | Payload → Data | Keterangan |
+|---|---|---|---|
+| `penyedia.portal` | PENYEDIA | `{}` → `{penyedia:{nama,kontak,alamat,status}, kontrak:[{kontrak_id,harga_per_porsi,porsi_per_hari,tgl_mulai,tgl_akhir,status,menu:[{hari,menu_pagi,menu_siang,menu_malam}],lampiran:[{jenis,nama_file}]}], pesanan:[{tgl_makan,jml_taruna,menu,catatan,status}], realisasi:[{tanggal,porsi_diterima,jml_taruna_makan,ketidaksesuaian,tindak_lanjut}], pembayaran:[{bulan,nilai_total,no_spm,tgl_spm,no_sp2d,tgl_sp2d,status,invoice_dikonfirmasi}]}` | Semua data di-scope ke penyedia yang login (via `kontrak_id` miliknya). `pesanan` HANYA status final `DISETUJUI`/`TERKIRIM`, `tgl_makan ≥` hari ini − 7. **SENGAJA TANPA** data per-taruna (nama/NIT), rekening, geotag realisasi, identitas staf internal (created_by/verif_by/approved_by/uploaded_by), dan **TANPA bantuan makan luar kampus** (BANTUAN_LUAR_KAMPUS/SP2D — transfer tunai ke taruna, bukan lewat kontrak penyedia). READ-ONLY (tanpa audit). |
 
 ## Proses internal terjadwal (bukan action HTTP)
 

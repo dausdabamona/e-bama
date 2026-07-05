@@ -14,9 +14,10 @@ import { useToast } from '../../components/ui/toast';
 import { api } from '../../lib/api';
 import { useListCache } from '../../lib/use-list-cache';
 
-interface Pengguna { user_id: string; nama: string; role: string; status: string }
+interface Pengguna { user_id: string; nama: string; role: string; status: string; penyedia_id?: string }
+interface Penyedia { penyedia_id: string; nama: string }
 
-const ROLES = ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK'];
+const ROLES = ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK', 'PENYEDIA'];
 
 export function HalamanPengguna() {
   const { toast } = useToast();
@@ -53,7 +54,7 @@ export function HalamanPengguna() {
     const statusBaru = p.status === 'AKTIF' ? 'NONAKTIF' : 'AKTIF';
     setProses(p.user_id);
     try {
-      await api('pengguna.upsert', { user_id: p.user_id, nama: p.nama, role: p.role, status: statusBaru });
+      await api('pengguna.upsert', { user_id: p.user_id, nama: p.nama, role: p.role, status: statusBaru, penyedia_id: p.penyedia_id ?? '' });
       toast(`${p.nama} → ${statusBaru}.`, 'sukses');
       refresh();
     } catch (e) {
@@ -135,14 +136,19 @@ function ModalForm({ awal, onClose, onSukses }: {
   const [nama, setNama] = useState(awal?.nama ?? '');
   const [role, setRole] = useState(awal?.role ?? ROLES[0]);
   const [status, setStatus] = useState(awal?.status ?? 'AKTIF');
+  const [penyediaId, setPenyediaId] = useState(awal?.penyedia_id ?? '');
   const [proses, setProses] = useState(false);
   const [galat, setGalat] = useState('');
 
+  // Daftar penyedia hanya perlu saat role PENYEDIA (untuk menautkan akun).
+  const penyediaQ = useListCache<{ penyedia: Penyedia[] }>('penyedia.list', {});
+
   async function simpan() {
     if (!userId.trim() || !nama.trim()) { setGalat('user_id dan nama wajib diisi.'); return; }
+    if (role === 'PENYEDIA' && !penyediaId) { setGalat('Pilih penyedia yang ditautkan ke akun ini.'); return; }
     setProses(true); setGalat('');
     try {
-      await api('pengguna.upsert', { user_id: userId.trim(), nama: nama.trim(), role, status });
+      await api('pengguna.upsert', { user_id: userId.trim(), nama: nama.trim(), role, status, penyedia_id: role === 'PENYEDIA' ? penyediaId : '' });
       toast(awal ? 'Pengguna diperbarui.' : 'Pengguna baru dibuat (kata sandi default 123456).', 'sukses');
       onSukses();
     } catch (e) {
@@ -164,6 +170,19 @@ function ModalForm({ awal, onClose, onSukses }: {
             {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
         </div>
+        {role === 'PENYEDIA' && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Penyedia yang ditautkan</label>
+            <select value={penyediaId} onChange={(e) => setPenyediaId(e.target.value)}
+              className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2.5">
+              <option value="">— pilih penyedia —</option>
+              {(penyediaQ.data?.penyedia ?? []).map((p) => (
+                <option key={p.penyedia_id} value={p.penyedia_id}>{p.nama} ({p.penyedia_id})</option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-400">Akun penyedia hanya bisa melihat data penyedia ini (kontrak, jadwal, pembayaran) — tanpa data taruna/rekening.</p>
+          </div>
+        )}
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">Status</label>
           <select value={status} onChange={(e) => setStatus(e.target.value)}

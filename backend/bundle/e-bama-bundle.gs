@@ -50,19 +50,20 @@ var SHEETS = {
 
 // ── Role pengguna ───────────────────────────────────────────────────────────
 var ROLES = {
-  KPA:     'KPA',
-  PPK:     'PPK',
-  SENAT:   'SENAT',
-  PEMBINA: 'PEMBINA',
-  ADMIN:   'ADMIN',
-  WADIR3:  'WADIR3',
-  BAAK:    'BAAK'
+  KPA:      'KPA',
+  PPK:      'PPK',
+  SENAT:    'SENAT',
+  PEMBINA:  'PEMBINA',
+  ADMIN:    'ADMIN',
+  WADIR3:   'WADIR3',
+  BAAK:     'BAAK',
+  PENYEDIA: 'PENYEDIA'   // rekanan katering eksternal — akses portal terbatas (lihat 01_router.gs PENYEDIA_ACTIONS)
 };
 
 // ── Nilai enum per kolom (rujukan validasi dropdown & pengecekan handler) ────
 var ENUM = {
   AKTIF_STATUS:      ['AKTIF', 'NONAKTIF'],                 // PENGGUNA/TARUNA/PENYEDIA.status
-  ROLE:              ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK'],
+  ROLE:              ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK', 'PENYEDIA'],
   BANK:              ['BNI', 'BSI'],                        // TARUNA.bank
   KONTRAK_STATUS:    ['DRAFT', 'DISETUJUI_PPK'],
   HARI:              ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU', 'MINGGU'], // MENU_KONTRAK.hari
@@ -256,7 +257,26 @@ var ACTION_MAP = {
 
   // Rekonsiliasi SP2D (Monitoring SP2D OM-SPAN vs data sistem)
   'sp2d.import':        { handler: sp2dImport,        roles: ['PPK', 'ADMIN'] },
-  'sp2d.rekonsiliasi':  { handler: sp2dRekonsiliasi,  roles: ['PPK', 'KPA', 'WADIR3', 'ADMIN'] }
+  'sp2d.rekonsiliasi':  { handler: sp2dRekonsiliasi,  roles: ['PPK', 'KPA', 'WADIR3', 'ADMIN'] },
+
+  // Portal Penyedia (rekanan eksternal) — akses SANGAT terbatas, lihat PENYEDIA_ACTIONS
+  'penyedia.portal':    { handler: penyediaPortal,    roles: ['PENYEDIA'] }
+};
+
+/**
+ * Allowlist action untuk role PENYEDIA (rekanan eksternal).
+ *
+ * PENTING: banyak action ber-`roles:[]` berarti "semua pengguna login" dan
+ * mengekspos data seluruh sistem (taruna.list memuat rek_mask, pesanan.list
+ * seluruh pesanan, penyedia.list seluruh rekanan, dst). Kalau akun PENYEDIA
+ * ikut semantik `roles:[]`, ia bisa membaca SEMUA itu. Maka: akun PENYEDIA
+ * HANYA boleh memanggil action di allowlist ini — apa pun isi `roles`-nya.
+ * Semua data yang dilihatnya di-scope ke session.penyedia_id di handler.
+ */
+var PENYEDIA_ACTIONS = {
+  'penyedia.portal': true,
+  'auth.logout':     true,
+  'auth.change_pin': true
 };
 
 /** Health check. */
@@ -280,6 +300,11 @@ function doPost(e) {
     if (!def.public) {
       session = validateToken(token);
       if (!session) return _json_({ ok: false, error: 'Sesi tidak valid atau kedaluwarsa. Silakan login ulang.' });
+      // Pagar khusus PENYEDIA: HANYA action di allowlist — TIDAK ikut semantik
+      // roles:[] ("semua login") yang mengekspos data seluruh sistem.
+      if (session.role === ROLES.PENYEDIA && !PENYEDIA_ACTIONS[action]) {
+        return _json_({ ok: false, error: 'Anda tidak berwenang melakukan aksi ini.' });
+      }
       if (def.roles && def.roles.length > 0 && def.roles.indexOf(session.role) < 0) {
         return _json_({ ok: false, error: 'Anda tidak berwenang melakukan aksi ini.' });
       }
@@ -347,7 +372,7 @@ function authLogin(payload) {
   return { token: token, role: u.role, nama: u.nama };
 }
 
-/** Validasi token → session {user_id, nama, role} atau null. */
+/** Validasi token → session {user_id, nama, role, penyedia_id} atau null. */
 function validateToken(token) {
   if (!token) return null;
   var u = sheetRead(SHEETS.PENGGUNA, function (r) { return String(r.token) === String(token); })[0];
@@ -355,7 +380,20 @@ function validateToken(token) {
   var exp = u.token_exp;
   var expMs = (exp instanceof Date) ? exp.getTime() : (exp ? new Date(exp).getTime() : 0);
   if (!expMs || expMs < Date.now()) return null;
-  return { user_id: u.user_id, nama: u.nama, role: u.role };
+  // penyedia_id hanya terisi untuk role PENYEDIA — dipakai row-level scoping di penyedia.portal.
+  return { user_id: u.user_id, nama: u.nama, role: u.role, penyedia_id: String(u.penyedia_id || '') };
+}
+
+/**
+ * _hanyaPenyedia_(session) — pagar tambahan di DALAM handler portal rekanan.
+ * Mirror _hanyaAdminPPK_: proteksi tidak boleh bergantung SATU-SATUNYA pada
+ * router. Wajib role PENYEDIA DAN punya penyedia_id tertaut (kalau kosong,
+ * akun salah konfigurasi → tolak, jangan bocorkan data penyedia lain).
+ */
+function _hanyaPenyedia_(session) {
+  if (!session || session.role !== ROLES.PENYEDIA) throw _fail_('Khusus akun penyedia.');
+  if (!session.penyedia_id) throw _fail_('Akun penyedia belum tertaut ke data penyedia. Hubungi Admin.');
+  return session.penyedia_id;
 }
 
 /**
@@ -405,9 +443,23 @@ function penggunaList(payload, session) {
   var rows = sheetRead(SHEETS.PENGGUNA);
   return {
     pengguna: rows.map(function (u) {
-      return { user_id: u.user_id, nama: u.nama, role: u.role, status: u.status };
+      return { user_id: u.user_id, nama: u.nama, role: u.role, status: u.status, penyedia_id: String(u.penyedia_id || '') };
     })
   };
+}
+
+/**
+ * Validasi & normalisasi penyedia_id sesuai role.
+ * - role PENYEDIA: penyedia_id WAJIB & harus ada di sheet PENYEDIA.
+ * - role lain: penyedia_id DIPAKSA kosong (akun internal tak boleh tertaut penyedia).
+ */
+function _penyediaIdUntukRole_(role, penyediaIdRaw) {
+  if (role !== ROLES.PENYEDIA) return '';
+  var pid = String(penyediaIdRaw || '').trim();
+  if (!pid) throw _fail_('penyedia_id wajib diisi untuk akun role PENYEDIA.');
+  var ada = sheetRead(SHEETS.PENYEDIA, function (r) { return String(r.penyedia_id) === pid; })[0];
+  if (!ada) throw _fail_('Penyedia tidak ditemukan: ' + pid);
+  return pid;
 }
 
 /** Tambah/ubah pengguna. Pengguna baru → PIN default. */
@@ -420,21 +472,23 @@ function penggunaUpsert(payload, session) {
   if (!nama) throw _fail_('nama wajib diisi.');
   if (ENUM.ROLE.indexOf(role) < 0) throw _fail_('role tidak valid.');
   if (ENUM.AKTIF_STATUS.indexOf(status) < 0) throw _fail_('status tidak valid.');
+  var penyediaId = _penyediaIdUntukRole_(role, payload && payload.penyedia_id);
 
   var ada = sheetRead(SHEETS.PENGGUNA, function (r) { return String(r.user_id) === uid; })[0];
   if (ada) {
-    var baru = sheetUpdate(SHEETS.PENGGUNA, 'user_id', uid, { nama: nama, role: role, status: status });
+    var patch = { nama: nama, role: role, status: status, penyedia_id: penyediaId };
+    var baru = sheetUpdate(SHEETS.PENGGUNA, 'user_id', uid, patch);
     auditLog(session, 'pengguna.upsert', 'PENGGUNA', uid,
-      { nama: ada.nama, role: ada.role, status: ada.status }, { nama: nama, role: role, status: status });
-    return { pengguna: { user_id: uid, nama: baru.nama, role: baru.role, status: baru.status } };
+      { nama: ada.nama, role: ada.role, status: ada.status, penyedia_id: String(ada.penyedia_id || '') }, patch);
+    return { pengguna: { user_id: uid, nama: baru.nama, role: baru.role, status: baru.status, penyedia_id: penyediaId } };
   }
   sheetAppend(SHEETS.PENGGUNA, {
     user_id: uid, nama: nama, role: role,
     pin_hash: _sha256Hex_(_PIN_DEFAULT_ + _getSalt_()),
-    token: '', token_exp: '', status: status
+    token: '', token_exp: '', penyedia_id: penyediaId, status: status
   });
-  auditLog(session, 'pengguna.upsert', 'PENGGUNA', uid, null, { nama: nama, role: role, status: status });
-  return { pengguna: { user_id: uid, nama: nama, role: role, status: status } };
+  auditLog(session, 'pengguna.upsert', 'PENGGUNA', uid, null, { nama: nama, role: role, status: status, penyedia_id: penyediaId });
+  return { pengguna: { user_id: uid, nama: nama, role: role, status: status, penyedia_id: penyediaId } };
 }
 
 /** Reset PIN pengguna ke default. */
@@ -3500,6 +3554,137 @@ function sp2dRekonsiliasi(payload, session) {
     dalam_kampus_per_taruna: dalamKampusPerTaruna, luar_kampus_per_taruna: luarKampusPerTaruna,
     cross_check_sp2d: crossCheckSp2d,
     perlu_cek_manual: perluCekManual
+  };
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ▼▼▼ 24_penyedia_portal.gs ▼▼▼
+// ═════════════════════════════════════════════════════════════════════════════
+/**
+ * 24_penyedia_portal.gs — Portal Penyedia (rekanan katering eksternal).
+ *
+ * SATU action baca (`penyedia.portal`) yang mengembalikan bundel data milik
+ * SATU penyedia — di-scope ketat ke `session.penyedia_id`. Role PENYEDIA hanya
+ * boleh memanggil action di allowlist `PENYEDIA_ACTIONS` (01_router.gs); di sini
+ * `_hanyaPenyedia_(session)` menjadi pagar kedua (defense-in-depth).
+ *
+ * PRINSIP DATA SENSITIF (CLAUDE.md § 4): portal ini SENGAJA hanya memuat field
+ * non-sensitif — TIDAK ADA data per-taruna (nama/NIT), TIDAK ADA rekening,
+ * TIDAK ADA geotag realisasi, TIDAK ADA identitas staf internal (created_by/
+ * verif_by/approved_by/uploaded_by). Yang keluar hanya: profil penyedia sendiri,
+ * kontrak & menu miliknya, jumlah porsi (angka agregat) per pengantaran, ringkas
+ * realisasi (porsi & ketidaksesuaian), dan status pembayaran miliknya.
+ *
+ * READ-ONLY → tanpa withLock/AUDIT_LOG (audit hanya untuk aksi tulis; portal ini
+ * tidak menyentuh data sensitif seperti rekening.lihat_lengkap yang diaudit).
+ *
+ * BANTUAN MAKAN LUAR KAMPUS TIDAK DITAMPILKAN di portal (dipastikan Firdaus):
+ * bantuan luar kampus (PKL/Magang/KPA/PTB) adalah transfer tunai LANGSUNG ke
+ * rekening taruna, BUKAN lewat kontrak penyedia katering. Sheet-nya terpisah
+ * (BANTUAN_LUAR_KAMPUS / SP2D_MONITORING) dan handler ini SENGAJA tidak
+ * membacanya sama sekali — semua yang dikeluarkan hanya bertaut ke kontrak_id
+ * milik penyedia (Dalam Kampus). Jangan menambah pembacaan sheet luar kampus.
+ */
+
+/** Batas bawah jadwal yang ditampilkan: hari ini − 7 hari (minggu lalu + mendatang). */
+function _batasJadwalPenyedia_() {
+  var d = new Date();
+  d.setDate(d.getDate() - 7);
+  return _tglStr_(d);
+}
+
+/**
+ * penyedia.portal {} → bundel data milik session.penyedia_id:
+ *   {penyedia, kontrak:[{...,menu:[],lampiran:[]}], pesanan:[], realisasi:[], pembayaran:[]}
+ */
+function penyediaPortal(payload, session) {
+  var pid = _hanyaPenyedia_(session);
+
+  var penyedia = sheetRead(SHEETS.PENYEDIA, function (r) { return String(r.penyedia_id) === pid; })[0];
+  if (!penyedia) throw _fail_('Data penyedia tidak ditemukan.');
+
+  // ── Kontrak milik penyedia ini + menu mingguan + lampiran (metadata saja) ──
+  var kontrakRows = sheetRead(SHEETS.KONTRAK, function (r) { return String(r.penyedia_id) === pid; });
+  var kontrakIds = {};
+  kontrakRows.forEach(function (k) { kontrakIds[String(k.kontrak_id)] = true; });
+
+  var kontrak = kontrakRows.map(function (k) {
+    var menu = sheetRead(SHEETS.MENU_KONTRAK, function (r) { return String(r.kontrak_id) === String(k.kontrak_id); });
+    menu.sort(function (a, b) { return ENUM.HARI.indexOf(a.hari) - ENUM.HARI.indexOf(b.hari); });
+    return {
+      kontrak_id: k.kontrak_id,
+      harga_per_porsi: _int_(k.harga_per_porsi || 0, 'harga_per_porsi'),
+      porsi_per_hari: _int_(k.porsi_per_hari || 0, 'porsi_per_hari'),
+      tgl_mulai: _tglStr_(k.tgl_mulai),
+      tgl_akhir: _tglStr_(k.tgl_akhir),
+      status: k.status,
+      menu: menu.map(function (m) {
+        return { hari: m.hari, menu_pagi: m.menu_pagi, menu_siang: m.menu_siang, menu_malam: m.menu_malam };
+      }),
+      // lampiran: HANYA jenis & nama_file (tanpa drive_file_id/uploaded_by) — informasional.
+      lampiran: lampiranList('KONTRAK', String(k.kontrak_id)).map(function (l) {
+        return { jenis: l.jenis, nama_file: l.nama_file };
+      })
+    };
+  });
+
+  // ── Jadwal pengantaran: pesanan penyedia yang SUDAH final (DISETUJUI/TERKIRIM),
+  //    tgl_makan ≥ (hari ini − 7). Pesanan DRAFT/DIAJUKAN/DIKEMBALIKAN belum boleh
+  //    bocor ke penyedia (belum diverifikasi Pembina). Tanpa identitas staf. ──
+  var batas = _batasJadwalPenyedia_();
+  var pesanan = sheetRead(SHEETS.PESANAN, function (r) {
+    return kontrakIds[String(r.kontrak_id)]
+      && (r.status === 'DISETUJUI' || r.status === 'TERKIRIM')
+      && _tglStr_(r.tgl_makan) >= batas;
+  }).map(function (p) {
+    return {
+      tgl_makan: _tglStr_(p.tgl_makan),
+      jml_taruna: _int_(p.jml_taruna || 0, 'jml_taruna'),
+      menu: String(p.menu || ''),
+      catatan: String(p.catatan || ''),
+      status: p.status
+    };
+  });
+  pesanan.sort(function (a, b) { return a.tgl_makan < b.tgl_makan ? -1 : 1; }); // terlama→terbaru (jadwal maju)
+
+  // ── Ringkas realisasi: untuk pesanan milik penyedia. Tanpa geotag/ttd staf. ──
+  var pesananPenyedia = {};
+  sheetRead(SHEETS.PESANAN, function (r) { return kontrakIds[String(r.kontrak_id)]; })
+    .forEach(function (p) { pesananPenyedia[String(p.pesanan_id)] = true; });
+  var realisasi = sheetRead(SHEETS.REALISASI, function (r) { return pesananPenyedia[String(r.pesanan_id)]; })
+    .map(function (r) {
+      return {
+        tanggal: _tglStr_(r.tanggal),
+        porsi_diterima: _int_(r.porsi_diterima || 0, 'porsi_diterima'),
+        jml_taruna_makan: _int_(r.jml_taruna_makan || 0, 'jml_taruna_makan'),
+        ketidaksesuaian: String(r.ketidaksesuaian || ''),
+        tindak_lanjut: String(r.tindak_lanjut || '')
+      };
+    });
+  realisasi.sort(function (a, b) { return a.tanggal < b.tanggal ? 1 : -1; }); // terbaru dulu
+
+  // ── Status pembayaran miliknya (agregat per bulan/kontrak — bukan per taruna) ──
+  var pembayaran = sheetRead(SHEETS.PEMBAYARAN, function (r) { return kontrakIds[String(r.kontrak_id)]; })
+    .map(function (p) {
+      return {
+        bulan: _bulanStr_(p.bulan),
+        nilai_total: _int_(p.nilai_total || 0, 'nilai_total'),
+        no_spm: String(p.no_spm || ''),
+        tgl_spm: p.tgl_spm ? _tglStr_(p.tgl_spm) : '',
+        no_sp2d: String(p.no_sp2d || ''),
+        tgl_sp2d: p.tgl_sp2d ? _tglStr_(p.tgl_sp2d) : '',
+        status: p.status,
+        invoice_dikonfirmasi: p.konfirmasi_senat_at ? true : false
+      };
+    });
+  pembayaran.sort(function (a, b) { return a.bulan < b.bulan ? 1 : -1; }); // terbaru dulu
+
+  return {
+    penyedia: { nama: penyedia.nama, kontak: penyedia.kontak, alamat: penyedia.alamat, status: penyedia.status },
+    kontrak: kontrak,
+    pesanan: pesanan,
+    realisasi: realisasi,
+    pembayaran: pembayaran
   };
 }
 

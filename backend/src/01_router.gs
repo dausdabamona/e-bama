@@ -111,7 +111,26 @@ var ACTION_MAP = {
 
   // Rekonsiliasi SP2D (Monitoring SP2D OM-SPAN vs data sistem)
   'sp2d.import':        { handler: sp2dImport,        roles: ['PPK', 'ADMIN'] },
-  'sp2d.rekonsiliasi':  { handler: sp2dRekonsiliasi,  roles: ['PPK', 'KPA', 'WADIR3', 'ADMIN'] }
+  'sp2d.rekonsiliasi':  { handler: sp2dRekonsiliasi,  roles: ['PPK', 'KPA', 'WADIR3', 'ADMIN'] },
+
+  // Portal Penyedia (rekanan eksternal) — akses SANGAT terbatas, lihat PENYEDIA_ACTIONS
+  'penyedia.portal':    { handler: penyediaPortal,    roles: ['PENYEDIA'] }
+};
+
+/**
+ * Allowlist action untuk role PENYEDIA (rekanan eksternal).
+ *
+ * PENTING: banyak action ber-`roles:[]` berarti "semua pengguna login" dan
+ * mengekspos data seluruh sistem (taruna.list memuat rek_mask, pesanan.list
+ * seluruh pesanan, penyedia.list seluruh rekanan, dst). Kalau akun PENYEDIA
+ * ikut semantik `roles:[]`, ia bisa membaca SEMUA itu. Maka: akun PENYEDIA
+ * HANYA boleh memanggil action di allowlist ini — apa pun isi `roles`-nya.
+ * Semua data yang dilihatnya di-scope ke session.penyedia_id di handler.
+ */
+var PENYEDIA_ACTIONS = {
+  'penyedia.portal': true,
+  'auth.logout':     true,
+  'auth.change_pin': true
 };
 
 /** Health check. */
@@ -135,6 +154,11 @@ function doPost(e) {
     if (!def.public) {
       session = validateToken(token);
       if (!session) return _json_({ ok: false, error: 'Sesi tidak valid atau kedaluwarsa. Silakan login ulang.' });
+      // Pagar khusus PENYEDIA: HANYA action di allowlist — TIDAK ikut semantik
+      // roles:[] ("semua login") yang mengekspos data seluruh sistem.
+      if (session.role === ROLES.PENYEDIA && !PENYEDIA_ACTIONS[action]) {
+        return _json_({ ok: false, error: 'Anda tidak berwenang melakukan aksi ini.' });
+      }
       if (def.roles && def.roles.length > 0 && def.roles.indexOf(session.role) < 0) {
         return _json_({ ok: false, error: 'Anda tidak berwenang melakukan aksi ini.' });
       }

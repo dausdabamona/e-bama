@@ -40,19 +40,20 @@ var SHEETS = {
 
 // ── Role pengguna ───────────────────────────────────────────────────────────
 var ROLES = {
-  KPA:     'KPA',
-  PPK:     'PPK',
-  SENAT:   'SENAT',
-  PEMBINA: 'PEMBINA',
-  ADMIN:   'ADMIN',
-  WADIR3:  'WADIR3',
-  BAAK:    'BAAK'
+  KPA:      'KPA',
+  PPK:      'PPK',
+  SENAT:    'SENAT',
+  PEMBINA:  'PEMBINA',
+  ADMIN:    'ADMIN',
+  WADIR3:   'WADIR3',
+  BAAK:     'BAAK',
+  PENYEDIA: 'PENYEDIA'   // rekanan katering eksternal — akses portal terbatas (lihat 01_router.gs PENYEDIA_ACTIONS)
 };
 
 // ── Nilai enum per kolom (rujukan validasi dropdown & pengecekan handler) ────
 var ENUM = {
   AKTIF_STATUS:      ['AKTIF', 'NONAKTIF'],                 // PENGGUNA/TARUNA/PENYEDIA.status
-  ROLE:              ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK'],
+  ROLE:              ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK', 'PENYEDIA'],
   BANK:              ['BNI', 'BSI'],                        // TARUNA.bank
   KONTRAK_STATUS:    ['DRAFT', 'DISETUJUI_PPK'],
   HARI:              ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU', 'MINGGU'], // MENU_KONTRAK.hari
