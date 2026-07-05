@@ -25,7 +25,8 @@ const DAFTAR_FORM: DaftarForm[] = [
   { nomor: '05', nama: 'BA Rekonsiliasi 3 Titik', rute: '/cetak/form-05' },
   { nomor: '06', nama: 'Verifikasi & Rencana Pembayaran PPK', rute: '/cetak/form-06' },
   { nomor: '07', nama: 'Usulan Penahanan & Pendebetan Bank', rute: '/cetak/form-07' },
-  { nomor: '08', nama: 'Usulan Pembayaran Luar Kampus (PKL/Magang/KPA)', rute: '/cetak/form-08' }
+  { nomor: '08', nama: 'Usulan Pembayaran Luar Kampus (PKL/Magang/KPA)', rute: '/cetak/form-08' },
+  { nomor: '09', nama: 'Pendebetan Rekening Senat → Penyedia (per bank)', rute: '/cetak/form-09' }
 ];
 
 export function HalamanCetakIndex() {

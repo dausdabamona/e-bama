@@ -80,10 +80,58 @@ var ENUM = {
 var STATUS_LUAR_KAMPUS = ['KEGIATAN_LUAR_KAMPUS', 'PKL_1', 'PKL_2', 'PKL_3', 'KPA', 'MAGANG', 'PTB'];
 
 // ── Data pejabat penandatangan surat ────────────────────────────────────────
+// DIREKTUR: di Poltek KP Sorong Direktur merangkap KPA (lihat laporan-resmi.tsx),
+// jadi default = identitas KPA. WADIR3: nama belum tersedia → kosong (tercetak
+// titik-titik oleh TtdKolom) sampai diisi. Ubah di sini bila berbeda.
 var PEJABAT = {
-  PPK: { nama: 'Firdaus Dabamona, S.T.',                nip: '198201032007011002' },
-  KPA: { nama: 'Daniel Heintje Ndahawali, S.Pi., M.Si.', nip: '197207172002121003' }
+  PPK:      { nama: 'Firdaus Dabamona, S.T.',                nip: '198201032007011002' },
+  KPA:      { nama: 'Daniel Heintje Ndahawali, S.Pi., M.Si.', nip: '197207172002121003' },
+  DIREKTUR: { nama: 'Daniel Heintje Ndahawali, S.Pi., M.Si.', nip: '197207172002121003' },
+  WADIR3:   { nama: '', nip: '' }
 };
+
+// ── Rekening instansi (Senat & Penyedia) per bank — untuk dokumen pendebetan ──
+// BUKAN rekening taruna (aturan 4-digit § 4 tidak berlaku di sini). Disimpan di
+// Script Properties (bukan sheet) supaya tanpa perubahan skema. Isi sekali lewat
+// setRekeningInstansi() dari editor GAS. Dua bank (BNI/BSI): alur debet paralel
+// taruna BSI→Senat BSI→Penyedia BSI; idem BNI.
+var _REKENING_INSTANSI_DEFAULT = {
+  senat:    { BNI: '', BSI: '' },
+  penyedia: { BNI: '', BSI: '' }
+};
+
+/** getRekeningInstansi() — rekening instansi efektif (default ← override Script Properties). */
+function getRekeningInstansi() {
+  var d = _REKENING_INSTANSI_DEFAULT;
+  var out = {
+    senat:    { BNI: d.senat.BNI,    BSI: d.senat.BSI },
+    penyedia: { BNI: d.penyedia.BNI, BSI: d.penyedia.BSI }
+  };
+  var raw = PropertiesService.getScriptProperties().getProperty('REKENING_INSTANSI');
+  if (raw) {
+    var o = JSON.parse(raw);
+    if (o.senat)    { if (o.senat.BNI    !== undefined) out.senat.BNI    = o.senat.BNI;
+                      if (o.senat.BSI    !== undefined) out.senat.BSI    = o.senat.BSI; }
+    if (o.penyedia) { if (o.penyedia.BNI !== undefined) out.penyedia.BNI = o.penyedia.BNI;
+                      if (o.penyedia.BSI !== undefined) out.penyedia.BSI = o.penyedia.BSI; }
+  }
+  return out;
+}
+
+/**
+ * setRekeningInstansi(obj) — isi/ubah rekening instansi dari editor GAS. Contoh:
+ * setRekeningInstansi({ senat:{BNI:'123', BSI:'456'}, penyedia:{BNI:'789', BSI:'012'} })
+ * Disimpan utuh (bukan merge per-kunci) — sertakan seluruh nilai yang diinginkan.
+ */
+function setRekeningInstansi(obj) {
+  var cur = getRekeningInstansi();
+  if (obj && obj.senat)    { if (obj.senat.BNI    !== undefined) cur.senat.BNI    = obj.senat.BNI;
+                             if (obj.senat.BSI    !== undefined) cur.senat.BSI    = obj.senat.BSI; }
+  if (obj && obj.penyedia) { if (obj.penyedia.BNI !== undefined) cur.penyedia.BNI = obj.penyedia.BNI;
+                             if (obj.penyedia.BSI !== undefined) cur.penyedia.BSI = obj.penyedia.BSI; }
+  PropertiesService.getScriptProperties().setProperty('REKENING_INSTANSI', JSON.stringify(cur));
+  return cur;
+}
 
 // ── Kebijakan SP (DEFAULT — jangan dibaca langsung; pakai getKebijakanSP) ────
 var _CONFIG_SP_DEFAULT = {

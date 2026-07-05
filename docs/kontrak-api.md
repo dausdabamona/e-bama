@@ -146,10 +146,11 @@ luar sistem; diajukan ke PPK untuk diinput. Catatan murni, tanpa alur status.
 | `blk.import` | PPK, ADMIN | `{baris:[{nit, kegiatan, bulan, periode, total_hari, nilai_per_hari, pembayaran_ke, keterangan?}]}` — upsert kunci gabungan (nit, kegiatan, bulan, pembayaran_ke), aman diimpor ulang |
 | `audit.list` | ADMIN, PPK, KPA, WADIR3 | filter `{dari?, sampai?, user_id?, aksi?}`; dibatasi 500 baris terbaru |
 
-### Cetak Form Manual SOP (Form 01–08)
+### Cetak Form Manual SOP (Form 01–09)
 
-> Modul `backend/src/21_cetak.gs`. Semua Form 01–08 **sudah ada di
-> `ACTION_MAP`**. Peta form ↔
+> Modul `backend/src/21_cetak.gs`. Semua Form 01–09 **sudah ada di
+> `ACTION_MAP`**. Form 09 (pendebetan Senat → Penyedia) adalah tahap-2
+> pembayaran, dokumen-only (tidak mengubah mesin status pembayaran). Peta form ↔
 > sumber data lengkap: `docs/format-dokumen.md`. Pola tampilan cetak (React):
 > rujuk `frontend/src/pages/laporan/laporan-resmi.tsx` — satu action
 > GET-style per form → data bundel lengkap, halaman merender semua bagian
@@ -166,8 +167,9 @@ luar sistem; diajukan ke PPK untuk diinput. Catatan murni, tanpa alur status.
 | `cetak.form04` | SENAT, PEMBINA, PPK, ADMIN | `{bulan}` → `{bulan, baris:[{tanggal,taruna_aktif,total_porsi,jumlah_biaya,kontrak_ditemukan}], total_taruna_aktif, total_porsi, total_biaya, kontrak_ringkas}` — Rekapitulasi Bulanan Porsi Makan; **total porsi/hari agregat** (dikonfirmasi Firdaus), tanpa rincian Sarapan/Siang/Malam | ✅ diimplementasi |
 | `cetak.form05` | PEMBINA, PPK, ADMIN | `{tanggal}` → `{titik1_taruna_berhak, titik2_total_pesanan, titik3_total_realisasi, selisih_titik1_titik2, selisih_titik2_titik3, cocok, cek_otomatis}` — BA Rekonsiliasi 3 Titik | ✅ diimplementasi |
 | `cetak.form06` | PPK, KPA, ADMIN | `{bulan}` → `{baris, total_taruna, total_hari_makan, total_nominal, nominal_terbilang, pejabat}` — Verifikasi & Rencana Pembayaran PPK; **ditolak bila REKAP_BULANAN bulan itu belum FINAL** | ✅ diimplementasi (`_terbilang_()` di `03_helpers.gs`) |
-| `cetak.form07` | **ADMIN, PPK SAJA** | `{bulan}` → `{pembayaran, baris:[{nit,nama,bank,no_rekening_lengkap,nama_pemilik,nominal,rekening_lengkap_ada}], total_nominal}` — Usulan Penahanan & Pendebetan Bank; sumber PEMBAYARAN+REKAP_BULANAN+`TARUNA_REKENING`; **ditolak bila belum ada PEMBAYARAN bulan itu**; setiap panggilan mencatat 1 baris AUDIT_LOG (NIT yang rekeningnya terbaca) | ✅ diimplementasi |
+| `cetak.form07` | **ADMIN, PPK SAJA** | `{bulan}` → `{pembayaran, baris:[{nit,nama,prodi,tingkat,bank,no_rekening_lengkap,nama_pemilik,nominal,hari_makan,rekening_lengkap_ada}], total_nominal, pejabat:{PPK,KPA,DIREKTUR,WADIR3}, rekening_senat:{BNI,BSI}}` — Usulan Penahanan & Pendebetan Bank; sumber PEMBAYARAN+REKAP_BULANAN+`TARUNA_REKENING`; **ditolak bila belum ada PEMBAYARAN bulan itu**; setiap panggilan mencatat 1 baris AUDIT_LOG (NIT yang rekeningnya terbaca). Halaman cetak memisahkan penerima **per bank** (BSI/BNI + grup "BELUM ADA REKENING"), tiap bank + Lampiran Permohonan Blokir (kolom Nilai Blokir/Hari/Bantuan-per-orang/Besaran Bersih + TTD tiap taruna & baris rekening Senat tujuan) dan Lampiran Kuasa Blokir, ditandatangani PPK/Senat + **Mengetahui Direktur & Wadir 3** | ✅ diimplementasi |
 | `cetak.form08` | **ADMIN, PPK SAJA** | `{bulan, kegiatan?}` → `{bulan, kegiatan, baris:[{nit,nama,kegiatan,periode,bank,no_rekening_lengkap,nama_pemilik,rekening_lengkap_ada,jml_hari,total_hari_impor,hari_cocok,nilai_per_hari,nominal}], total_nominal}` — Usulan Pembayaran Luar Kampus; tarif dari `BANTUAN_LUAR_KAMPUS.nilai_per_hari`, `jml_hari` dihitung ulang dari STATUS_HARIAN (dikonfirmasi Firdaus) — bukan `total_hari` hasil impor CSV | ✅ diimplementasi |
+| `cetak.form09` | SENAT, PPK, ADMIN | `{bulan}` → `{bulan, penyedia_nama, per_bank:[{bank,jml_taruna,total,rek_senat_sumber,rek_penyedia_tujuan}], total_nominal, nominal_terbilang, pembayaran:{no_spm,tgl_spm,no_sp2d,tgl_sp2d,status}, pejabat:{PPK,KPA,DIREKTUR,WADIR3}}` — Permohonan Pendebetan Rekening Senat → Penyedia (tahap-2 setelah Form-07). Total per bank = SUM(REKAP_BULANAN.nominal) di-join `TARUNA.bank`; rekening Senat & Penyedia dari `getRekeningInstansi()` (Script Property `REKENING_INSTANSI`, bukan rekening taruna → tidak baca `TARUNA_REKENING`). **Ditolak bila belum ada PEMBAYARAN bulan itu**. Ditandatangani Ketua Senat (mengajukan) + PPK + Mengetahui Direktur & Wadir 3 | ✅ diimplementasi |
 
 ### Rekening lengkap (`TARUNA_REKENING`) — akses terbatas ADMIN/PPK
 
@@ -222,6 +224,23 @@ luar sistem; diajukan ke PPK untuk diinput. Catatan murni, tanpa alur status.
 | `JAM_TRIGGER` | `6` | jam trigger eskalasi, Asia/Jayapura |
 
 Nilai di atas kebijakan internal — ubah lewat konfigurasi, bukan kode.
+
+### Rekening instansi (Script Property `REKENING_INSTANSI`)
+
+Rekening **Senat** & **Penyedia** per bank (BNI/BSI) untuk dokumen pendebetan
+(Form 07 menyebut rekening Senat tujuan; Form 09 menyebut sumber Senat → tujuan
+Penyedia). **Bukan** rekening taruna (aturan 4-digit § 4 tidak berlaku).
+Disimpan di Script Properties (tanpa perubahan skema sheet), dibaca lewat
+`getRekeningInstansi()`, diisi sekali dari editor GAS:
+
+```js
+setRekeningInstansi({ senat:{BNI:'...', BSI:'...'}, penyedia:{BNI:'...', BSI:'...'} })
+```
+
+Default kosong → dokumen mencetak titik-titik sampai diisi. Pejabat penandatangan
+dokumen (`PEJABAT` di `00_config.gs`) kini juga memuat `DIREKTUR` (default =
+identitas KPA, konsisten laporan-resmi) dan `WADIR3` (kosong → titik-titik sampai
+nama+NIP diisi).
 
 **Pola override:** nilai di kode adalah DEFAULT. Bila Script Properties memuat
 kunci `SP_TENGGAT_HARI`, `SP_PENANDATANGAN`, atau `SP_JAM_TRIGGER` (JSON),

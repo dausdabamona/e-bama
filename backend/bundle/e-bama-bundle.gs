@@ -90,10 +90,58 @@ var ENUM = {
 var STATUS_LUAR_KAMPUS = ['KEGIATAN_LUAR_KAMPUS', 'PKL_1', 'PKL_2', 'PKL_3', 'KPA', 'MAGANG', 'PTB'];
 
 // ── Data pejabat penandatangan surat ────────────────────────────────────────
+// DIREKTUR: di Poltek KP Sorong Direktur merangkap KPA (lihat laporan-resmi.tsx),
+// jadi default = identitas KPA. WADIR3: nama belum tersedia → kosong (tercetak
+// titik-titik oleh TtdKolom) sampai diisi. Ubah di sini bila berbeda.
 var PEJABAT = {
-  PPK: { nama: 'Firdaus Dabamona, S.T.',                nip: '198201032007011002' },
-  KPA: { nama: 'Daniel Heintje Ndahawali, S.Pi., M.Si.', nip: '197207172002121003' }
+  PPK:      { nama: 'Firdaus Dabamona, S.T.',                nip: '198201032007011002' },
+  KPA:      { nama: 'Daniel Heintje Ndahawali, S.Pi., M.Si.', nip: '197207172002121003' },
+  DIREKTUR: { nama: 'Daniel Heintje Ndahawali, S.Pi., M.Si.', nip: '197207172002121003' },
+  WADIR3:   { nama: '', nip: '' }
 };
+
+// ── Rekening instansi (Senat & Penyedia) per bank — untuk dokumen pendebetan ──
+// BUKAN rekening taruna (aturan 4-digit § 4 tidak berlaku di sini). Disimpan di
+// Script Properties (bukan sheet) supaya tanpa perubahan skema. Isi sekali lewat
+// setRekeningInstansi() dari editor GAS. Dua bank (BNI/BSI): alur debet paralel
+// taruna BSI→Senat BSI→Penyedia BSI; idem BNI.
+var _REKENING_INSTANSI_DEFAULT = {
+  senat:    { BNI: '', BSI: '' },
+  penyedia: { BNI: '', BSI: '' }
+};
+
+/** getRekeningInstansi() — rekening instansi efektif (default ← override Script Properties). */
+function getRekeningInstansi() {
+  var d = _REKENING_INSTANSI_DEFAULT;
+  var out = {
+    senat:    { BNI: d.senat.BNI,    BSI: d.senat.BSI },
+    penyedia: { BNI: d.penyedia.BNI, BSI: d.penyedia.BSI }
+  };
+  var raw = PropertiesService.getScriptProperties().getProperty('REKENING_INSTANSI');
+  if (raw) {
+    var o = JSON.parse(raw);
+    if (o.senat)    { if (o.senat.BNI    !== undefined) out.senat.BNI    = o.senat.BNI;
+                      if (o.senat.BSI    !== undefined) out.senat.BSI    = o.senat.BSI; }
+    if (o.penyedia) { if (o.penyedia.BNI !== undefined) out.penyedia.BNI = o.penyedia.BNI;
+                      if (o.penyedia.BSI !== undefined) out.penyedia.BSI = o.penyedia.BSI; }
+  }
+  return out;
+}
+
+/**
+ * setRekeningInstansi(obj) — isi/ubah rekening instansi dari editor GAS. Contoh:
+ * setRekeningInstansi({ senat:{BNI:'123', BSI:'456'}, penyedia:{BNI:'789', BSI:'012'} })
+ * Disimpan utuh (bukan merge per-kunci) — sertakan seluruh nilai yang diinginkan.
+ */
+function setRekeningInstansi(obj) {
+  var cur = getRekeningInstansi();
+  if (obj && obj.senat)    { if (obj.senat.BNI    !== undefined) cur.senat.BNI    = obj.senat.BNI;
+                             if (obj.senat.BSI    !== undefined) cur.senat.BSI    = obj.senat.BSI; }
+  if (obj && obj.penyedia) { if (obj.penyedia.BNI !== undefined) cur.penyedia.BNI = obj.penyedia.BNI;
+                             if (obj.penyedia.BSI !== undefined) cur.penyedia.BSI = obj.penyedia.BSI; }
+  PropertiesService.getScriptProperties().setProperty('REKENING_INSTANSI', JSON.stringify(cur));
+  return cur;
+}
 
 // ── Kebijakan SP (DEFAULT — jangan dibaca langsung; pakai getKebijakanSP) ────
 var _CONFIG_SP_DEFAULT = {
@@ -249,6 +297,7 @@ var ACTION_MAP = {
   'cetak.form06':     { handler: cetakForm06, roles: ['PPK', 'KPA', 'ADMIN'] },
   'cetak.form07':     { handler: cetakForm07, roles: ['ADMIN', 'PPK'] },
   'cetak.form08':     { handler: cetakForm08, roles: ['ADMIN', 'PPK'] },
+  'cetak.form09':     { handler: cetakForm09, roles: ['SENAT', 'PPK', 'ADMIN'] },
 
   // Rekening lengkap (TARUNA_REKENING) — TAHAP SENSITIF, lihat CLAUDE.md § 4/§ 7
   'rekening.lihat_lengkap': { handler: rekeningLihatLengkap, roles: ['ADMIN', 'PPK'] },
@@ -2933,7 +2982,8 @@ function cetakForm07(payload, session) {
       },
       baris: baris,
       total_nominal: totalNominal,
-      pejabat: PEJABAT
+      pejabat: PEJABAT,
+      rekening_senat: getRekeningInstansi().senat  // rekening Senat tujuan debet per bank
     };
   });
 }
@@ -3008,6 +3058,78 @@ function cetakForm08(payload, session) {
 
     return { bulan: bulan, kegiatan: kegiatan, baris: baris, total_nominal: totalNominal, pejabat: PEJABAT };
   });
+}
+
+/**
+ * Form 09: Permohonan Pendebetan Rekening Senat → Penyedia (tahap-2 pembayaran).
+ * Payload {bulan}. Setelah dana taruna didebet ke rekening Senat (Form 07),
+ * Senat mengajukan pendebetan rekening Senat ke rekening Penyedia — PER BANK
+ * (BNI & BSI), karena rekening Senat & Penyedia masing-masing 2 (alur paralel:
+ * Senat BSI→Penyedia BSI, Senat BNI→Penyedia BNI).
+ *
+ * TIDAK membaca TARUNA_REKENING (bukan rekening taruna) → tidak wajib AUDIT_LOG
+ * rekening. Nominal per bank = SUM(REKAP_BULANAN.nominal) dikelompokkan lewat
+ * join TARUNA.bank (pola sama seperti rekonsiliasi SP2D & Form 07). Rekening
+ * Senat/Penyedia dari getRekeningInstansi() (Script Property, diisi Admin).
+ */
+function cetakForm09(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+
+  var pembayaran = sheetRead(SHEETS.PEMBAYARAN, function (r) { return _bulanStr_(r.bulan) === bulan; })[0];
+  if (!pembayaran) {
+    throw _fail_('Belum ada PEMBAYARAN untuk bulan ' + bulan + ' — Form 09 hanya bisa dicetak setelah proses pembayaran dibuat.');
+  }
+  var rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
+  if (!rekapRows.length) throw _fail_('Belum ada rekap untuk bulan ' + bulan + '.');
+
+  var tarunaByNit = {};
+  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+
+  var rek = getRekeningInstansi();
+  var agg = {}; // bank -> {total, jml}
+  rekapRows.forEach(function (r) {
+    var t = tarunaByNit[String(r.nit)] || {};
+    var bank = t.bank || 'LAINNYA';
+    if (!agg[bank]) agg[bank] = { total: 0, jml: 0 };
+    agg[bank].total += _int_(r.nominal || 0, 'nominal');
+    agg[bank].jml += 1;
+  });
+
+  var urut = { BSI: 0, BNI: 1 };
+  var perBank = Object.keys(agg)
+    .sort(function (a, b) { return (urut[a] == null ? 9 : urut[a]) - (urut[b] == null ? 9 : urut[b]); })
+    .map(function (bank) {
+      return {
+        bank: bank, jml_taruna: agg[bank].jml, total: agg[bank].total,
+        rek_senat_sumber: rek.senat[bank] || '',
+        rek_penyedia_tujuan: rek.penyedia[bank] || ''
+      };
+    });
+
+  // Nama penyedia dari kontrak pembayaran.
+  var penyediaNama = '';
+  var kontrak = sheetRead(SHEETS.KONTRAK, function (r) { return String(r.kontrak_id) === String(pembayaran.kontrak_id); })[0];
+  if (kontrak) {
+    var p = sheetRead(SHEETS.PENYEDIA, function (r) { return String(r.penyedia_id) === String(kontrak.penyedia_id); })[0];
+    if (p) penyediaNama = p.nama || '';
+  }
+
+  var totalNominal = 0;
+  perBank.forEach(function (b) { totalNominal += b.total; });
+
+  return {
+    bulan: bulan,
+    penyedia_nama: penyediaNama,
+    per_bank: perBank,
+    total_nominal: totalNominal,
+    nominal_terbilang: _terbilangRupiah_(totalNominal),
+    pembayaran: {
+      no_spm: pembayaran.no_spm, tgl_spm: _tglStr_(pembayaran.tgl_spm),
+      no_sp2d: pembayaran.no_sp2d, tgl_sp2d: _tglStr_(pembayaran.tgl_sp2d),
+      status: pembayaran.status
+    },
+    pejabat: PEJABAT
+  };
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

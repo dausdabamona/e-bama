@@ -338,7 +338,8 @@ function cetakForm07(payload, session) {
       },
       baris: baris,
       total_nominal: totalNominal,
-      pejabat: PEJABAT
+      pejabat: PEJABAT,
+      rekening_senat: getRekeningInstansi().senat  // rekening Senat tujuan debet per bank
     };
   });
 }
@@ -413,4 +414,76 @@ function cetakForm08(payload, session) {
 
     return { bulan: bulan, kegiatan: kegiatan, baris: baris, total_nominal: totalNominal, pejabat: PEJABAT };
   });
+}
+
+/**
+ * Form 09: Permohonan Pendebetan Rekening Senat → Penyedia (tahap-2 pembayaran).
+ * Payload {bulan}. Setelah dana taruna didebet ke rekening Senat (Form 07),
+ * Senat mengajukan pendebetan rekening Senat ke rekening Penyedia — PER BANK
+ * (BNI & BSI), karena rekening Senat & Penyedia masing-masing 2 (alur paralel:
+ * Senat BSI→Penyedia BSI, Senat BNI→Penyedia BNI).
+ *
+ * TIDAK membaca TARUNA_REKENING (bukan rekening taruna) → tidak wajib AUDIT_LOG
+ * rekening. Nominal per bank = SUM(REKAP_BULANAN.nominal) dikelompokkan lewat
+ * join TARUNA.bank (pola sama seperti rekonsiliasi SP2D & Form 07). Rekening
+ * Senat/Penyedia dari getRekeningInstansi() (Script Property, diisi Admin).
+ */
+function cetakForm09(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+
+  var pembayaran = sheetRead(SHEETS.PEMBAYARAN, function (r) { return _bulanStr_(r.bulan) === bulan; })[0];
+  if (!pembayaran) {
+    throw _fail_('Belum ada PEMBAYARAN untuk bulan ' + bulan + ' — Form 09 hanya bisa dicetak setelah proses pembayaran dibuat.');
+  }
+  var rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
+  if (!rekapRows.length) throw _fail_('Belum ada rekap untuk bulan ' + bulan + '.');
+
+  var tarunaByNit = {};
+  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+
+  var rek = getRekeningInstansi();
+  var agg = {}; // bank -> {total, jml}
+  rekapRows.forEach(function (r) {
+    var t = tarunaByNit[String(r.nit)] || {};
+    var bank = t.bank || 'LAINNYA';
+    if (!agg[bank]) agg[bank] = { total: 0, jml: 0 };
+    agg[bank].total += _int_(r.nominal || 0, 'nominal');
+    agg[bank].jml += 1;
+  });
+
+  var urut = { BSI: 0, BNI: 1 };
+  var perBank = Object.keys(agg)
+    .sort(function (a, b) { return (urut[a] == null ? 9 : urut[a]) - (urut[b] == null ? 9 : urut[b]); })
+    .map(function (bank) {
+      return {
+        bank: bank, jml_taruna: agg[bank].jml, total: agg[bank].total,
+        rek_senat_sumber: rek.senat[bank] || '',
+        rek_penyedia_tujuan: rek.penyedia[bank] || ''
+      };
+    });
+
+  // Nama penyedia dari kontrak pembayaran.
+  var penyediaNama = '';
+  var kontrak = sheetRead(SHEETS.KONTRAK, function (r) { return String(r.kontrak_id) === String(pembayaran.kontrak_id); })[0];
+  if (kontrak) {
+    var p = sheetRead(SHEETS.PENYEDIA, function (r) { return String(r.penyedia_id) === String(kontrak.penyedia_id); })[0];
+    if (p) penyediaNama = p.nama || '';
+  }
+
+  var totalNominal = 0;
+  perBank.forEach(function (b) { totalNominal += b.total; });
+
+  return {
+    bulan: bulan,
+    penyedia_nama: penyediaNama,
+    per_bank: perBank,
+    total_nominal: totalNominal,
+    nominal_terbilang: _terbilangRupiah_(totalNominal),
+    pembayaran: {
+      no_spm: pembayaran.no_spm, tgl_spm: _tglStr_(pembayaran.tgl_spm),
+      no_sp2d: pembayaran.no_sp2d, tgl_sp2d: _tglStr_(pembayaran.tgl_sp2d),
+      status: pembayaran.status
+    },
+    pejabat: PEJABAT
+  };
 }

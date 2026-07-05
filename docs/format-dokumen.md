@@ -12,8 +12,9 @@
 | 04 | Rekapitulasi Bulanan Porsi Makan | PESANAN + REALISASI per tanggal | Laporan bulanan (lampiran Form 06) | TAHAP 7 `/laporan` |
 | 05 | BA Rekonsiliasi 3 Titik | (1) TARUNA×hari efektif (2) PESANAN (3) REALISASI | Laporan bulanan, sebelum pembayaran | TAHAP 7 `/laporan` |
 | 06 | Verifikasi & Rencana Pembayaran PPK | PEMBAYARAN + REKAP_BULANAN (nilai, terbilang) + checklist | Cetak dari detail pembayaran | TAHAP 7 `/pembayaran` |
-| 07 | Usulan Penahanan & Pendebetan Bank | PEMBAYARAN + jumlah taruna; **lampiran daftar rekening lengkap disusun PPK DI LUAR aplikasi** (aturan rek_mask) | Cetak dari detail pembayaran | TAHAP 7 `/pembayaran` |
-| 08 | Usulan Pembayaran Luar Kampus (PKL/Magang/KPA) | — (alur terpisah, LIHAT CATATAN) | — | Di luar cakupan v1 |
+| 07 | Usulan Penahanan & Pendebetan Bank | PEMBAYARAN + REKAP_BULANAN + `TARUNA_REKENING` (rekening PENUH, dalam aplikasi, di-audit). **Dipisah per bank (BSI/BNI)**: Lampiran Permohonan Blokir + Lampiran Kuasa Blokir + TTD tiap taruna; ditandatangani PPK/Senat + **Mengetahui Direktur & Wadir 3** | Cetak `/cetak/form-07` | TAHAP cetak (ADMIN/PPK) |
+| 08 | Usulan Pembayaran Luar Kampus (PKL/Magang/KPA) | BANTUAN_LUAR_KAMPUS + STATUS_HARIAN + `TARUNA_REKENING` | Cetak `/cetak/form-08` | ✅ diimplementasi (ADMIN/PPK) |
+| 09 | Pendebetan Rekening Senat → Penyedia (per bank) | PEMBAYARAN + REKAP_BULANAN + `TARUNA.bank` + `REKENING_INSTANSI` (Script Property). Tahap-2 pembayaran: setelah dana taruna masuk rekening Senat, Senat ajukan debet Senat→Penyedia PER BANK (BNI/BSI). Ditandatangani Ketua Senat + PPK + **Mengetahui Direktur & Wadir 3** | Cetak `/cetak/form-09` | ✅ diimplementasi (SENAT/PPK/ADMIN) |
 
 ## Catatan penting hasil pembacaan form
 

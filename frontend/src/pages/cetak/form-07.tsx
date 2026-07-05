@@ -64,7 +64,8 @@ interface PembayaranRingkas {
 interface Pejabat { nama: string; nip: string }
 interface Form07Data {
   bulan: string; pembayaran: PembayaranRingkas; baris: BarisForm07[]; total_nominal: number;
-  pejabat: { PPK: Pejabat; KPA: Pejabat };
+  pejabat: { PPK: Pejabat; KPA: Pejabat; DIREKTUR: Pejabat; WADIR3: Pejabat };
+  rekening_senat?: { BNI?: string; BSI?: string };
 }
 
 /** Fetch langsung ke GAS — TIDAK ambilCache/simpanCache (tidak pernah masuk Dexie). */
@@ -101,8 +102,8 @@ function labelTkProdi(b: BarisForm07): string {
 }
 
 /** Lampiran Permohonan Pembukaan Blokir & Pendebetan Massal untuk SATU bank (dengan kolom Tanda Tangan). */
-function LampiranBlokirBank({ bank, rows, bulan, pejabat }: {
-  bank: string; rows: BarisForm07[]; bulan: string; pejabat: { PPK: Pejabat; KPA: Pejabat };
+function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat }: {
+  bank: string; rows: BarisForm07[]; bulan: string; pejabat: Form07Data['pejabat']; rekSenat?: string;
 }) {
   const total = rows.reduce((s, b) => s + b.nominal, 0);
   const totalHari = rows.reduce((s, b) => s + b.hari_makan, 0);
@@ -114,6 +115,11 @@ function LampiranBlokirBank({ bank, rows, bulan, pejabat }: {
         <h2 className="text-sm font-bold">LAMPIRAN PERMOHONAN PEMBUKAAN BLOKIR DAN PENDEBETAN MASSAL REKENING</h2>
         <p className="text-xs">Bank {labelBank} · Bulan {labelBulan(bulan)} · Nomor: B. ______ /POLTEK.SRG/KU.110/…/20…</p>
       </div>
+      {bank !== 'TANPA_REKENING' && (
+        <p className="text-xs">
+          Didebet ke <strong>Rekening Senat Taruna {bank}</strong>: {rekSenat || '……………………………… (belum diisi Admin)'}
+        </p>
+      )}
       <TabelCetak headers={['No', 'NIT', 'Nama Taruna', 'No. Rekening', 'Nilai Blokir (Rp)', 'Hari', 'Bantuan/Org ke Penyedia (Rp)', 'Besaran Bersih (Rp)', 'Tanda Tangan']}>
         {rows.map((b, i) => {
           const rate = b.hari_makan > 0 ? Math.round(b.nominal / b.hari_makan) : 0;
@@ -138,8 +144,13 @@ function LampiranBlokirBank({ bank, rows, bulan, pejabat }: {
       </div>
       <p className="text-xs italic">Terbilang: <strong>{terbilangRupiah(total)}</strong></p>
       <BlokTtd2Kolom
-        kiri={{ label: 'Mengetahui,', jabatan: 'Kuasa Pengguna Anggaran (KPA)', nama: pejabat.KPA.nama, nip: pejabat.KPA.nip }}
-        kanan={{ label: 'Mengajukan,', jabatan: 'Pejabat Pembuat Komitmen (PPK)', nama: pejabat.PPK.nama, nip: pejabat.PPK.nip }}
+        kiri={{ label: 'Mengajukan,', jabatan: 'Ketua Senat Taruna' }}
+        kanan={{ label: 'Menyetujui,', jabatan: 'Pejabat Pembuat Komitmen (PPK)', nama: pejabat.PPK.nama, nip: pejabat.PPK.nip }}
+      />
+      <p className="mt-2 text-center text-xs font-semibold">Mengetahui,</p>
+      <BlokTtd2Kolom
+        kiri={{ label: 'Wakil Direktur III', jabatan: 'Bidang Kemahasiswaan', nama: pejabat.WADIR3.nama, nip: pejabat.WADIR3.nip }}
+        kanan={{ label: 'Direktur', jabatan: 'Politeknik KP Sorong', nama: pejabat.DIREKTUR.nama, nip: pejabat.DIREKTUR.nip }}
       />
     </div>
   );
@@ -147,7 +158,7 @@ function LampiranBlokirBank({ bank, rows, bulan, pejabat }: {
 
 /** Lampiran Kuasa Blokir untuk SATU bank (No, NIT, Nama, Prodi/Tingkat, Rekening, TTD). */
 function LampiranKuasaBank({ bank, rows, bulan, pejabat }: {
-  bank: string; rows: BarisForm07[]; bulan: string; pejabat: { PPK: Pejabat; KPA: Pejabat };
+  bank: string; rows: BarisForm07[]; bulan: string; pejabat: Form07Data['pejabat'];
 }) {
   const labelBank = bank === 'TANPA_REKENING' ? 'BELUM ADA REKENING' : bank;
   return (
@@ -275,7 +286,8 @@ export function HalamanCetakForm07() {
           {/* Lampiran blokir per bank — masing-masing halaman cetak sendiri, diajukan ke bank terkait */}
           {lampiranBank && kelompokBank(data.baris).map((g) => (
             <div key={g.bank} className="flex flex-col gap-6">
-              <LampiranBlokirBank bank={g.bank} rows={g.rows} bulan={data.bulan} pejabat={data.pejabat} />
+              <LampiranBlokirBank bank={g.bank} rows={g.rows} bulan={data.bulan} pejabat={data.pejabat}
+                rekSenat={g.bank === 'BNI' ? data.rekening_senat?.BNI : g.bank === 'BSI' ? data.rekening_senat?.BSI : ''} />
               <LampiranKuasaBank bank={g.bank} rows={g.rows} bulan={data.bulan} pejabat={data.pejabat} />
             </div>
           ))}
