@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BulanPicker, bulanIni, labelBulan } from '../../components/bulan-picker';
-import { BlokTtd2Kolom } from '../../components/cetak/blok-ttd';
+import { BlokTtd3Berjenjang } from '../../components/cetak/blok-ttd';
 import { KopSurat } from '../../components/cetak/kop-surat';
 import { BarisCetak, SelCetak, TabelCetak } from '../../components/cetak/tabel-cetak';
 import { Button } from '../../components/ui/button';
@@ -66,6 +66,18 @@ interface Form07Data {
   bulan: string; pembayaran: PembayaranRingkas; baris: BarisForm07[]; total_nominal: number;
   pejabat: { PPK: Pejabat; KPA: Pejabat; DIREKTUR: Pejabat; WADIR3: Pejabat };
   rekening_senat?: { BNI?: string; BSI?: string };
+  rekening_penyedia?: { BNI?: string; BSI?: string };
+}
+
+/** Blok TTD surat ke bank: Ketua Senat → Wakil Direktur III → Direktur (pengirim surat). */
+function TtdSuratBank({ pejabat }: { pejabat: Form07Data['pejabat'] }) {
+  return (
+    <BlokTtd3Berjenjang
+      pihak1={{ label: 'Ketua Senat Taruna,', jabatan: 'Politeknik KP Sorong' }}
+      pihak2={{ label: 'Wakil Direktur III,', jabatan: 'Bidang Kemahasiswaan', nama: pejabat.WADIR3.nama, nip: pejabat.WADIR3.nip }}
+      pihak3={{ label: 'Direktur,', jabatan: 'Politeknik KP Sorong', nama: pejabat.DIREKTUR.nama, nip: pejabat.DIREKTUR.nip }}
+    />
+  );
 }
 
 /** Fetch langsung ke GAS — TIDAK ambilCache/simpanCache (tidak pernah masuk Dexie). */
@@ -97,93 +109,59 @@ function useTanpaCache<T>(action: string, payload?: unknown) {
   return { data, memuat, galat, refresh };
 }
 
-function labelTkProdi(b: BarisForm07): string {
-  return `Tk. ${b.tingkat || '?'} / ${b.prodi || '?'}`;
-}
 
-/** Lampiran Permohonan Pembukaan Blokir & Pendebetan Massal untuk SATU bank (dengan kolom Tanda Tangan). */
-function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat }: {
-  bank: string; rows: BarisForm07[]; bulan: string; pejabat: Form07Data['pejabat']; rekSenat?: string;
+/**
+ * Surat permohonan blokir & pendebetan untuk SATU bank tujuan (BNI atau BSI).
+ * Karena dana taruna ada di 2 bank berbeda, tiap bank menerima surat sendiri
+ * dengan TOTAL sesuai bank itu saja (tidak ada total gabungan lintas bank).
+ * Alur yang diminta ke bank: (1) blokir rekening taruna N hari, (2) debet nilai
+ * SPM per orang ke Rekening Senat, (3) teruskan total ke rekening penyedia.
+ * Kolom Tanda Tangan taruna = pemberian kuasa mendebet.
+ */
+function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia, lamaBlokir }: {
+  bank: string; rows: BarisForm07[]; bulan: string; pejabat: Form07Data['pejabat'];
+  rekSenat?: string; rekPenyedia?: string; lamaBlokir: string;
 }) {
   const total = rows.reduce((s, b) => s + b.nominal, 0);
   const totalHari = rows.reduce((s, b) => s + b.hari_makan, 0);
   const labelBank = bank === 'TANPA_REKENING' ? 'BELUM ADA REKENING' : bank;
+  const namaHari = lamaBlokir.trim() || '……';
   return (
     <div className="break-before-page flex flex-col gap-2">
       <KopSurat />
       <div className="text-center">
-        <h2 className="text-sm font-bold">LAMPIRAN PERMOHONAN PEMBUKAAN BLOKIR DAN PENDEBETAN MASSAL REKENING</h2>
+        <h2 className="text-sm font-bold">PERMOHONAN PEMBLOKIRAN DAN PENDEBETAN REKENING TARUNA</h2>
         <p className="text-xs">Bank {labelBank} · Bulan {labelBulan(bulan)} · Nomor: B. ______ /POLTEK.SRG/KU.110/…/20…</p>
       </div>
-      {bank !== 'TANPA_REKENING' && (
-        <p className="text-xs">
-          Didebet ke <strong>Rekening Senat Taruna {bank}</strong>: {rekSenat || '……………………………… (belum diisi Admin)'}
-        </p>
-      )}
-      <TabelCetak headers={['No', 'NIT', 'Nama Taruna', 'No. Rekening', 'Nilai Blokir (Rp)', 'Hari', 'Bantuan/Org ke Penyedia (Rp)', 'Besaran Bersih (Rp)', 'Tanda Tangan']}>
-        {rows.map((b, i) => {
-          const rate = b.hari_makan > 0 ? Math.round(b.nominal / b.hari_makan) : 0;
-          return (
-            <BarisCetak key={b.nit}>
-              <SelCetak>{i + 1}</SelCetak>
-              <SelCetak>{b.nit}</SelCetak>
-              <SelCetak>{b.nama}</SelCetak>
-              <SelCetak>{b.rekening_lengkap_ada ? b.no_rekening_lengkap : 'Belum diisi Admin'}</SelCetak>
-              <SelCetak className="text-right">{formatRupiah(b.nominal)}</SelCetak>
-              <SelCetak className="text-right">{b.hari_makan}</SelCetak>
-              <SelCetak className="text-right">{rate ? formatRupiah(rate) : '-'}</SelCetak>
-              <SelCetak className="text-right">{formatRupiah(b.nominal)}</SelCetak>
-              <SelCetak />
-            </BarisCetak>
-          );
-        })}
-      </TabelCetak>
-      <div className="flex justify-between text-sm font-bold">
-        <span>JUMLAH ({rows.length} taruna, {totalHari} hari)</span>
-        <span>{formatRupiah(total)}</span>
-      </div>
-      <p className="text-xs italic">Terbilang: <strong>{terbilangRupiah(total)}</strong></p>
-      <BlokTtd2Kolom
-        kiri={{ label: 'Mengajukan,', jabatan: 'Ketua Senat Taruna' }}
-        kanan={{ label: 'Menyetujui,', jabatan: 'Pejabat Pembuat Komitmen (PPK)', nama: pejabat.PPK.nama, nip: pejabat.PPK.nip }}
-      />
-      <p className="mt-2 text-center text-xs font-semibold">Mengetahui,</p>
-      <BlokTtd2Kolom
-        kiri={{ label: 'Wakil Direktur III', jabatan: 'Bidang Kemahasiswaan', nama: pejabat.WADIR3.nama, nip: pejabat.WADIR3.nip }}
-        kanan={{ label: 'Direktur', jabatan: 'Politeknik KP Sorong', nama: pejabat.DIREKTUR.nama, nip: pejabat.DIREKTUR.nip }}
-      />
-    </div>
-  );
-}
-
-/** Lampiran Kuasa Blokir untuk SATU bank (No, NIT, Nama, Prodi/Tingkat, Rekening, TTD). */
-function LampiranKuasaBank({ bank, rows, bulan, pejabat }: {
-  bank: string; rows: BarisForm07[]; bulan: string; pejabat: Form07Data['pejabat'];
-}) {
-  const labelBank = bank === 'TANPA_REKENING' ? 'BELUM ADA REKENING' : bank;
-  return (
-    <div className="break-before-page flex flex-col gap-2">
-      <KopSurat />
-      <div className="text-center">
-        <h2 className="text-sm font-bold">LAMPIRAN KUASA BLOKIR</h2>
-        <p className="text-xs">Bank {labelBank} · Bulan {labelBulan(bulan)} · Nomor: B. ______ /POLTEK.SRG/KU.110/…/20…</p>
-      </div>
-      <TabelCetak headers={['No', 'NIT', 'Nama Penerima', 'Prodi / Tingkat', 'No. Rekening', 'Tanda Tangan']}>
+      <p className="text-xs">Kepada Yth. Pimpinan Bank {labelBank} — di tempat.</p>
+      <p className="text-xs">
+        Setelah dana bantuan biaya makan taruna bulan {labelBulan(bulan)} cair ke rekening masing-masing
+        taruna, kami memohon Bank {labelBank} berkenan: <strong>(1)</strong> memblokir rekening taruna pada
+        daftar di bawah selama <strong>{namaHari} hari</strong>; <strong>(2)</strong> mendebet dana sesuai nilai
+        per orang ke <strong>Rekening Senat Taruna {bank}</strong> ({rekSenat || '…… belum diisi Admin'});
+        <strong> (3)</strong> meneruskan total dana yang berhasil didebet ke <strong>rekening penyedia jasa boga {bank}</strong>{' '}
+        ({rekPenyedia || '…… belum diisi Admin'}). Tanda tangan taruna pada kolom terakhir merupakan pemberian
+        kuasa kepada bank untuk mendebet sesuai nilai tersebut.
+      </p>
+      <TabelCetak headers={['No', 'NIT', 'Nama Taruna', 'No. Rekening', 'Nilai Debet (Rp)', 'Hari', 'Tanda Tangan Taruna (Kuasa Debet)']}>
         {rows.map((b, i) => (
           <BarisCetak key={b.nit}>
             <SelCetak>{i + 1}</SelCetak>
             <SelCetak>{b.nit}</SelCetak>
             <SelCetak>{b.nama}</SelCetak>
-            <SelCetak>{labelTkProdi(b)}</SelCetak>
             <SelCetak>{b.rekening_lengkap_ada ? b.no_rekening_lengkap : 'Belum diisi Admin'}</SelCetak>
+            <SelCetak className="text-right">{formatRupiah(b.nominal)}</SelCetak>
+            <SelCetak className="text-right">{b.hari_makan}</SelCetak>
             <SelCetak />
           </BarisCetak>
         ))}
       </TabelCetak>
-      <BlokTtd2Kolom
-        kiri={{ label: 'Mengetahui,', jabatan: 'Kuasa Pengguna Anggaran (KPA)', nama: pejabat.KPA.nama, nip: pejabat.KPA.nip }}
-        kanan={{ label: 'Mengajukan,', jabatan: 'Pejabat Pembuat Komitmen (PPK)', nama: pejabat.PPK.nama, nip: pejabat.PPK.nip }}
-      />
+      <div className="flex justify-between text-sm font-bold">
+        <span>TOTAL BANK {labelBank} ({rows.length} taruna, {totalHari} hari)</span>
+        <span>{formatRupiah(total)}</span>
+      </div>
+      <p className="text-xs italic">Terbilang: <strong>{terbilangRupiah(total)}</strong></p>
+      <TtdSuratBank pejabat={pejabat} />
     </div>
   );
 }
@@ -196,13 +174,14 @@ export function HalamanCetakForm07() {
 
   // ── Nomor surat diisi manual (state lokal, TIDAK dikirim ke server) ──
   const [noSurat, setNoSurat] = useState('');
-  // Lampiran blokir per bank (BSI/BNI dipisah) — untuk diajukan ke masing-masing bank.
+  // Surat blokir & pendebetan per bank (BSI/BNI dipisah) — tiap bank surat sendiri.
   const [lampiranBank, setLampiranBank] = useState(true);
+  // Lama blokir (hari) diisi manual — tidak dikirim ke server.
+  const [lamaBlokir, setLamaBlokir] = useState('7');
 
   // Abaikan taruna bernilai Rp0 (backend juga memfilter; ini jaga-jaga bila GAS
-  // belum di-deploy ulang). Total dihitung ulang dari baris yang benar-benar dibayar.
+  // belum di-deploy ulang).
   const barisBayar = (data?.baris ?? []).filter((b) => b.nominal > 0);
-  const totalBayar = barisBayar.reduce((s, b) => s + b.nominal, 0);
 
   return (
     <div className="flex flex-col gap-4">
@@ -219,10 +198,17 @@ export function HalamanCetakForm07() {
       {!bulanParam && (
         <div className="print:hidden"><BulanPicker bulan={bulan} onChange={setBulan} /></div>
       )}
-      <label className="flex items-center gap-2 text-sm text-gray-700 print:hidden">
-        <input type="checkbox" checked={lampiranBank} onChange={(e) => setLampiranBank(e.target.checked)} />
-        Sertakan lampiran blokir per bank (BSI/BNI dipisah + Kuasa Blokir)
-      </label>
+      <div className="flex flex-col gap-2 print:hidden">
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input type="checkbox" checked={lampiranBank} onChange={(e) => setLampiranBank(e.target.checked)} />
+          Sertakan surat blokir &amp; pendebetan per bank (BSI/BNI dipisah)
+        </label>
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          Lama blokir (hari):
+          <input type="number" min={1} value={lamaBlokir} onChange={(e) => setLamaBlokir(e.target.value)}
+            className="w-20 rounded border border-gray-300 px-2 py-1 text-sm" />
+        </label>
+      </div>
 
       {memuat && !data && <LoadingSpinner label="Memuat data…" />}
       {galat && !data && <ErrorMessage pesan={galat} onRetry={refresh} />}
@@ -243,12 +229,17 @@ export function HalamanCetakForm07() {
 
           <Card className="print:border-0 print:p-0 print:shadow-none">
             <p className="text-sm">
-              Sehubungan dengan pelaksanaan bantuan biaya makan taruna Politeknik Kelautan dan
-              Perikanan Sorong bulan {labelBulan(data.bulan)}, dengan ini Ketua Senat Taruna
-              mengajukan usulan penahanan dan pendebetan otomatis rekening taruna penerima
-              bantuan (daftar terlampir) sejumlah <strong>{formatRupiah(totalBayar)}</strong>,
-              untuk selanjutnya diteruskan sebagai pembayaran ke rekening Senat Taruna dan
-              disalurkan kepada penyedia jasa boga sesuai kontrak (SOP PR/PKU/KU-001/2025).
+              Setelah dana bantuan biaya makan taruna Politeknik Kelautan dan Perikanan Sorong
+              bulan {labelBulan(data.bulan)} <strong>cair ke rekening masing-masing taruna</strong>
+              {' '}(mekanisme LS), Direktur Politeknik KP Sorong bersama Ketua Senat Taruna dan
+              Wakil Direktur III memohon kepada bank penyalur untuk: <strong>(1)</strong> memblokir
+              rekening taruna penerima sebagaimana daftar terlampir selama{' '}
+              <strong>{(lamaBlokir.trim() || '……')} hari</strong>; <strong>(2)</strong> mendebet dana
+              sesuai nilai per orang ke <strong>Rekening Senat Taruna</strong>; lalu <strong>(3)</strong>{' '}
+              meneruskan total dana yang berhasil didebet ke <strong>rekening penyedia jasa boga</strong>{' '}
+              sesuai kontrak (SOP PR/PKU/KU-001/2025). Karena dana taruna tersebar di{' '}
+              <strong>2 bank (BNI &amp; BSI)</strong>, permohonan dan totalnya dibuat{' '}
+              <strong>terpisah per bank</strong> (rincian &amp; tanda tangan taruna sebagai kuasa debet terlampir).
             </p>
             <div className="mt-2 flex flex-col gap-1 text-xs">
               <div className="flex justify-between"><span>No. SPM</span><span>{data.pembayaran.no_spm || '-'}</span></div>
@@ -285,10 +276,10 @@ export function HalamanCetakForm07() {
                 </div>
               );
             })}
-            <div className="mt-2 flex justify-between text-sm font-bold">
-              <span>TOTAL</span>
-              <span>{formatRupiah(totalBayar)}</span>
-            </div>
+            <p className="mt-1 text-xs text-gray-500 print:text-black">
+              Total dibuat <strong>per bank</strong> (lihat surat blokir &amp; pendebetan masing-masing
+              bank di bawah) — tidak ada total gabungan lintas bank.
+            </p>
             {barisBayar.some((b) => !b.rekening_lengkap_ada) && (
               <p className="mt-2 text-xs text-red-600 print:hidden">
                 ⚠️ Ada taruna yang rekening lengkapnya belum diisi Admin — lengkapi dulu di
@@ -297,18 +288,14 @@ export function HalamanCetakForm07() {
             )}
           </Card>
 
-          <BlokTtd2Kolom
-            kiri={{ label: 'Mengajukan,', jabatan: 'Ketua Senat Taruna' }}
-            kanan={{ label: 'Mengetahui,', jabatan: 'Pejabat Pembuat Komitmen (PPK)', nama: data.pejabat.PPK.nama, nip: data.pejabat.PPK.nip }}
-          />
+          <TtdSuratBank pejabat={data.pejabat} />
 
-          {/* Lampiran blokir per bank — masing-masing halaman cetak sendiri, diajukan ke bank terkait */}
+          {/* Surat blokir & pendebetan per bank — masing-masing halaman cetak sendiri, diajukan ke bank terkait */}
           {lampiranBank && kelompokBank(barisBayar).map((g) => (
-            <div key={g.bank} className="flex flex-col gap-6">
-              <LampiranBlokirBank bank={g.bank} rows={g.rows} bulan={data.bulan} pejabat={data.pejabat}
-                rekSenat={g.bank === 'BNI' ? data.rekening_senat?.BNI : g.bank === 'BSI' ? data.rekening_senat?.BSI : ''} />
-              <LampiranKuasaBank bank={g.bank} rows={g.rows} bulan={data.bulan} pejabat={data.pejabat} />
-            </div>
+            <LampiranBlokirBank key={g.bank} bank={g.bank} rows={g.rows} bulan={data.bulan} pejabat={data.pejabat}
+              lamaBlokir={lamaBlokir}
+              rekSenat={g.bank === 'BNI' ? data.rekening_senat?.BNI : g.bank === 'BSI' ? data.rekening_senat?.BSI : ''}
+              rekPenyedia={g.bank === 'BNI' ? data.rekening_penyedia?.BNI : g.bank === 'BSI' ? data.rekening_penyedia?.BSI : ''} />
           ))}
         </div>
       )}

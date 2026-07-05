@@ -343,7 +343,9 @@ function cetakForm07(payload, session) {
       baris: baris,
       total_nominal: totalNominal,
       pejabat: PEJABAT,
-      rekening_senat: getRekeningInstansi().senat  // rekening Senat tujuan debet per bank
+      // Rekening tujuan pendebetan per bank: taruna → Senat, lalu Senat → Penyedia.
+      rekening_senat: getRekeningInstansi().senat,
+      rekening_penyedia: getRekeningInstansi().penyedia
     };
   });
 }
