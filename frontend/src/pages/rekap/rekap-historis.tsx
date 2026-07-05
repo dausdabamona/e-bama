@@ -33,6 +33,15 @@ export function HalamanRekapHistoris() {
   const namaByNit = new Map((tarunaQ.data?.taruna ?? []).map((t) => [t.nit, t.nama]));
   const biayaValid = /^\d+$/.test(biayaPerHari) && Number(biayaPerHari) > 0;
 
+  // Ganti bulan WAJIB buang preview lama — kalau tidak, baris hasil parsing
+  // CSV bulan sebelumnya (mis. April) bisa ikut ter-impor ke bulan yang baru
+  // dipilih (mis. Mei) hanya karena tombol "Impor" masih menampilkan data lama,
+  // tanpa perlu unggah ulang file. Pengguna WAJIB pilih file lagi untuk bulan baru.
+  function gantiBulan(b: string) {
+    setBulan(b);
+    setBaris([]);
+  }
+
   function validasiBaris(kolomIdx: Record<string, number>, row: string[]): BarisPreview {
     const ambil = (k: string) => (kolomIdx[k] !== undefined ? (row[kolomIdx[k]] ?? '').trim() : '');
     const nit = ambil('nit');
@@ -116,7 +125,7 @@ export function HalamanRekapHistoris() {
 
       <Card className="flex flex-col gap-3">
         <label className="block text-sm font-medium text-gray-700">Bulan</label>
-        <BulanPicker bulan={bulan} onChange={setBulan} />
+        <BulanPicker bulan={bulan} onChange={gantiBulan} />
         <Input label="Biaya per Hari (Rp/orang/hari)" type="number" value={biayaPerHari} onChange={(e) => setBiayaPerHari(e.target.value)} />
         <p className="text-xs text-gray-400">
           Satu angka Rp/hari per taruna (bukan harga per porsi × porsi) — kalau rate
@@ -131,7 +140,7 @@ export function HalamanRekapHistoris() {
           Kolom wajib: <code>nit, hari_makan</code>. Opsional: <code>hari_tidak_makan</code> (default 0),{' '}
           <code>nominal</code> (dari dokumen kertas — dipakai validasi silang saja, tidak dikirim ke server).
         </p>
-        <input type="file" accept=".csv,text/csv" onChange={(e) => void pilihFile(e)}
+        <input key={bulan} type="file" accept=".csv,text/csv" onChange={(e) => void pilihFile(e)}
           className="min-h-tap rounded-xl border border-gray-300 px-3 py-2.5 text-sm" />
       </Card>
 
