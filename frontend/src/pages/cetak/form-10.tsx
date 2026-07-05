@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BulanPicker, bulanIni, labelBulan } from '../../components/bulan-picker';
-import { BlokTtd2Kolom } from '../../components/cetak/blok-ttd';
+import { BlokTtdTengah } from '../../components/cetak/blok-ttd';
 import { KopSurat } from '../../components/cetak/kop-surat';
 import { BarisCetak, SelCetak, TabelCetak } from '../../components/cetak/tabel-cetak';
 import { Button } from '../../components/ui/button';
@@ -121,15 +121,9 @@ function LembarSuplier({ suplier, urutan, pejabat, bulan }: {
       </div>
       <p className="mt-1 text-xs italic">Terbilang: <strong>{suplier.total_terbilang}</strong></p>
 
-      <div className="mt-4">
-        <BlokTtd2Kolom
-          kiri={{ label: 'Mengajukan,', jabatan: 'Ketua Senat Taruna' }}
-          kanan={{ label: 'Menyetujui,', jabatan: 'Pejabat Pembuat Komitmen (PPK)', nama: pejabat.PPK.nama, nip: pejabat.PPK.nip }}
-        />
-        <p className="mt-2 text-center text-xs font-semibold">Mengetahui,</p>
-        <BlokTtd2Kolom
-          kiri={{ label: 'Wakil Direktur III', jabatan: 'Bidang Kemahasiswaan', nama: pejabat.WADIR3.nama, nip: pejabat.WADIR3.nip }}
-          kanan={{ label: 'Direktur', jabatan: 'Politeknik KP Sorong', nama: pejabat.DIREKTUR.nama, nip: pejabat.DIREKTUR.nip }}
+      <div className="mt-6">
+        <BlokTtdTengah
+          pihak={{ label: 'Menyetujui,', jabatan: 'Pejabat Pembuat Komitmen (PPK)', nama: pejabat.PPK.nama, nip: pejabat.PPK.nip }}
         />
       </div>
     </div>
