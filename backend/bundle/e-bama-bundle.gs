@@ -1750,8 +1750,12 @@ function _kontrakBulan_(bulan) {
 /** Daftar pembayaran, filter {bulan?}. */
 function bayarList(payload, session) {
   var bulan = payload && payload.bulan;
+  // _bulanStr_ (BUKAN String() polos) — kolom bulan bisa auto-tertafsir Date
+  // oleh Google Sheets; String(Date) tidak pernah sama dengan 'YYYY-MM' (lihat
+  // catatan sama di 23_sp2d.gs) — bikin pembayaran yang BARU DIBUAT langsung
+  // "hilang" dari daftar (tampak seperti bayar.create tidak berefek).
   var rows = sheetRead(SHEETS.PEMBAYARAN, function (r) {
-    return !bulan || String(r.bulan) === bulan;
+    return !bulan || _bulanStr_(r.bulan) === bulan;
   });
   return { pembayaran: rows };
 }
@@ -1775,7 +1779,8 @@ function bayarCreate(payload, session) {
     }
   });
 
-  var dobel = sheetRead(SHEETS.PEMBAYARAN, function (r) { return String(r.bulan) === bulan; })[0];
+  // _bulanStr_ (bukan String() polos) — lihat catatan di bayarList di atas.
+  var dobel = sheetRead(SHEETS.PEMBAYARAN, function (r) { return _bulanStr_(r.bulan) === bulan; })[0];
   if (dobel) throw _fail_('Pembayaran bulan ' + bulan + ' sudah ada: ' + dobel.bayar_id);
 
   var total = 0;
@@ -2303,9 +2308,11 @@ function laporanBulanan(payload, session) {
     if (r.ketidaksesuaian) jmlKetidaksesuaian++;
   });
 
-  var bayar = sheetRead(SHEETS.PEMBAYARAN, function (r) { return String(r.bulan) === bulan; })[0] || null;
+  // _bulanStr_ (bukan String() polos) — kolom bulan bisa auto-tertafsir Date
+  // oleh Google Sheets (lihat catatan sama di 23_sp2d.gs/15_pembayaran.gs).
+  var bayar = sheetRead(SHEETS.PEMBAYARAN, function (r) { return _bulanStr_(r.bulan) === bulan; })[0] || null;
 
-  var tagihan = sheetRead(SHEETS.TAGIHAN, function (r) { return String(r.bulan) === bulan; });
+  var tagihan = sheetRead(SHEETS.TAGIHAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
   var perStatus = {};
   var totalOutstanding = 0;
   tagihan.forEach(function (t) {
@@ -2377,8 +2384,9 @@ function laporanResmi(payload, session) {
   var porsiTerealisasi = 0;
   realisasi.forEach(function (r) { porsiTerealisasi += _int_(r.porsi_diterima || 0, 'porsi_diterima'); });
 
-  var bayar = sheetRead(SHEETS.PEMBAYARAN, function (r) { return String(r.bulan) === bulan; })[0] || null;
-  var tagihan = sheetRead(SHEETS.TAGIHAN, function (r) { return String(r.bulan) === bulan; });
+  // _bulanStr_ (bukan String() polos) — lihat catatan sama di atas.
+  var bayar = sheetRead(SHEETS.PEMBAYARAN, function (r) { return _bulanStr_(r.bulan) === bulan; })[0] || null;
+  var tagihan = sheetRead(SHEETS.TAGIHAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
 
   return {
     bulan: bulan,
