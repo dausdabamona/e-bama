@@ -368,6 +368,7 @@ pernah bersentuhan dengan data ini sama sekali.
 | nama_pemilik | string | nama pemilik rekening (kadang beda kecil ejaan dari `TARUNA.nama` — dicatat apa adanya sesuai buku rekening) |
 | updated_by | FK → PENGGUNA | |
 | updated_at | datetime | |
+| penyedia_id | FK → PENYEDIA (opsional) | **suplier katering yang dipasangkan ke rekening taruna ini** — dipakai memecah pengajuan SPM ke KPPN per suplier (`cetak.form10`/Form-10). Diisi lewat `rekening.simpan`/`rekening.simpan_batch` (dropdown master PENYEDIA); kosong = belum ditentukan. Kolom di-append di AKHIR skema supaya `setupDatabase()` (idempotent, tulis-ulang header) tidak menggeser data lama |
 
 **Aturan akses (mempersempit CLAUDE.md § 4 dengan pengecualian eksplisit, BUKAN membatalkannya):**
 
@@ -375,9 +376,12 @@ pernah bersentuhan dengan data ini sama sekali.
   - `rekening.lihat_lengkap` — role **ADMIN, PPK SAJA**; payload `{nit}` atau
     `{nit_list}`; dipakai `cetak.form07`/`cetak.form08` untuk mengambil nomor
     rekening penuh saat menyusun lampiran usulan pendebetan/pembayaran.
-  - `rekening.simpan` — role **ADMIN SAJA** (PPK **tidak** bisa menulis,
-    supaya input data sensitif ini tetap satu pintu); mengisi/memperbarui satu
-    baris TARUNA_REKENING.
+  - `rekening.simpan` (+ `rekening.simpan_batch`) — role **ADMIN SAJA** (PPK
+    **tidak** bisa menulis, supaya input data sensitif ini tetap satu pintu);
+    mengisi/memperbarui baris TARUNA_REKENING. Menerima `penyedia_id` opsional
+    (divalidasi ada di PENYEDIA) — bila key tak dikirim, nilai lama
+    dipertahankan; `''` mengosongkan. `rekening.lihat_lengkap` mengembalikan
+    `penyedia_id` + `penyedia_nama` (join PENYEDIA).
   - Role lain (termasuk KPA/WADIR3/BAAK/PEMBINA/SENAT) ditolak di
     `ACTION_MAP.roles` (backend), bukan cuma disembunyikan di frontend.
 - **Setiap panggilan `rekening.lihat_lengkap` yang berhasil WAJIB** menulis 1

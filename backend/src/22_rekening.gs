@@ -11,6 +11,13 @@
  * (siapa melihat rekening siapa, kapan) — TANPA nomor rekeningnya sendiri.
  */
 
+/** Peta penyedia_id → baris PENYEDIA (validasi + join nama). */
+function _penyediaById_() {
+  var m = {};
+  sheetRead(SHEETS.PENYEDIA).forEach(function (p) { m[String(p.penyedia_id)] = p; });
+  return m;
+}
+
 /** Normalisasi payload {nit} atau {nit_list} → array string NIT non-kosong. */
 function _normalisasiNitList_(payload) {
   var list = [];
@@ -35,11 +42,16 @@ function rekeningLihatLengkap(payload, session) {
     var byNit = {};
     rows.forEach(function (r) { byNit[String(r.nit)] = r; });
 
+    var penyediaMap = _penyediaById_();
     var hasil = nitList.map(function (nit) {
       var r = byNit[nit];
-      return r
-        ? { nit: nit, no_rekening_lengkap: r.no_rekening_lengkap, bank: r.bank, nama_pemilik: r.nama_pemilik }
-        : { nit: nit, no_rekening_lengkap: '', bank: '', nama_pemilik: '', belum_ada: true };
+      if (!r) return { nit: nit, no_rekening_lengkap: '', bank: '', nama_pemilik: '', penyedia_id: '', penyedia_nama: '', belum_ada: true };
+      var pid = String(r.penyedia_id || '');
+      var p = penyediaMap[pid];
+      return {
+        nit: nit, no_rekening_lengkap: r.no_rekening_lengkap, bank: r.bank, nama_pemilik: r.nama_pemilik,
+        penyedia_id: pid, penyedia_nama: p ? p.nama : ''
+      };
     });
 
     // AUDIT: catat SIAPA (session.user_id, via auditLog) melihat rekening SIAPA
@@ -52,15 +64,20 @@ function rekeningLihatLengkap(payload, session) {
 }
 
 /**
- * rekening.simpan {nit, no_rekening_lengkap, bank, nama_pemilik} — isi/perbarui
- * satu baris. Role ADMIN SAJA (bukan PPK juga) supaya input data sensitif ini
- * tetap satu pintu.
+ * rekening.simpan {nit, no_rekening_lengkap, bank, nama_pemilik, penyedia_id?}
+ * — isi/perbarui satu baris. Role ADMIN SAJA (bukan PPK juga) supaya input data
+ * sensitif ini tetap satu pintu. `penyedia_id` (opsional) = suplier yang
+ * dipasangkan ke rekening taruna ini (FK PENYEDIA) — dipakai memecah pengajuan
+ * SPM per suplier (Form-10). Bila key `penyedia_id` tidak dikirim, nilai lama
+ * dipertahankan; bila dikirim '' → dikosongkan.
  */
 function rekeningSimpan(payload, session) {
   var nit = (payload && payload.nit != null) ? String(payload.nit).trim() : '';
   var noRek = (payload && payload.no_rekening_lengkap != null) ? String(payload.no_rekening_lengkap).trim() : '';
   var bank = payload && payload.bank;
   var namaPemilik = (payload && payload.nama_pemilik != null) ? String(payload.nama_pemilik).trim() : '';
+  var kirimPenyedia = payload && payload.penyedia_id !== undefined;
+  var penyediaId = kirimPenyedia ? String(payload.penyedia_id || '').trim() : '';
 
   if (!nit) throw _fail_('nit wajib diisi.');
   if (!sheetRead(SHEETS.TARUNA, function (r) { return String(r.nit) === nit; })[0]) {
@@ -69,12 +86,14 @@ function rekeningSimpan(payload, session) {
   if (!noRek) throw _fail_('no_rekening_lengkap wajib diisi.');
   if (ENUM.BANK.indexOf(bank) < 0) throw _fail_('bank tidak valid.');
   if (!namaPemilik) throw _fail_('nama_pemilik wajib diisi.');
+  if (penyediaId && !_penyediaById_()[penyediaId]) throw _fail_('Penyedia tidak ditemukan: ' + penyediaId);
 
   return withLock(function () {
     var ada = sheetRead(SHEETS.TARUNA_REKENING, function (r) { return String(r.nit) === nit; })[0];
+    var penyediaFinal = kirimPenyedia ? penyediaId : (ada ? String(ada.penyedia_id || '') : '');
     var nilai = {
       nit: nit, no_rekening_lengkap: noRek, bank: bank, nama_pemilik: namaPemilik,
-      updated_by: session.user_id, updated_at: new Date()
+      updated_by: session.user_id, updated_at: new Date(), penyedia_id: penyediaFinal
     };
     if (ada) {
       sheetUpdate(SHEETS.TARUNA_REKENING, 'nit', nit, nilai);
@@ -84,10 +103,10 @@ function rekeningSimpan(payload, session) {
 
     // AUDIT: field yang berubah dicatat, nomor rekeningnya sendiri TIDAK.
     auditLog(session, 'rekening.simpan', 'TARUNA_REKENING', nit,
-      ada ? { bank: ada.bank, nama_pemilik: ada.nama_pemilik } : null,
-      { bank: bank, nama_pemilik: namaPemilik, rekening_diubah: true });
+      ada ? { bank: ada.bank, nama_pemilik: ada.nama_pemilik, penyedia_id: ada.penyedia_id || '' } : null,
+      { bank: bank, nama_pemilik: namaPemilik, penyedia_id: penyediaFinal, rekening_diubah: true });
 
-    return { nit: nit, bank: bank, nama_pemilik: namaPemilik };
+    return { nit: nit, bank: bank, nama_pemilik: namaPemilik, penyedia_id: penyediaFinal };
   });
 }
 
@@ -105,6 +124,7 @@ function rekeningSimpanBatch(payload, session) {
 
   var tarunaValid = {};
   sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaValid[String(t.nit)] = true; });
+  var penyediaValid = _penyediaById_();
 
   // Validasi semua baris DULU sebelum menulis apa pun (all-or-nothing).
   baris.forEach(function (b) {
@@ -114,6 +134,8 @@ function rekeningSimpanBatch(payload, session) {
     if (!(b.no_rekening_lengkap && String(b.no_rekening_lengkap).trim())) throw _fail_('no_rekening_lengkap wajib diisi untuk NIT ' + nit + '.');
     if (ENUM.BANK.indexOf(b.bank) < 0) throw _fail_('bank tidak valid untuk NIT ' + nit + '.');
     if (!(b.nama_pemilik && String(b.nama_pemilik).trim())) throw _fail_('nama_pemilik wajib diisi untuk NIT ' + nit + '.');
+    var pid = (b && b.penyedia_id != null) ? String(b.penyedia_id).trim() : '';
+    if (pid && !penyediaValid[pid]) throw _fail_('Penyedia tidak ditemukan untuk NIT ' + nit + ': ' + pid);
   });
 
   return withLock(function () {
@@ -127,9 +149,12 @@ function rekeningSimpanBatch(payload, session) {
       var bank = b.bank;
       var namaPemilik = String(b.nama_pemilik).trim();
       var ada = existingByNit[nit];
+      // penyedia_id: bila key dikirim (walau '') dipakai; kalau tidak, pertahankan lama.
+      var kirimPenyedia = b.penyedia_id !== undefined;
+      var penyediaFinal = kirimPenyedia ? String(b.penyedia_id || '').trim() : (ada ? String(ada.penyedia_id || '') : '');
       var nilai = {
         nit: nit, no_rekening_lengkap: noRek, bank: bank, nama_pemilik: namaPemilik,
-        updated_by: session.user_id, updated_at: new Date()
+        updated_by: session.user_id, updated_at: new Date(), penyedia_id: penyediaFinal
       };
       if (ada) {
         sheetUpdate(SHEETS.TARUNA_REKENING, 'nit', nit, nilai);
@@ -137,8 +162,8 @@ function rekeningSimpanBatch(payload, session) {
         sheetAppend(SHEETS.TARUNA_REKENING, nilai);
       }
       auditLog(session, 'rekening.simpan', 'TARUNA_REKENING', nit,
-        ada ? { bank: ada.bank, nama_pemilik: ada.nama_pemilik } : null,
-        { bank: bank, nama_pemilik: namaPemilik, rekening_diubah: true, sumber: 'rekening.simpan_batch' });
+        ada ? { bank: ada.bank, nama_pemilik: ada.nama_pemilik, penyedia_id: ada.penyedia_id || '' } : null,
+        { bank: bank, nama_pemilik: namaPemilik, penyedia_id: penyediaFinal, rekening_diubah: true, sumber: 'rekening.simpan_batch' });
       n++;
     });
 

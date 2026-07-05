@@ -488,3 +488,125 @@ function cetakForm09(payload, session) {
     pejabat: PEJABAT
   };
 }
+
+/**
+ * Form 10: Rencana Pengajuan SPM ke KPPN, DIPECAH PER SUPLIER (dikonfirmasi
+ * Firdaus). Payload {bulan}. Realitanya SPM ke KPPN diajukan terpisah per
+ * suplier katering → tiap suplier = satu lembar SPM sendiri; di dalamnya
+ * penerima dikelompokkan per **prodi + tingkat + angkatan** (angkatan = 2 digit
+ * depan NIT, diturunkan on-read, tidak disimpan). Menampilkan nomor rekening
+ * PENUH taruna (join TARUNA_REKENING, mekanisme LS bayar ke rekening taruna) →
+ * role ADMIN/PPK dua lapis (_hanyaAdminPPK_ + ACTION_MAP) + WAJIB 1 baris
+ * AUDIT_LOG (daftar NIT terbaca, BUKAN nomornya), persis Form-07. Suplier tiap
+ * taruna diambil dari TARUNA_REKENING.penyedia_id (FK PENYEDIA). Mensyaratkan
+ * PEMBAYARAN bulan itu sudah ada (→ REKAP sudah melalui FINAL).
+ */
+function cetakForm10(payload, session) {
+  _hanyaAdminPPK_(session);
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+
+  return withLock(function () {
+    var pembayaran = sheetRead(SHEETS.PEMBAYARAN, function (r) { return _bulanStr_(r.bulan) === bulan; })[0];
+    if (!pembayaran) {
+      throw _fail_('Belum ada PEMBAYARAN untuk bulan ' + bulan + ' — Form 10 hanya bisa dicetak setelah proses pembayaran dibuat (bayar.create).');
+    }
+    var rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
+    if (!rekapRows.length) throw _fail_('Belum ada rekap untuk bulan ' + bulan + '.');
+
+    var tarunaByNit = {};
+    sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+    var penyediaById = {};
+    sheetRead(SHEETS.PENYEDIA).forEach(function (p) { penyediaById[String(p.penyedia_id)] = p; });
+
+    var nitList = rekapRows.map(function (r) { return String(r.nit); });
+    var rekeningByNit = {};
+    sheetRead(SHEETS.TARUNA_REKENING, function (r) { return nitList.indexOf(String(r.nit)) >= 0; })
+      .forEach(function (r) { rekeningByNit[String(r.nit)] = r; });
+
+    var URUT_TINGKAT = { I: 1, II: 2, III: 3 };
+    var TANPA = '__TANPA__'; // penampung taruna yang belum punya suplier terpasang
+    var perSuplier = {};
+    var totalNominal = 0;
+
+    rekapRows.forEach(function (r) {
+      var nit = String(r.nit);
+      var t = tarunaByNit[nit] || {};
+      var rek = rekeningByNit[nit];
+      var nominal = _int_(r.nominal || 0, 'nominal');
+      totalNominal += nominal;
+
+      var pid = (rek && rek.penyedia_id) ? String(rek.penyedia_id) : '';
+      var kunciSup = pid || TANPA;
+      if (!perSuplier[kunciSup]) {
+        var p = penyediaById[pid];
+        perSuplier[kunciSup] = {
+          penyedia_id: pid, penyedia_nama: p ? (p.nama || '') : '',
+          jml_taruna: 0, total_nominal: 0, kelompok: {}
+        };
+      }
+      var s = perSuplier[kunciSup];
+      s.jml_taruna += 1;
+      s.total_nominal += nominal;
+
+      var angkatan = nit.slice(0, 2);
+      var prodi = t.prodi || '', tingkat = t.tingkat || '';
+      var kk = prodi + '|' + tingkat + '|' + angkatan;
+      if (!s.kelompok[kk]) {
+        s.kelompok[kk] = { prodi: prodi, tingkat: tingkat, angkatan: angkatan, jml_taruna: 0, total_nominal: 0, baris: [] };
+      }
+      var k = s.kelompok[kk];
+      k.jml_taruna += 1;
+      k.total_nominal += nominal;
+      k.baris.push({
+        nit: nit, nama: t.nama || '',
+        bank: rek ? rek.bank : '', no_rekening_lengkap: rek ? rek.no_rekening_lengkap : '',
+        nama_pemilik: rek ? rek.nama_pemilik : '',
+        hari_makan: _int_(r.hari_makan || 0, 'hari_makan'), nominal: nominal,
+        rekening_lengkap_ada: !!rek
+      });
+    });
+
+    function urutKelompok(a, b) {
+      var ta = URUT_TINGKAT[a.tingkat] || 9, tb = URUT_TINGKAT[b.tingkat] || 9;
+      if (ta !== tb) return ta - tb;
+      if (a.prodi !== b.prodi) return a.prodi < b.prodi ? -1 : 1;
+      return a.angkatan < b.angkatan ? -1 : (a.angkatan > b.angkatan ? 1 : 0);
+    }
+    var perSuplierArr = Object.keys(perSuplier).map(function (kunciSup) {
+      var s = perSuplier[kunciSup];
+      var kelompokArr = Object.keys(s.kelompok).map(function (kk) { return s.kelompok[kk]; }).sort(urutKelompok);
+      kelompokArr.forEach(function (k) {
+        k.baris.sort(function (a, b) { return (a.nama || '').localeCompare(b.nama || ''); });
+      });
+      return {
+        penyedia_id: s.penyedia_id, penyedia_nama: s.penyedia_nama,
+        jml_taruna: s.jml_taruna, total_nominal: s.total_nominal,
+        total_terbilang: _terbilangRupiah_(s.total_nominal),
+        kelompok: kelompokArr
+      };
+    }).sort(function (a, b) {
+      // suplier belum terisi (penyedia_id kosong) selalu di paling bawah
+      if (!a.penyedia_id && b.penyedia_id) return 1;
+      if (a.penyedia_id && !b.penyedia_id) return -1;
+      return (a.penyedia_nama || '').localeCompare(b.penyedia_nama || '');
+    });
+
+    // AUDIT wajib: SIAPA membaca rekening SIAPA (nitList), KAPAN — tanpa nomornya.
+    auditLog(session, 'cetak.form10', 'TARUNA_REKENING', nitList.join(','), null, { nit_list: nitList });
+
+    return {
+      bulan: bulan,
+      pembayaran: {
+        bayar_id: pembayaran.bayar_id,
+        nilai_total: _int_(pembayaran.nilai_total, 'nilai_total'),
+        no_spm: pembayaran.no_spm, tgl_spm: _tglStr_(pembayaran.tgl_spm),
+        no_sp2d: pembayaran.no_sp2d, tgl_sp2d: _tglStr_(pembayaran.tgl_sp2d),
+        status: pembayaran.status
+      },
+      per_suplier: perSuplierArr,
+      total_nominal: totalNominal,
+      nominal_terbilang: _terbilangRupiah_(totalNominal),
+      pejabat: PEJABAT
+    };
+  });
+}

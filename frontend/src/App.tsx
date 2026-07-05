@@ -17,6 +17,7 @@ import { HalamanCetakForm06 } from './pages/cetak/form-06';
 import { HalamanCetakForm07 } from './pages/cetak/form-07';
 import { HalamanCetakForm08 } from './pages/cetak/form-08';
 import { HalamanCetakForm09 } from './pages/cetak/form-09';
+import { HalamanCetakForm10 } from './pages/cetak/form-10';
 import { HalamanDashboardKpa } from './pages/dashboard-kpa/dashboard-kpa';
 import { HalamanKontrak } from './pages/kontrak/kontrak';
 import { HalamanLaporan } from './pages/laporan/laporan';
@@ -115,6 +116,8 @@ export default function App() {
               <Route path="/cetak/form-08" element={<WajibLogin roles={['ADMIN', 'PPK']}><HalamanCetakForm08 /></WajibLogin>} />
               <Route path="/cetak/form-09" element={<WajibLogin roles={['SENAT', 'PPK', 'ADMIN']}><HalamanCetakForm09 /></WajibLogin>} />
               <Route path="/cetak/form-09/:bulan" element={<WajibLogin roles={['SENAT', 'PPK', 'ADMIN']}><HalamanCetakForm09 /></WajibLogin>} />
+              <Route path="/cetak/form-10" element={<WajibLogin roles={['ADMIN', 'PPK']}><HalamanCetakForm10 /></WajibLogin>} />
+              <Route path="/cetak/form-10/:bulan" element={<WajibLogin roles={['ADMIN', 'PPK']}><HalamanCetakForm10 /></WajibLogin>} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

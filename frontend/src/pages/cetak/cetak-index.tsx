@@ -26,7 +26,8 @@ const DAFTAR_FORM: DaftarForm[] = [
   { nomor: '06', nama: 'Verifikasi & Rencana Pembayaran PPK', rute: '/cetak/form-06' },
   { nomor: '07', nama: 'Usulan Penahanan & Pendebetan Bank', rute: '/cetak/form-07' },
   { nomor: '08', nama: 'Usulan Pembayaran Luar Kampus (PKL/Magang/KPA)', rute: '/cetak/form-08' },
-  { nomor: '09', nama: 'Pendebetan Rekening Senat → Penyedia (per bank)', rute: '/cetak/form-09' }
+  { nomor: '09', nama: 'Pendebetan Rekening Senat → Penyedia (per bank)', rute: '/cetak/form-09' },
+  { nomor: '10', nama: 'Rencana Pengajuan SPM per Suplier (prodi/tingkat/angkatan)', rute: '/cetak/form-10' }
 ];
 
 export function HalamanCetakIndex() {
@@ -34,9 +35,9 @@ export function HalamanCetakIndex() {
     <div className="flex flex-col gap-4">
       <h1 className="text-xl font-bold text-primary-dark">Cetak Form Manual SOP</h1>
       <Card className="text-sm text-gray-600">
-        8 form resmi sesuai <code>docs/format-dokumen.md</code>. Isi tiap form
-        menyusul tahap berikutnya — halaman ini baru daftar + infrastruktur
-        komponen cetak bersama (kop surat, blok tanda tangan, tabel).
+        10 form resmi sesuai <code>docs/format-dokumen.md</code>. Halaman ini
+        adalah daftar tautan ke tiap form + infrastruktur komponen cetak bersama
+        (kop surat, blok tanda tangan, tabel).
       </Card>
 
       <div className="flex flex-col gap-2">

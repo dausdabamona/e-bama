@@ -152,6 +152,8 @@ function ModalRekening({ taruna, onClose }: { taruna: Taruna; onClose: () => voi
   const [noRek, setNoRek] = useState('');
   const [bank, setBank] = useState(taruna.bank || BANK[0]);
   const [namaPemilik, setNamaPemilik] = useState('');
+  const [penyediaId, setPenyediaId] = useState('');
+  const [daftarPenyedia, setDaftarPenyedia] = useState<{ penyedia_id: string; nama: string }[]>([]);
   const [memuat, setMemuat] = useState(true);
   const [proses, setProses] = useState(false);
   const [galat, setGalat] = useState('');
@@ -160,15 +162,20 @@ function ModalRekening({ taruna, onClose }: { taruna: Taruna; onClose: () => voi
     let batal = false;
     (async () => {
       try {
-        const r = await api<{ rekening: { nit: string; no_rekening_lengkap: string; bank: 'BNI' | 'BSI'; nama_pemilik: string }[] }>(
-          'rekening.lihat_lengkap', { nit: taruna.nit }
-        );
+        const [r, p] = await Promise.all([
+          api<{ rekening: { nit: string; no_rekening_lengkap: string; bank: 'BNI' | 'BSI'; nama_pemilik: string; penyedia_id: string }[] }>(
+            'rekening.lihat_lengkap', { nit: taruna.nit }
+          ),
+          api<{ penyedia: { penyedia_id: string; nama: string; status: string }[] }>('penyedia.list', {})
+        ]);
         if (batal) return;
+        setDaftarPenyedia((p.penyedia ?? []).map((x) => ({ penyedia_id: x.penyedia_id, nama: x.nama })));
         const baris = r.rekening[0];
         if (baris && baris.no_rekening_lengkap) {
           setNoRek(baris.no_rekening_lengkap);
           setBank(baris.bank || BANK[0] as 'BNI' | 'BSI');
           setNamaPemilik(baris.nama_pemilik || '');
+          setPenyediaId(baris.penyedia_id || '');
         }
       } catch (e) {
         if (!batal) setGalat(e instanceof Error ? e.message : 'Gagal memuat rekening.');
@@ -185,7 +192,8 @@ function ModalRekening({ taruna, onClose }: { taruna: Taruna; onClose: () => voi
     setProses(true); setGalat('');
     try {
       await api('rekening.simpan', {
-        nit: taruna.nit, no_rekening_lengkap: noRek.trim(), bank, nama_pemilik: namaPemilik.trim()
+        nit: taruna.nit, no_rekening_lengkap: noRek.trim(), bank, nama_pemilik: namaPemilik.trim(),
+        penyedia_id: penyediaId
       });
       toast('Rekening lengkap tersimpan.', 'sukses');
       onClose();
@@ -216,6 +224,18 @@ function ModalRekening({ taruna, onClose }: { taruna: Taruna; onClose: () => voi
             </div>
             <Input label="Nomor Rekening Lengkap" value={noRek} onChange={(e) => setNoRek(e.target.value)} inputMode="numeric" />
             <Input label="Nama Pemilik Rekening" value={namaPemilik} onChange={(e) => setNamaPemilik(e.target.value)} />
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Suplier (untuk pemecahan SPM)</label>
+              <select value={penyediaId} onChange={(e) => setPenyediaId(e.target.value)}
+                className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2.5">
+                <option value="">— Belum ditentukan —</option>
+                {daftarPenyedia.map((p) => <option key={p.penyedia_id} value={p.penyedia_id}>{p.nama}</option>)}
+              </select>
+              <p className="mt-1 text-xs text-gray-400">
+                Suplier katering yang dipasangkan ke rekening taruna ini — dipakai memecah
+                pengajuan SPM ke KPPN per suplier (Form 10).
+              </p>
+            </div>
             {galat && <p className="text-sm text-red-600">{galat}</p>}
             <Button onClick={() => void simpan()} disabled={proses}>
               {proses ? 'Menyimpan…' : 'Simpan'}

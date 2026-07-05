@@ -107,6 +107,7 @@ var ACTION_MAP = {
   'cetak.form07':     { handler: cetakForm07, roles: ['ADMIN', 'PPK'] },
   'cetak.form08':     { handler: cetakForm08, roles: ['ADMIN', 'PPK'] },
   'cetak.form09':     { handler: cetakForm09, roles: ['SENAT', 'PPK', 'ADMIN'] },
+  'cetak.form10':     { handler: cetakForm10, roles: ['ADMIN', 'PPK'] },
 
   // Rekening lengkap (TARUNA_REKENING) — TAHAP SENSITIF, lihat CLAUDE.md § 4/§ 7
   'rekening.lihat_lengkap': { handler: rekeningLihatLengkap, roles: ['ADMIN', 'PPK'] },

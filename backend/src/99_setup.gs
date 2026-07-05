@@ -115,7 +115,7 @@ function _skema_() {
     ]],
     [SHEETS.TARUNA_REKENING, [
       ['nit','s'], ['no_rekening_lengkap','s'], ['bank', E.BANK], ['nama_pemilik','s'],
-      ['updated_by','s'], ['updated_at','dt']
+      ['updated_by','s'], ['updated_at','dt'], ['penyedia_id','s']
     ]],
     [SHEETS.SP2D_MONITORING, [
       ['no_spm','s'], ['kategori', E.SP2D_KATEGORI], ['nit','s'], ['prodi','s'], ['tingkat','s'],
