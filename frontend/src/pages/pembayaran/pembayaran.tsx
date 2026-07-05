@@ -171,6 +171,22 @@ export function HalamanPembayaran() {
             )}
           </Card>
 
+          {/* Lanjutan alur: pembagian SPM ke KPPN (Form-10). Muncul sejak pembayaran
+              dibuat (DIAJUKAN) — SPM diajukan lebih dulu untuk memperoleh SP2D. */}
+          {session?.role === 'PPK' && (
+            <Card className="flex flex-col gap-2 border-l-4 border-l-primary">
+              <p className="text-sm font-semibold text-gray-600">📄 Dokumen: Pembagian SPM ke KPPN</p>
+              <p className="text-xs text-gray-500">
+                Langkah berikutnya setelah pembayaran dibuat: ajukan SPM ke KPPN. Pengajuan
+                <strong> dipecah per suplier</strong> (satu lembar SPM per suplier), lalu
+                dikelompokkan per prodi/tingkat. Dari SPM ini KPPN menerbitkan SP2D.
+              </p>
+              <Link to={`/cetak/form-10/${bulan}`}>
+                <Button varian="garis" className="w-full">🖨️ Cetak Form 10 — Rencana Pengajuan SPM per Suplier</Button>
+              </Link>
+            </Card>
+          )}
+
           {/* Rincian SP2D LIVE dari SP2D_MONITORING — 1 bulan pembayaran = N SP2D
               (KPPN terbitkan 1 SP2D per kelompok Prodi+Tingkat). Read-only; angka
               diturunkan dari menu Laporan (impor Monitoring SP2D), bukan diketik di sini. */}
