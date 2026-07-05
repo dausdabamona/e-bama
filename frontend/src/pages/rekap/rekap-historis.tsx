@@ -1,6 +1,6 @@
 // /rekap/historis (PPK, Admin) — migrasi rekap bulan PRA-APLIKASI (mis. Jan–Jun
 // sebelum e-BAMA aktif) lewat impor CSV, TANPA Pesanan/Realisasi harian palsu.
-// Setelah masuk (status DRAFT), lanjut alur normal: Verifikasi → Final → Wadir3.
+// Setelah masuk (status DRAFT), lanjut alur normal: Persetujuan Wadir 3 → Verifikasi PPK → Finalkan (siap bayar).
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BulanPicker, bulanIni } from '../../components/bulan-picker';
@@ -111,7 +111,7 @@ export function HalamanRekapHistoris() {
         Untuk bulan yang <strong>sudah berjalan manual sebelum e-BAMA aktif</strong>
         (mis. Januari–Juni). Cukup total <strong>hari makan per taruna per bulan</strong> —
         bukan Pesanan/Realisasi harian satu-satu. Setelah masuk, bulan ini lanjut
-        alur normal: Verifikasi → Finalkan → Persetujuan Wadir 3.
+        alur normal: Persetujuan Wadir 3 → Verifikasi PPK → Finalkan (siap bayar).
       </Card>
 
       <Card className="flex flex-col gap-3">

@@ -1,5 +1,6 @@
-// /persetujuan-wadir3 (Wadir 3) — otorisasi pencairan pembayaran: FINAL → DISETUJUI_WADIR3.
-// Bukan koreksi angka — nominal sudah beku sejak PPK memfinalkan rekap.
+// /persetujuan-wadir3 (Wadir 3) — persetujuan PALING AWAL rekap: DRAFT → DISETUJUI_WADIR3.
+// Wadir 3 menyetujui substansi rekap lebih dulu, lalu diteruskan ke PPK untuk
+// verifikasi & finalisasi (siap bayar). Angka BELUM beku di sini — baru beku saat PPK finalkan.
 import { useState } from 'react';
 import { BulanPicker, bulanIni } from '../../components/bulan-picker';
 import { Badge } from '../../components/ui/badge';
@@ -31,7 +32,7 @@ export function HalamanPersetujuanWadir3() {
     setProses(true);
     try {
       await api('rekap.approve_wadir3', { bulan });
-      toast('Pencairan pembayaran disetujui — PPK dapat memproses pembayaran.', 'sukses');
+      toast('Rekap disetujui — diteruskan ke PPK untuk verifikasi & finalisasi.', 'sukses');
       setTampilKonfirmasi(false);
       refresh();
     } catch (e) {
@@ -43,7 +44,7 @@ export function HalamanPersetujuanWadir3() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-bold text-primary-dark">Persetujuan Pencairan</h1>
+      <h1 className="text-xl font-bold text-primary-dark">Persetujuan Rekap (Wadir 3)</h1>
       <BulanPicker bulan={bulan} onChange={setBulan} />
 
       {memuat && !data && <LoadingSpinner label="Memuat rekap…" />}
@@ -67,31 +68,31 @@ export function HalamanPersetujuanWadir3() {
         </Card>
       )}
 
-      {status === 'FINAL' && (
-        <Button onClick={() => setTampilKonfirmasi(true)}>Setujui Pencairan Pembayaran</Button>
+      {status === 'DRAFT' && (
+        <Button onClick={() => setTampilKonfirmasi(true)}>Setujui Rekap</Button>
       )}
       {status === 'DISETUJUI_WADIR3' && (
         <Card className="bg-green-50 text-center text-sm text-green-800">
-          ✅ Sudah disetujui — PPK dapat memproses pembayaran bulan ini.
+          ✅ Sudah disetujui — menunggu PPK memverifikasi &amp; memfinalkan (siap bayar).
         </Card>
       )}
-      {(status === 'DRAFT' || status === 'TERVERIFIKASI_PPK') && (
-        <Card className="bg-amber-50 text-center text-sm text-amber-800">
-          ⏳ Menunggu PPK memfinalkan rekap bulan ini terlebih dahulu.
+      {(status === 'TERVERIFIKASI_PPK' || status === 'FINAL') && (
+        <Card className="bg-green-50 text-center text-sm text-green-800">
+          ✅ Sudah disetujui — PPK sedang/menyelesaikan proses finalisasi &amp; pembayaran.
         </Card>
       )}
 
       {tampilKonfirmasi && (
-        <Modal judul="Setujui Pencairan?" onClose={() => setTampilKonfirmasi(false)}>
+        <Modal judul="Setujui Rekap?" onClose={() => setTampilKonfirmasi(false)}>
           <div className="flex flex-col gap-3">
             <p className="text-sm text-gray-600">
-              Anda akan menyetujui pencairan pembayaran bulan ini sebesar{' '}
+              Anda akan menyetujui rekap bulan ini sebesar{' '}
               <strong>{formatRupiah(data?.total ?? 0)}</strong> untuk {jmlTaruna} taruna.
-              Nominal sudah beku (difinalkan PPK) — persetujuan ini adalah otorisasi
-              pencairan, bukan koreksi angka.
+              Setelah disetujui, rekap diteruskan ke <strong>PPK</strong> untuk diverifikasi
+              dan difinalkan (angka dikunci PPK saat finalisasi) sebelum pembayaran dibuat.
             </p>
             <Button onClick={() => void setujui()} disabled={proses}>
-              {proses ? 'Memproses…' : 'Ya, Setujui Pencairan'}
+              {proses ? 'Memproses…' : 'Ya, Setujui Rekap'}
             </Button>
           </div>
         </Modal>

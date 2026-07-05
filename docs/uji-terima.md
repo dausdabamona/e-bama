@@ -35,12 +35,12 @@
 
 | # | Langkah | Hasil | Tanggal | Paraf |
 |---|---|---|---|---|
-| B.1 | PPK → **Rekap** → tabel terisi otomatis dari 5 hari realisasi, total nominal integer (tanpa desimal) | ☐ | | |
-| B.2 | PPK → **Verifikasi Rekap** → status `TERVERIFIKASI_PPK` | ☐ | | |
-| B.3 | PPK → **Finalkan Rekap** (centang konfirmasi) → status `FINAL`, edit lanjutan ditolak | ☐ | | |
-| B.4 | PPK → **Pembayaran** → **Buat Pembayaran** → **ditolak**: "belum disetujui Wadir 3" | ☐ | | |
-| B.5 | Login `wadir301` → **Persetujuan** → bulan berstatus FINAL → **Setujui Pencairan** | ☐ | | |
-| B.6 | PPK → **Pembayaran** → **Buat Pembayaran** → **berhasil**, `nilai_total` = SUM rekap | ☐ | | |
+| B.1 | PPK → **Rekap** → tabel terisi otomatis dari 5 hari realisasi, total nominal integer (tanpa desimal); status `DRAFT` → PPK belum bisa verifikasi (menunggu Wadir 3) | ☐ | | |
+| B.2 | Login `wadir301` → **Persetujuan Rekap** → bulan `DRAFT` → **Setujui Rekap** → status `DISETUJUI_WADIR3` | ☐ | | |
+| B.3 | PPK → **Verifikasi Rekap** (kini aktif) → status `TERVERIFIKASI_PPK` | ☐ | | |
+| B.4 | PPK → **Finalkan Rekap** (centang konfirmasi) → status `FINAL`, edit lanjutan ditolak | ☐ | | |
+| B.5 | PPK → **Pembayaran** → **Buat Pembayaran** (rekap `FINAL`) → **berhasil**, `nilai_total` = SUM rekap | ☐ | | |
+| B.6 | Sebelum B.4: **Buat Pembayaran** saat status belum `FINAL` → **ditolak**: "belum FINAL — alur: Wadir 3 → PPK verifikasi → PPK finalkan" | ☐ | | |
 
 ## C. Pembayaran Penuh (SOP 11–17)
 

@@ -117,12 +117,17 @@ export function HalamanRekap() {
         <div className="flex flex-col gap-2">
           <Button varian="garis" onClick={ekspor}>Ekspor CSV</Button>
           {status === 'DRAFT' && (
+            <Card className="bg-amber-50 text-center text-sm text-amber-800">
+              ⏳ Menunggu <strong>Wadir 3</strong> menyetujui rekap bulan ini dulu, baru PPK bisa memverifikasi.
+            </Card>
+          )}
+          {status === 'DISETUJUI_WADIR3' && (
             <Button onClick={() => void verifikasi()} disabled={proses}>
               {proses ? 'Memproses…' : 'Verifikasi Rekap'}
             </Button>
           )}
           {status === 'TERVERIFIKASI_PPK' && (
-            <Button varian="bahaya" onClick={() => setTampilFinal(true)}>Finalkan Rekap</Button>
+            <Button varian="bahaya" onClick={() => setTampilFinal(true)}>Finalkan Rekap (Siap Bayar)</Button>
           )}
           {status === 'FINAL' && (
             <Link to={`/cetak/form-06/${bulan}`}>

@@ -63,8 +63,11 @@ var ENUM = {
   PEMBAYARAN_STATUS: ['DIAJUKAN', 'SP2D_TERBIT', 'DITRANSFER', 'DIKONFIRMASI', 'SELESAI'],
   TAGIHAN_STATUS:    ['TERTAGIH', 'LUNAS', 'DIHAPUSKAN', 'ESKALASI_MANUAL'],
   TAGIHAN_SEBAB:     ['GAGAL_DEBET', 'SALDO_KURANG', 'REKENING_BERMASALAH'],
-  // DISETUJUI_WADIR3: gerbang otorisasi pencairan sebelum bayar.create (bukan koreksi angka)
-  REKAP_STATUS:      ['DRAFT', 'TERVERIFIKASI_PPK', 'FINAL', 'DISETUJUI_WADIR3'],
+  // Alur persetujuan (dikonfirmasi Firdaus): DRAFT → DISETUJUI_WADIR3 (Wadir 3
+  // menyetujui dulu) → TERVERIFIKASI_PPK (PPK verifikasi) → FINAL (PPK finalkan,
+  // angka BEKU & gerbang bayar.create). Prinsip: PPK menerima hasil pekerjaan
+  // yang sudah disetujui untuk dinyatakan siap dibayar (di posisi terakhir).
+  REKAP_STATUS:      ['DRAFT', 'DISETUJUI_WADIR3', 'TERVERIFIKASI_PPK', 'FINAL'],
   SP_TTD:            ['PPK', 'KPA'],                        // SURAT_PERINGATAN.ditandatangani_oleh
   SP_GENERATED:      ['SISTEM', 'MANUAL'],
   LAMPIRAN_REFTYPE:  ['KONTRAK', 'STATUS_HARIAN', 'PESANAN', 'REALISASI',

@@ -268,10 +268,12 @@ Di-update **incremental** oleh `rekapUpdate(tanggal)` setiap REALISASI sah /
 STATUS_HARIAN masuk — TIDAK dihitung ulang sebulan penuh (hindari timeout GAS
 6 menit). Dibekukan saat FINAL (dasar SPM).
 
-> **Gerbang persetujuan Wadir 3:** setelah PPK memfinalkan (`FINAL` — angka
-> beku, dasar SPM), Wakil Direktur III harus menyetujui (`DISETUJUI_WADIR3`)
-> sebelum PPK boleh membuat PEMBAYARAN (`bayar.create`). Ini otorisasi
-> pencairan — bukan koreksi angka; nominal tidak berubah pada langkah ini.
+> **Urutan persetujuan (dikonfirmasi Firdaus): Wadir 3 DULU, baru PPK.**
+> `DRAFT → DISETUJUI_WADIR3` (Wakil Direktur III menyetujui rekap lebih dulu,
+> angka BELUM beku) → `TERVERIFIKASI_PPK` (PPK verifikasi) → `FINAL` (PPK
+> finalkan — angka BEKU, dasar SPM, **siap dibayar**). Prinsipnya PPK di posisi
+> TERAKHIR: menerima hasil yang sudah disetujui untuk dinyatakan siap dibayar.
+> Syarat `bayar.create` = rekap `FINAL`.
 
 > **Migrasi bulan pra-aplikasi:** untuk bulan yang sudah berjalan manual
 > sebelum e-BAMA aktif (mis. Januari–Juni), baris diisi langsung lewat
@@ -281,8 +283,8 @@ STATUS_HARIAN masuk — TIDAK dihitung ulang sebulan penuh (hindari timeout GAS
 > per kelompok kalau rate historis tidak seragam) diinput manual saat itu,
 > tidak selalu merujuk KONTRAK yang ada di sistem. Jejak sumbernya di
 > AUDIT_LOG (`sumber: INPUT_HISTORIS_PRA_APLIKASI`), bukan kolom sheet
-> tersendiri. Setelah masuk, bulan itu lanjut alur normal: verifikasi → final
-> → persetujuan Wadir 3 → pembayaran.
+> tersendiri. Setelah masuk, bulan itu lanjut alur normal: persetujuan Wadir 3
+> → verifikasi PPK → finalkan PPK → pembayaran.
 
 | Kolom | Tipe | Keterangan |
 |---|---|---|
@@ -291,7 +293,7 @@ STATUS_HARIAN masuk — TIDAK dihitung ulang sebulan penuh (hindari timeout GAS
 | hari_makan | integer | jumlah hari realisasi sah |
 | hari_tidak_makan | integer | dari STATUS_HARIAN |
 | nominal | integer | hari_makan × harga_per_porsi × porsi_per_hari (kontrak aktif) |
-| status | enum | `DRAFT` / `TERVERIFIKASI_PPK` / `FINAL` / `DISETUJUI_WADIR3` |
+| status | enum | urut alur: `DRAFT` → `DISETUJUI_WADIR3` (Wadir 3) → `TERVERIFIKASI_PPK` (PPK) → `FINAL` (PPK, beku/siap bayar) |
 | verif_by | FK → PENGGUNA | |
 | verif_at | datetime | |
 

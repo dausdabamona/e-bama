@@ -1,6 +1,7 @@
 /**
  * 14_rekap.gs — REKAP_BULANAN: materialized view incremental (SOP no. 10)
- * Status: DRAFT → TERVERIFIKASI_PPK → FINAL (beku, dasar SPM)
+ * Status: DRAFT → DISETUJUI_WADIR3 (Wadir 3) → TERVERIFIKASI_PPK (PPK verifikasi)
+ *          → FINAL (PPK finalkan; beku, dasar SPM, siap dibayar)
  *
  * ACTION: rekap.get (PPK, KPA), rekap.verify (PPK), rekap.final (PPK),
  *         rekap.input_historis (PPK, Admin) — migrasi bulan pra-aplikasi
@@ -138,26 +139,33 @@ function _rekapSetStatus_(session, bulan, dari, ke, aksi) {
   });
 }
 
-/** DRAFT → TERVERIFIKASI_PPK. */
+/**
+ * DISETUJUI_WADIR3 → TERVERIFIKASI_PPK (PPK verifikasi). PPK memeriksa hasil
+ * yang sudah disetujui Wadir 3 — langkah kedua dari akhir sebelum finalisasi.
+ */
 function rekapVerify(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
-  return _rekapSetStatus_(session, bulan, 'DRAFT', 'TERVERIFIKASI_PPK', 'verify');
+  return _rekapSetStatus_(session, bulan, 'DISETUJUI_WADIR3', 'TERVERIFIKASI_PPK', 'verify');
 }
 
-/** TERVERIFIKASI_PPK → FINAL (beku, dasar SPM). */
+/**
+ * TERVERIFIKASI_PPK → FINAL (PPK finalkan — angka BEKU, dasar SPM, siap dibayar).
+ * Langkah TERAKHIR: PPK menyatakan hasil siap dibayar (gerbang bayar.create).
+ */
 function rekapFinal(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
   return _rekapSetStatus_(session, bulan, 'TERVERIFIKASI_PPK', 'FINAL', 'final');
 }
 
 /**
- * FINAL → DISETUJUI_WADIR3 (Wadir 3): otorisasi pencairan pembayaran
- * (ke rekening taruna via SP2D, lalu auto-debet ke penyedia) — bukan koreksi
- * angka, nominal sudah beku sejak FINAL. Syarat wajib sebelum bayar.create.
+ * DRAFT → DISETUJUI_WADIR3 (Wadir 3): persetujuan PALING AWAL atas rekap yang
+ * baru tersusun, SEBELUM PPK memverifikasi & memfinalkan. Angka BELUM beku di
+ * sini (baru beku saat PPK finalkan) — Wadir 3 menyetujui substansi hasil, lalu
+ * diteruskan ke PPK. Prinsip: PPK di posisi terakhir (menerima hasil siap bayar).
  */
 function rekapApproveWadir3(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
-  return _rekapSetStatus_(session, bulan, 'FINAL', 'DISETUJUI_WADIR3', 'approve_wadir3');
+  return _rekapSetStatus_(session, bulan, 'DRAFT', 'DISETUJUI_WADIR3', 'approve_wadir3');
 }
 
 /**

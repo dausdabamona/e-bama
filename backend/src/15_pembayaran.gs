@@ -44,16 +44,16 @@ function bayarGet(payload, session) {
   return { pembayaran: b, lampiran: lampiranList('PEMBAYARAN', b.bayar_id) };
 }
 
-/** Buat pembayaran: syarat rekap bulan DISETUJUI_WADIR3; nilai_total = SUM(nominal) snapshot. */
+/** Buat pembayaran: syarat rekap bulan FINAL (PPK finalkan = siap bayar); nilai_total = SUM(nominal) snapshot. */
 function bayarCreate(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
 
   var rekap = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
   if (!rekap.length) throw _fail_('Belum ada rekap untuk bulan ' + bulan + '.');
   rekap.forEach(function (r) {
-    if (String(r.status) !== 'DISETUJUI_WADIR3') {
-      throw _fail_('Rekap bulan ' + bulan + ' belum disetujui Wadir 3 (status sekarang ' + r.status +
-        ') — finalkan (PPK) lalu minta persetujuan Wadir 3 dulu sebelum membuat pembayaran.');
+    if (String(r.status) !== 'FINAL') {
+      throw _fail_('Rekap bulan ' + bulan + ' belum FINAL (status sekarang ' + r.status +
+        ') — alur: Wadir 3 setujui → PPK verifikasi → PPK finalkan, baru pembayaran bisa dibuat.');
     }
   });
 

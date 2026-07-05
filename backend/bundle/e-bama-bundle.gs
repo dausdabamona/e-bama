@@ -73,8 +73,11 @@ var ENUM = {
   PEMBAYARAN_STATUS: ['DIAJUKAN', 'SP2D_TERBIT', 'DITRANSFER', 'DIKONFIRMASI', 'SELESAI'],
   TAGIHAN_STATUS:    ['TERTAGIH', 'LUNAS', 'DIHAPUSKAN', 'ESKALASI_MANUAL'],
   TAGIHAN_SEBAB:     ['GAGAL_DEBET', 'SALDO_KURANG', 'REKENING_BERMASALAH'],
-  // DISETUJUI_WADIR3: gerbang otorisasi pencairan sebelum bayar.create (bukan koreksi angka)
-  REKAP_STATUS:      ['DRAFT', 'TERVERIFIKASI_PPK', 'FINAL', 'DISETUJUI_WADIR3'],
+  // Alur persetujuan (dikonfirmasi Firdaus): DRAFT → DISETUJUI_WADIR3 (Wadir 3
+  // menyetujui dulu) → TERVERIFIKASI_PPK (PPK verifikasi) → FINAL (PPK finalkan,
+  // angka BEKU & gerbang bayar.create). Prinsip: PPK menerima hasil pekerjaan
+  // yang sudah disetujui untuk dinyatakan siap dibayar (di posisi terakhir).
+  REKAP_STATUS:      ['DRAFT', 'DISETUJUI_WADIR3', 'TERVERIFIKASI_PPK', 'FINAL'],
   SP_TTD:            ['PPK', 'KPA'],                        // SURAT_PERINGATAN.ditandatangani_oleh
   SP_GENERATED:      ['SISTEM', 'MANUAL'],
   LAMPIRAN_REFTYPE:  ['KONTRAK', 'STATUS_HARIAN', 'PESANAN', 'REALISASI',
@@ -1465,7 +1468,8 @@ function realisasiTtd(payload, session) {
 // ═════════════════════════════════════════════════════════════════════════════
 /**
  * 14_rekap.gs — REKAP_BULANAN: materialized view incremental (SOP no. 10)
- * Status: DRAFT → TERVERIFIKASI_PPK → FINAL (beku, dasar SPM)
+ * Status: DRAFT → DISETUJUI_WADIR3 (Wadir 3) → TERVERIFIKASI_PPK (PPK verifikasi)
+ *          → FINAL (PPK finalkan; beku, dasar SPM, siap dibayar)
  *
  * ACTION: rekap.get (PPK, KPA), rekap.verify (PPK), rekap.final (PPK),
  *         rekap.input_historis (PPK, Admin) — migrasi bulan pra-aplikasi
@@ -1603,26 +1607,33 @@ function _rekapSetStatus_(session, bulan, dari, ke, aksi) {
   });
 }
 
-/** DRAFT → TERVERIFIKASI_PPK. */
+/**
+ * DISETUJUI_WADIR3 → TERVERIFIKASI_PPK (PPK verifikasi). PPK memeriksa hasil
+ * yang sudah disetujui Wadir 3 — langkah kedua dari akhir sebelum finalisasi.
+ */
 function rekapVerify(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
-  return _rekapSetStatus_(session, bulan, 'DRAFT', 'TERVERIFIKASI_PPK', 'verify');
+  return _rekapSetStatus_(session, bulan, 'DISETUJUI_WADIR3', 'TERVERIFIKASI_PPK', 'verify');
 }
 
-/** TERVERIFIKASI_PPK → FINAL (beku, dasar SPM). */
+/**
+ * TERVERIFIKASI_PPK → FINAL (PPK finalkan — angka BEKU, dasar SPM, siap dibayar).
+ * Langkah TERAKHIR: PPK menyatakan hasil siap dibayar (gerbang bayar.create).
+ */
 function rekapFinal(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
   return _rekapSetStatus_(session, bulan, 'TERVERIFIKASI_PPK', 'FINAL', 'final');
 }
 
 /**
- * FINAL → DISETUJUI_WADIR3 (Wadir 3): otorisasi pencairan pembayaran
- * (ke rekening taruna via SP2D, lalu auto-debet ke penyedia) — bukan koreksi
- * angka, nominal sudah beku sejak FINAL. Syarat wajib sebelum bayar.create.
+ * DRAFT → DISETUJUI_WADIR3 (Wadir 3): persetujuan PALING AWAL atas rekap yang
+ * baru tersusun, SEBELUM PPK memverifikasi & memfinalkan. Angka BELUM beku di
+ * sini (baru beku saat PPK finalkan) — Wadir 3 menyetujui substansi hasil, lalu
+ * diteruskan ke PPK. Prinsip: PPK di posisi terakhir (menerima hasil siap bayar).
  */
 function rekapApproveWadir3(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
-  return _rekapSetStatus_(session, bulan, 'FINAL', 'DISETUJUI_WADIR3', 'approve_wadir3');
+  return _rekapSetStatus_(session, bulan, 'DRAFT', 'DISETUJUI_WADIR3', 'approve_wadir3');
 }
 
 /**
@@ -1751,16 +1762,16 @@ function bayarGet(payload, session) {
   return { pembayaran: b, lampiran: lampiranList('PEMBAYARAN', b.bayar_id) };
 }
 
-/** Buat pembayaran: syarat rekap bulan DISETUJUI_WADIR3; nilai_total = SUM(nominal) snapshot. */
+/** Buat pembayaran: syarat rekap bulan FINAL (PPK finalkan = siap bayar); nilai_total = SUM(nominal) snapshot. */
 function bayarCreate(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
 
   var rekap = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
   if (!rekap.length) throw _fail_('Belum ada rekap untuk bulan ' + bulan + '.');
   rekap.forEach(function (r) {
-    if (String(r.status) !== 'DISETUJUI_WADIR3') {
-      throw _fail_('Rekap bulan ' + bulan + ' belum disetujui Wadir 3 (status sekarang ' + r.status +
-        ') — finalkan (PPK) lalu minta persetujuan Wadir 3 dulu sebelum membuat pembayaran.');
+    if (String(r.status) !== 'FINAL') {
+      throw _fail_('Rekap bulan ' + bulan + ' belum FINAL (status sekarang ' + r.status +
+        ') — alur: Wadir 3 setujui → PPK verifikasi → PPK finalkan, baru pembayaran bisa dibuat.');
     }
   });
 
@@ -1923,10 +1934,10 @@ function tagihanCreate(payload, session) {
   if (!rekap.length) throw _fail_('Belum ada rekap untuk bulan ' + bulan + '.');
   var rekapNit = {};
   rekap.forEach(function (r) {
-    // FINAL atau DISETUJUI_WADIR3 sama-sama berarti nominal sudah beku — status
-    // hanya maju (tidak pernah balik ke FINAL setelah disetujui Wadir 3).
-    if (r.status !== 'FINAL' && r.status !== 'DISETUJUI_WADIR3') {
-      throw _fail_('Rekap bulan ' + bulan + ' belum FINAL — tagihan butuh dasar nominal beku.');
+    // Angka beku HANYA saat FINAL (PPK finalkan, langkah terakhir). DISETUJUI_WADIR3
+    // kini langkah AWAL (angka belum beku) → tidak lagi dianggap dasar nominal beku.
+    if (r.status !== 'FINAL') {
+      throw _fail_('Rekap bulan ' + bulan + ' belum FINAL — tagihan butuh dasar nominal beku (PPK finalkan dulu).');
     }
     rekapNit[String(r.nit)] = r;
   });
@@ -2927,8 +2938,9 @@ function cetakForm06(payload, session) {
  * _hanyaAdminPPK_ di sini), dan setiap panggilan WAJIB 1 baris AUDIT_LOG
  * (daftar NIT yang rekeningnya ikut terbaca, BUKAN nomor rekeningnya).
  * Mensyaratkan PEMBAYARAN bulan itu sudah ada (dibuat lewat bayar.create,
- * yang sendirinya mensyaratkan REKAP_BULANAN berstatus DISETUJUI_WADIR3) —
- * supaya nominal yang tercetak sudah melalui gerbang otorisasi pencairan.
+ * yang sendirinya mensyaratkan REKAP_BULANAN berstatus FINAL — setelah alur
+ * Wadir 3 setujui → PPK verifikasi → PPK finalkan) — supaya nominal yang
+ * tercetak sudah melalui seluruh gerbang persetujuan.
  */
 function cetakForm07(payload, session) {
   _hanyaAdminPPK_(session);

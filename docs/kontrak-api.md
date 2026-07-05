@@ -92,22 +92,27 @@ Transisi ilegal → error eksplisit (mis. "Pesanan berstatus DRAFT, tidak bisa d
 | Action | Role | Keterangan |
 |---|---|---|
 | `rekap.get` | PPK, KPA, WADIR3 | per bulan |
-| `rekap.verify` | PPK | `DRAFT → TERVERIFIKASI_PPK` |
-| `rekap.final` | PPK | `→ FINAL` — beku, dasar SPM; update berikutnya ditolak |
-| `rekap.approve_wadir3` | WADIR3 | `FINAL → DISETUJUI_WADIR3` — otorisasi pencairan (bukan koreksi angka); syarat `bayar.create` |
-| `rekap.input_historis` | PPK, ADMIN | `{bulan, biaya_per_hari, baris:[{nit,hari_makan,hari_tidak_makan?}]}` — migrasi bulan pra-aplikasi (mis. Januari–Juni sebelum e-BAMA aktif), TANPA Pesanan/Realisasi harian palsu; `biaya_per_hari` = satu angka Rp/hari (bukan harga_per_porsi × porsi_per_hari) karena rate historis bisa beda per kelompok — panggil berkali-kali per kelompok rate untuk bulan yang sama; tolak bila bulan itu sudah punya baris bukan `DRAFT`; jejak sumber di AUDIT_LOG (`sumber: INPUT_HISTORIS_PRA_APLIKASI`), lanjut alur normal `rekap.verify → rekap.final → rekap.approve_wadir3` |
+| `rekap.approve_wadir3` | WADIR3 | `DRAFT → DISETUJUI_WADIR3` — **persetujuan PALING AWAL** atas rekap; angka belum beku |
+| `rekap.verify` | PPK | `DISETUJUI_WADIR3 → TERVERIFIKASI_PPK` — PPK memeriksa hasil yang sudah disetujui Wadir 3 |
+| `rekap.final` | PPK | `TERVERIFIKASI_PPK → FINAL` — **PPK finalkan (langkah TERAKHIR)**: angka BEKU, dasar SPM, siap dibayar; update berikutnya ditolak; syarat `bayar.create` |
+| `rekap.input_historis` | PPK, ADMIN | `{bulan, biaya_per_hari, baris:[{nit,hari_makan,hari_tidak_makan?}]}` — migrasi bulan pra-aplikasi (mis. Januari–Juni sebelum e-BAMA aktif), TANPA Pesanan/Realisasi harian palsu; `biaya_per_hari` = satu angka Rp/hari (bukan harga_per_porsi × porsi_per_hari) karena rate historis bisa beda per kelompok — panggil berkali-kali per kelompok rate untuk bulan yang sama; tolak bila bulan itu sudah punya baris bukan `DRAFT`; jejak sumber di AUDIT_LOG (`sumber: INPUT_HISTORIS_PRA_APLIKASI`), lanjut alur normal `rekap.approve_wadir3 → rekap.verify → rekap.final` |
+
+> **Urutan persetujuan (dikonfirmasi Firdaus):** Wadir 3 menyetujui DULU, baru PPK
+> verifikasi lalu finalkan. Prinsipnya PPK di posisi TERAKHIR — menerima hasil
+> yang sudah disetujui untuk dinyatakan siap dibayar. Angka beku saat PPK finalkan.
 
 `rekapUpdate(tanggal)` internal (bukan action publik): incremental per hari, uang integer.
 
 ### Pembayaran (SOP no. 11–17) — mesin status `DIAJUKAN → SP2D_TERBIT → DITRANSFER → DIKONFIRMASI → SELESAI`
 
 > Pembayaran mencakup pencairan ke rekening taruna (SP2D dari KPPN) yang lalu
-> auto-debet ke rekening Senat → penyedia — satu mekanisme LS, satu approval
-> Wadir 3 di gerbang `rekap.approve_wadir3` mencakup keduanya.
+> auto-debet ke rekening Senat → penyedia — satu mekanisme LS. Persetujuan
+> lengkap (Wadir 3 → PPK verifikasi → PPK finalkan) sudah dilalui saat rekap
+> berstatus `FINAL`, yang menjadi syarat `bayar.create`.
 
 | Action | Role | Keterangan |
 |---|---|---|
-| `bayar.create` | PPK | syarat REKAP bulan tsb `DISETUJUI_WADIR3`; `nilai_total` = SUM(nominal) snapshot |
+| `bayar.create` | PPK | syarat REKAP bulan tsb `FINAL` (setelah Wadir 3 setujui → PPK verifikasi → PPK finalkan); `nilai_total` = SUM(nominal) snapshot |
 | `bayar.update` | PPK | isi no_spm/tgl_spm, no_sp2d/tgl_sp2d — status naik sesuai urutan; lampiran surat blokir / bukti debet / invoice |
 | `bayar.confirm` | SENAT | `DITRANSFER → DIKONFIRMASI` (SOP 15–16) |
 | `bayar.close` | PPK | `→ SELESAI` (SOP 17) |

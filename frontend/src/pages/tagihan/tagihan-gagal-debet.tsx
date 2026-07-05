@@ -29,8 +29,9 @@ export function HalamanTagihanGagalDebet() {
 
   const namaByNit = new Map((tarunaQ.data?.taruna ?? []).map((t) => [t.nit, t.nama]));
   const rekap = rekapQ.data?.rekap ?? [];
-  // FINAL atau DISETUJUI_WADIR3 sama-sama berarti nominal sudah beku
-  const belumFinal = rekap.length > 0 && rekap[0].status !== 'FINAL' && rekap[0].status !== 'DISETUJUI_WADIR3';
+  // Angka beku HANYA saat FINAL (PPK finalkan, langkah terakhir). DISETUJUI_WADIR3
+  // kini langkah awal (angka belum beku) → belum jadi dasar tagihan.
+  const belumFinal = rekap.length > 0 && rekap[0].status !== 'FINAL';
 
   function toggle(nit: string) {
     setTerpilih((s) => {

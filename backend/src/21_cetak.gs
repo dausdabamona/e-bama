@@ -283,8 +283,9 @@ function cetakForm06(payload, session) {
  * _hanyaAdminPPK_ di sini), dan setiap panggilan WAJIB 1 baris AUDIT_LOG
  * (daftar NIT yang rekeningnya ikut terbaca, BUKAN nomor rekeningnya).
  * Mensyaratkan PEMBAYARAN bulan itu sudah ada (dibuat lewat bayar.create,
- * yang sendirinya mensyaratkan REKAP_BULANAN berstatus DISETUJUI_WADIR3) —
- * supaya nominal yang tercetak sudah melalui gerbang otorisasi pencairan.
+ * yang sendirinya mensyaratkan REKAP_BULANAN berstatus FINAL — setelah alur
+ * Wadir 3 setujui → PPK verifikasi → PPK finalkan) — supaya nominal yang
+ * tercetak sudah melalui seluruh gerbang persetujuan.
  */
 function cetakForm07(payload, session) {
   _hanyaAdminPPK_(session);
