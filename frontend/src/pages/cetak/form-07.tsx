@@ -125,9 +125,9 @@ function useTanpaCache<T>(action: string, payload?: unknown) {
  * SPM per orang ke Rekening Senat, (3) teruskan total ke rekening penyedia.
  * Kolom Tanda Tangan taruna = pemberian kuasa mendebet.
  */
-function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia, rekSenatNama, rekPenyediaNama, lamaBlokir }: {
+function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia, rekSenatNama, rekPenyediaNama, lamaBlokir, noSurat }: {
   bank: string; rows: BarisForm07[]; bulan: string; pejabat: Form07Data['pejabat'];
-  rekSenat?: string; rekPenyedia?: string; rekSenatNama?: string; rekPenyediaNama?: string; lamaBlokir: string;
+  rekSenat?: string; rekPenyedia?: string; rekSenatNama?: string; rekPenyediaNama?: string; lamaBlokir: string; noSurat?: string;
 }) {
   const total = rows.reduce((s, b) => s + b.nominal, 0);
   const labelBank = bank === 'TANPA_REKENING' ? 'BELUM ADA REKENING' : bank;
@@ -137,7 +137,7 @@ function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia,
       <KopSurat />
       <div className="text-center">
         <h2 className="text-sm font-bold">PERMOHONAN PEMBLOKIRAN DAN PENDEBETAN REKENING TARUNA</h2>
-        <p className="text-xs">Bank {labelBank} · Bulan {labelBulan(bulan)} · Nomor: B. ______ /POLTEK.SRG/KU.110/…/20…</p>
+        <p className="text-xs">Bank {labelBank} · Bulan {labelBulan(bulan)} · Nomor: {noSurat || 'B. ______ /POLTEK.SRG/KU.110/…/2026'}</p>
       </div>
       <p className="text-xs">Kepada Yth. Pimpinan Bank {labelBank} — di tempat.</p>
       <p className="text-xs">
@@ -178,8 +178,10 @@ export function HalamanCetakForm07() {
   const [bulan, setBulan] = useState(bulanParam || bulanIni());
   const { data, memuat, galat, refresh } = useTanpaCache<Form07Data>('cetak.form07', { bulan });
 
-  // ── Nomor surat diisi manual (state lokal, TIDAK dikirim ke server) ──
-  const [noSurat, setNoSurat] = useState('');
+  // ── Nomor surat diisi manual per bank (state lokal, TIDAK dikirim ke server) ──
+  // Dua bank = dua surat terpisah = dua nomor surat.
+  const [noSuratBNI, setNoSuratBNI] = useState('');
+  const [noSuratBSI, setNoSuratBSI] = useState('');
   // Surat blokir & pendebetan per bank (BSI/BNI dipisah) — tiap bank surat sendiri.
   const [lampiranBank, setLampiranBank] = useState(true);
   // Lama blokir (hari) diisi manual — tidak dikirim ke server.
@@ -214,6 +216,18 @@ export function HalamanCetakForm07() {
           <input type="number" min={1} value={lamaBlokir} onChange={(e) => setLamaBlokir(e.target.value)}
             className="w-20 rounded border border-gray-300 px-2 py-1 text-sm" />
         </label>
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <span className="w-40">No. Surat Bank BNI:</span>
+          <input value={noSuratBNI} onChange={(e) => setNoSuratBNI(e.target.value)}
+            placeholder="B. …/POLTEK.SRG/KU.110/…/2026"
+            className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm" />
+        </label>
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <span className="w-40">No. Surat Bank BSI:</span>
+          <input value={noSuratBSI} onChange={(e) => setNoSuratBSI(e.target.value)}
+            placeholder="B. …/POLTEK.SRG/KU.110/…/2026"
+            className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm" />
+        </label>
       </div>
 
       {memuat && !data && <LoadingSpinner label="Memuat data…" />}
@@ -222,15 +236,12 @@ export function HalamanCetakForm07() {
       {data && (
         <div className="flex flex-col gap-4">
           <KopSurat />
-          <div className="text-right text-xs print:block">
-            <label className="mb-1 block font-medium text-gray-700 print:hidden">Nomor Surat</label>
-            <input value={noSurat} onChange={(e) => setNoSurat(e.target.value)}
-              placeholder="…/SENAT-TARUNA.POLTEK.KP.SRG/…/20…"
-              className="w-full rounded border border-gray-300 px-2 py-1 text-right text-xs print:border-0" />
-          </div>
           <div className="text-center">
-            <h2 className="text-base font-bold">USULAN PENAHANAN DAN PENDEBETAN REKENING KE BANK</h2>
+            <h2 className="text-base font-bold">PERMOHONAN PEMBLOKIRAN DAN PENDEBETAN REKENING TARUNA</h2>
             <p className="text-sm">Bulan {labelBulan(data.bulan)}</p>
+            <p className="text-xs text-gray-500 print:hidden">
+              (Nomor surat diisi per bank di kolom kontrol di atas — muncul pada masing-masing surat bank di bawah)
+            </p>
           </div>
 
           <Card className="print:border-0 print:p-0 print:shadow-none">
@@ -301,7 +312,8 @@ export function HalamanCetakForm07() {
               rekSenat={g.bank === 'BNI' ? data.rekening_senat?.BNI : g.bank === 'BSI' ? data.rekening_senat?.BSI : ''}
               rekPenyedia={g.bank === 'BNI' ? data.rekening_penyedia?.BNI : g.bank === 'BSI' ? data.rekening_penyedia?.BSI : ''}
               rekSenatNama={g.bank === 'BNI' ? data.rekening_senat_nama?.BNI : g.bank === 'BSI' ? data.rekening_senat_nama?.BSI : ''}
-              rekPenyediaNama={g.bank === 'BNI' ? data.rekening_penyedia_nama?.BNI : g.bank === 'BSI' ? data.rekening_penyedia_nama?.BSI : ''} />
+              rekPenyediaNama={g.bank === 'BNI' ? data.rekening_penyedia_nama?.BNI : g.bank === 'BSI' ? data.rekening_penyedia_nama?.BSI : ''}
+              noSurat={g.bank === 'BNI' ? noSuratBNI : g.bank === 'BSI' ? noSuratBSI : ''} />
           ))}
         </div>
       )}
