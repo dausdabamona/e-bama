@@ -2,7 +2,7 @@
 // + Rekonsiliasi SP2D (impor "Monitoring SP2D" OM-SPAN, dibandingkan per kelompok
 // Prodi+Tingkat+Bulan[+Kegiatan] — lihat docs/skema-sheet.md §17 untuk alasannya).
 // Cetak via window.print() dengan CSS print rapi (lihat index.css @media print).
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/auth-context';
 import { BulanPicker, bulanIni, labelBulan } from '../../components/bulan-picker';
@@ -48,6 +48,16 @@ function statusKurangLebih(r: CrossCheckSp2d): string {
   if (r.selisih_total > 0) bagian.push(`kurang ${formatRupiah(r.selisih_total)}`);
   else if (r.selisih_total < 0) bagian.push(`lebih ${formatRupiah(-r.selisih_total)}`);
   return bagian.length ? bagian.join(', ') : 'beda';
+}
+
+/** Daftar No. SP2D (agregat) yang menyusun satu kelompok Prodi+Tingkat[+Kegiatan]. */
+function rincianSp2dKelompok(
+  semua: CrossCheckSp2d[], kategori: string, prodi: string, tingkat: string, kegiatan?: string
+): CrossCheckSp2d[] {
+  return semua
+    .filter((r) => r.kategori === kategori && r.prodi === prodi && r.tingkat === tingkat
+      && (kegiatan === undefined || r.kegiatan === kegiatan) && r.ada_agregat)
+    .sort((a, b) => a.no_sp2d.localeCompare(b.no_sp2d));
 }
 
 interface Rekonsiliasi {
@@ -398,15 +408,33 @@ export function HalamanLaporan() {
                         </tr>
                       </thead>
                       <tbody>
-                        {rekonQ.data.dalam_kampus.map((r, i) => (
-                          <tr key={i} className={`border-b border-gray-100 ${r.cocok ? '' : 'bg-red-50'}`}>
-                            <td className="py-1 pr-2">{r.prodi}</td><td className="py-1 pr-2">{r.tingkat}</td>
-                            <td className="py-1 pr-2 text-right">{formatRupiah(r.sistem)}</td>
-                            <td className="py-1 pr-2 text-right">{formatRupiah(r.sp2d)}</td>
-                            <td className="py-1 pr-2 text-right">{formatRupiah(r.selisih)}</td>
-                            <td className="py-1">{r.cocok ? <span className="text-green-700">Cocok</span> : <span className="text-red-600">Selisih</span>}</td>
-                          </tr>
-                        ))}
+                        {rekonQ.data.dalam_kampus.map((r, i) => {
+                          const rincian = rincianSp2dKelompok(rekonQ.data!.cross_check_sp2d, 'DALAM_KAMPUS', r.prodi, r.tingkat);
+                          return (
+                            <Fragment key={i}>
+                              <tr className={`border-b border-gray-100 ${r.cocok ? '' : 'bg-red-50'}`}>
+                                <td className="py-1 pr-2">{r.prodi}</td><td className="py-1 pr-2">{r.tingkat}</td>
+                                <td className="py-1 pr-2 text-right">{formatRupiah(r.sistem)}</td>
+                                <td className="py-1 pr-2 text-right">{formatRupiah(r.sp2d)}</td>
+                                <td className="py-1 pr-2 text-right">{formatRupiah(r.selisih)}</td>
+                                <td className="py-1">{r.cocok ? <span className="text-green-700">Cocok</span> : <span className="text-red-600">Selisih</span>}</td>
+                              </tr>
+                              {rincian.length > 0 && (
+                                <tr className="border-b border-gray-100">
+                                  <td colSpan={6} className="pb-2 pl-3">
+                                    <ul className="flex flex-col gap-0.5 text-[11px] text-gray-500">
+                                      {rincian.map((sp) => (
+                                        <li key={sp.no_sp2d}>
+                                          No. SP2D <span className="font-mono">{sp.no_sp2d}</span> — {formatRupiah(sp.agregat_total)} ({sp.agregat_orang} orang)
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
+                          );
+                        })}
                       </tbody>
                     </table>
                   )}
@@ -426,15 +454,33 @@ export function HalamanLaporan() {
                         </tr>
                       </thead>
                       <tbody>
-                        {rekonQ.data.luar_kampus.map((r, i) => (
-                          <tr key={i} className={`border-b border-gray-100 ${r.cocok ? '' : 'bg-red-50'}`}>
-                            <td className="py-1 pr-2">{r.kegiatan}</td><td className="py-1 pr-2">{r.prodi}</td><td className="py-1 pr-2">{r.tingkat}</td>
-                            <td className="py-1 pr-2 text-right">{formatRupiah(r.sistem)}</td>
-                            <td className="py-1 pr-2 text-right">{formatRupiah(r.sp2d)}</td>
-                            <td className="py-1 pr-2 text-right">{formatRupiah(r.selisih)}</td>
-                            <td className="py-1">{r.cocok ? <span className="text-green-700">Cocok</span> : <span className="text-red-600">Selisih</span>}</td>
-                          </tr>
-                        ))}
+                        {rekonQ.data.luar_kampus.map((r, i) => {
+                          const rincian = rincianSp2dKelompok(rekonQ.data!.cross_check_sp2d, 'LUAR_KAMPUS', r.prodi, r.tingkat, r.kegiatan);
+                          return (
+                            <Fragment key={i}>
+                              <tr className={`border-b border-gray-100 ${r.cocok ? '' : 'bg-red-50'}`}>
+                                <td className="py-1 pr-2">{r.kegiatan}</td><td className="py-1 pr-2">{r.prodi}</td><td className="py-1 pr-2">{r.tingkat}</td>
+                                <td className="py-1 pr-2 text-right">{formatRupiah(r.sistem)}</td>
+                                <td className="py-1 pr-2 text-right">{formatRupiah(r.sp2d)}</td>
+                                <td className="py-1 pr-2 text-right">{formatRupiah(r.selisih)}</td>
+                                <td className="py-1">{r.cocok ? <span className="text-green-700">Cocok</span> : <span className="text-red-600">Selisih</span>}</td>
+                              </tr>
+                              {rincian.length > 0 && (
+                                <tr className="border-b border-gray-100">
+                                  <td colSpan={7} className="pb-2 pl-3">
+                                    <ul className="flex flex-col gap-0.5 text-[11px] text-gray-500">
+                                      {rincian.map((sp) => (
+                                        <li key={sp.no_sp2d}>
+                                          No. SP2D <span className="font-mono">{sp.no_sp2d}</span> — {formatRupiah(sp.agregat_total)} ({sp.agregat_orang} orang)
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
+                          );
+                        })}
                       </tbody>
                     </table>
                   )}
