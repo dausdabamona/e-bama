@@ -3186,10 +3186,14 @@ function cetakForm08(payload, session) {
  * (BNI & BSI), karena rekening Senat & Penyedia masing-masing 2 (alur paralel:
  * Senat BSI→Penyedia BSI, Senat BNI→Penyedia BNI).
  *
- * TIDAK membaca TARUNA_REKENING (bukan rekening taruna) → tidak wajib AUDIT_LOG
- * rekening. Nominal per bank = SUM(REKAP_BULANAN.nominal) dikelompokkan lewat
- * join TARUNA.bank (pola sama seperti rekonsiliasi SP2D & Form 07). Rekening
- * Senat/Penyedia dari getRekeningInstansi() (Script Property, diisi Admin).
+ * Nominal per bank HARUS sama persis dengan total per bank di Form 07 — sebab
+ * yang diteruskan Senat→Penyedia adalah dana yang masuk dari pendebetan Form 07.
+ * Karena itu pengelompokan bank memakai bank REKENING RIIL taruna
+ * (`TARUNA_REKENING.bank`), bukan `TARUNA.bank` master (yang bisa berbeda), dan
+ * taruna bernilai Rp0 diabaikan — persis aturan Form 07. Yang dibaca dari
+ * TARUNA_REKENING HANYA kolom `bank` (BSI/BNI), TIDAK pernah `no_rekening_lengkap`
+ * → bukan data sensitif §4, jadi tidak wajib AUDIT_LOG. Rekening Senat/Penyedia
+ * (nomor penuh yang dituju) tetap dari getRekeningInstansi() (Script Property).
  */
 function cetakForm09(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
@@ -3200,23 +3204,29 @@ function cetakForm09(payload, session) {
   }
   var rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
   if (!rekapRows.length) throw _fail_('Belum ada rekap untuk bulan ' + bulan + '.');
+  // Abaikan taruna Rp0 — sama seperti Form 07 (tak didebet, tak diteruskan).
+  rekapRows = rekapRows.filter(function (r) { return _int_(r.nominal || 0, 'nominal') > 0; });
 
-  var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  // Bank per taruna dari TARUNA_REKENING (rekening riil) — HANYA kolom `bank`,
+  // supaya total per bank identik dengan Form 07. Taruna tanpa baris rekening →
+  // grup 'TANPA_REKENING' (belum bisa diteruskan; sama seperti Form 07).
+  var nitList = rekapRows.map(function (r) { return String(r.nit); });
+  var bankByNit = {};
+  sheetRead(SHEETS.TARUNA_REKENING, function (r) { return nitList.indexOf(String(r.nit)) >= 0; })
+    .forEach(function (r) { bankByNit[String(r.nit)] = String(r.bank || ''); });
 
   var rek = getRekeningInstansi();
   var agg = {}; // bank -> {total, jml}
   rekapRows.forEach(function (r) {
-    var t = tarunaByNit[String(r.nit)] || {};
-    var bank = t.bank || 'LAINNYA';
+    var bank = bankByNit[String(r.nit)] || 'TANPA_REKENING';
     if (!agg[bank]) agg[bank] = { total: 0, jml: 0 };
     agg[bank].total += _int_(r.nominal || 0, 'nominal');
     agg[bank].jml += 1;
   });
 
-  var urut = { BSI: 0, BNI: 1 };
+  var urut = { BSI: 0, BNI: 1, TANPA_REKENING: 9 };
   var perBank = Object.keys(agg)
-    .sort(function (a, b) { return (urut[a] == null ? 9 : urut[a]) - (urut[b] == null ? 9 : urut[b]); })
+    .sort(function (a, b) { return (urut[a] == null ? 5 : urut[a]) - (urut[b] == null ? 5 : urut[b]); })
     .map(function (bank) {
       return {
         bank: bank, jml_taruna: agg[bank].jml, total: agg[bank].total,
