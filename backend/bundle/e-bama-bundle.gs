@@ -3621,6 +3621,25 @@ function _parseKegiatanUraian_(teks) {
   return null;
 }
 
+/**
+ * Deteksi apakah teks Uraian sebenarnya bertema LUAR KAMPUS (KPA/PKL/PTB) —
+ * dipakai sebagai PENGAMAN saat impor kategori DALAM_KAMPUS supaya baris KPA/PKL
+ * yang salah pilih kategori tidak mencemari rekonsiliasi Dalam Kampus
+ * (dikonfirmasi Firdaus: Mei 2026 rincian KPA per-taruna sempat masuk sebagai
+ * DALAM_KAMPUS → tampak "selisih"/dobel).
+ *
+ * PENTING: nomor SK memuat "KPA.PKPS" (Kuasa Pengguna Anggaran) di HAMPIR SEMUA
+ * uraian, termasuk Dalam Kampus asli — jadi KPA sebagai KEGIATAN hanya dikenali
+ * bila muncul sebagai "Taruna KPA" (kegiatan), BUKAN "KPA.PKPS" di nomor SK.
+ */
+function _uraianTerlihatLuarKampus_(teks) {
+  var t = String(teks || '');
+  return /Praktik Pembelajaran Taruna Berprestasi/i.test(t)
+    || /PKL\s*III/i.test(t)
+    || /PKL\s*II\b/i.test(t)
+    || /Taruna\s+KPA\b/i.test(t);
+}
+
 /** Parse "...untuk 28 Orang" → 28 atau null. */
 function _parseJmlOrangUraian_(teks) {
   var m = /untuk\s+(\d+)\s+Orang/i.exec(teks);
@@ -3719,6 +3738,10 @@ function sp2dImport(payload, session) {
       var hasil = nit
         ? _parseBarisPerTaruna_(nit, uraian, kategori, tarunaValid)
         : _parseUraianSpm_(uraian, kategori);
+      // PENGAMAN salah-kategori: baris DALAM_KAMPUS yang uraiannya justru KPA/PKL/
+      // PTB (Luar Kampus) → tandai perlu_cek_manual supaya DIKELUARKAN dari
+      // rekonsiliasi Dalam Kampus (tidak menumpuk jadi "selisih"/dobel).
+      var salahKategori = kategori === 'DALAM_KAMPUS' && _uraianTerlihatLuarKampus_(uraian);
       sheetAppend(SHEETS.SP2D_MONITORING, {
         no_spm: noSpm, kategori: kategori, nit: nit,
         prodi: hasil.prodi, tingkat: hasil.tingkat, bulan: hasil.bulan, kegiatan: hasil.kegiatan,
@@ -3729,11 +3752,11 @@ function sp2dImport(payload, session) {
         tgl_sp2d: (b.tgl_sp2d && b.tgl_sp2d !== '-') ? b.tgl_sp2d : '',
         status_sp2d: (b.status_sp2d && b.status_sp2d !== '-') ? String(b.status_sp2d) : '',
         uraian_asli: uraian,
-        perlu_cek_manual: hasil.gagal ? 'YA' : ''
+        perlu_cek_manual: (hasil.gagal || salahKategori) ? 'YA' : ''
       });
       adaNoSpm[_kunciNoSpm_(noSpm)] = true;
       ditambah++;
-      if (kategori === 'DALAM_KAMPUS' && !hasil.gagal && hasil.bulan) bulanDalamKampusTersentuh[hasil.bulan] = true;
+      if (kategori === 'DALAM_KAMPUS' && !hasil.gagal && !salahKategori && hasil.bulan) bulanDalamKampusTersentuh[hasil.bulan] = true;
     });
 
     auditLog(session, 'sp2d.import', 'SP2D_MONITORING', null, null,

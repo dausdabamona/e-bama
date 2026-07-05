@@ -460,7 +460,7 @@ di bawah):**
 | tgl_spm, no_sp2d, tgl_sp2d, status_sp2d | - | apa adanya dari file sumber (`-` → dikosongkan, artinya SP2D belum terbit) |
 | uraian_asli | string | teks Uraian SPP/SPM (agregat) atau Deskripsi (per-taruna) lengkap, disimpan apa adanya untuk verifikasi manual |
 | no_sp2d | string | Nomor SP2D (15 digit) — ada di KEDUA format (kolom "No. SP2D" agregat / "NO SP2D" SPANExt). **Kunci penaut agregat↔rincian** untuk cross-check (1 SP2D = 1 kelompok tingkat, dikonfirmasi Firdaus). Kosong bila SP2D belum terbit (`-`) |
-| perlu_cek_manual | string | `'YA'` bila: format agregat → prodi/tingkat/bulan/jumlah_orang (atau kegiatan utk Luar Kampus) gagal diparse; format per-taruna → `bulan` tidak terbaca dari Deskripsi, kegiatan gagal diparse (Luar Kampus), atau `nit` tidak dikenal di TARUNA |
+| perlu_cek_manual | string | `'YA'` bila: format agregat → prodi/tingkat/bulan/jumlah_orang (atau kegiatan utk Luar Kampus) gagal diparse; format per-taruna → `bulan` tidak terbaca dari Deskripsi, kegiatan gagal diparse (Luar Kampus), atau `nit` tidak dikenal di TARUNA. **Pengaman salah-kategori:** baris impor kategori `DALAM_KAMPUS` yang Uraiannya justru bertema Luar Kampus (mengandung "Taruna KPA"/"PKL II"/"PKL III"/"Praktik Pembelajaran Taruna Berprestasi" — "KPA" di *nomor SK* `KPA.PKPS` TIDAK dihitung) otomatis ditandai `'YA'` → dikeluarkan dari rekonsiliasi Dalam Kampus (mencegah KPA/PKL yang salah pilih kategori menumpuk jadi "selisih") |
 
 **Impor (`sp2d.import`, role ADMIN/PPK):** PPK unduh file terbaru dari
 OM-SPAN tiap bulan, unggah CSV (header persis file sumber — agregat atau
