@@ -220,6 +220,7 @@ export function HalamanPembayaran() {
                         <th className="py-1 pr-2">Prodi/Tingkat</th>
                         <th className="py-1 pr-2 text-right">Sistem</th>
                         <th className="py-1 pr-2 text-right">SP2D</th>
+                        <th className="py-1 pr-2 text-right">Selisih</th>
                         <th className="py-1">Status</th>
                       </tr>
                     </thead>
@@ -230,6 +231,9 @@ export function HalamanPembayaran() {
                             <td className="py-1 pr-2 font-medium">{k.prodi} / {k.tingkat}</td>
                             <td className="py-1 pr-2 text-right">{formatRupiah(k.sistem)}</td>
                             <td className="py-1 pr-2 text-right">{formatRupiah(k.sp2d)}</td>
+                            <td className={`py-1 pr-2 text-right ${k.selisih !== 0 ? 'font-semibold text-amber-700' : 'text-gray-400'}`}>
+                              {k.selisih !== 0 ? formatRupiah(k.selisih) : '—'}
+                            </td>
                             <td className="py-1">
                               {k.cocok
                                 ? <span className="text-green-700">✓ cocok</span>
@@ -240,13 +244,15 @@ export function HalamanPembayaran() {
                           </tr>
                           {k.rincian.length > 0 && (
                             <tr>
-                              <td colSpan={4} className="px-2 pb-2">
+                              <td colSpan={5} className="px-2 pb-2">
                                 <ul className="ml-1 list-disc pl-4 text-[11px] text-gray-500">
                                   {k.rincian.map((sp, i) => (
                                     <li key={sp.no_sp2d || `${sp.no_spm}-${i}`}>
-                                      No. SP2D <span className="font-mono">{sp.no_sp2d || '(belum terbit)'}</span>
-                                      {' — '}{formatRupiah(sp.jumlah_pembayaran)}
-                                      {sp.tgl_sp2d ? ` • ${sp.tgl_sp2d}` : ''}
+                                      No. SPM <span className="font-mono">{sp.no_spm || '-'}</span>
+                                      {sp.tgl_spm ? ` (${sp.tgl_spm})` : ''}
+                                      {' → '}No. SP2D <span className="font-mono">{sp.no_sp2d || '(belum terbit)'}</span>
+                                      {sp.tgl_sp2d ? ` (${sp.tgl_sp2d})` : ''}
+                                      {' • '}{formatRupiah(sp.jumlah_pembayaran)}
                                       {sp.status_sp2d ? ` • ${sp.status_sp2d}` : ''}
                                     </li>
                                   ))}
@@ -257,6 +263,15 @@ export function HalamanPembayaran() {
                         </Fragment>
                       ))}
                     </tbody>
+                    <tfoot>
+                      <tr className="border-t border-gray-300 font-bold">
+                        <td className="py-1 pr-2">TOTAL</td>
+                        <td className="py-1 pr-2 text-right">{formatRupiah(rincianSp2d.reduce((s, k) => s + k.sistem, 0))}</td>
+                        <td className="py-1 pr-2 text-right">{formatRupiah(rincianSp2d.reduce((s, k) => s + k.sp2d, 0))}</td>
+                        <td className="py-1 pr-2 text-right">{formatRupiah(rincianSp2d.reduce((s, k) => s + k.selisih, 0))}</td>
+                        <td className="py-1 text-gray-500">{kelompokCocok}/{kelompokBersistem.length} kelompok cocok</td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
 
