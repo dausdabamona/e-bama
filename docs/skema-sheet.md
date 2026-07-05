@@ -368,7 +368,7 @@ pernah bersentuhan dengan data ini sama sekali.
 | nama_pemilik | string | nama pemilik rekening (kadang beda kecil ejaan dari `TARUNA.nama` — dicatat apa adanya sesuai buku rekening) |
 | updated_by | FK → PENGGUNA | |
 | updated_at | datetime | |
-| penyedia_id | FK → PENYEDIA (opsional) | **suplier katering yang dipasangkan ke rekening taruna ini** — dipakai memecah pengajuan SPM ke KPPN per suplier (`cetak.form10`/Form-10). Diisi lewat `rekening.simpan`/`rekening.simpan_batch` (dropdown master PENYEDIA); kosong = belum ditentukan. Kolom di-append di AKHIR skema supaya `setupDatabase()` (idempotent, tulis-ulang header) tidak menggeser data lama |
+| penyedia_id | FK → PENYEDIA (opsional) | **suplier katering yang dipasangkan ke rekening taruna ini** — dipakai memecah pengajuan SPM ke KPPN per ID suplier lalu prodi+tingkat (`cetak.form10`/Form-10). Lewat action (`rekening.simpan`/`_batch`) nilainya **divalidasi harus ada di sheet PENYEDIA**; boleh berupa kode suplier eksternal (mis. 7 digit dari SPAN), bukan cuma `PNY-xxxxxx` — asalkan baris PENYEDIA ber-ID tsb sudah ada supaya Form-10 bisa menampilkan NAMA-nya (kalau tidak, Form-10 tetap mengelompokkan per ID dan menampilkan ID-nya). Untuk migrasi massal boleh di-paste langsung ke sheet TARUNA_REKENING (urutan kolom persis skema ini). Kolom di-append di AKHIR skema supaya `setupDatabase()` (idempotent, tulis-ulang header) tidak menggeser data lama |
 
 **Aturan akses (mempersempit CLAUDE.md § 4 dengan pengecualian eksplisit, BUKAN membatalkannya):**
 

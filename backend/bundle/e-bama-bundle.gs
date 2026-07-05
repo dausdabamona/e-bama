@@ -3238,13 +3238,15 @@ function cetakForm09(payload, session) {
  * Form 10: Rencana Pengajuan SPM ke KPPN, DIPECAH PER SUPLIER (dikonfirmasi
  * Firdaus). Payload {bulan}. Realitanya SPM ke KPPN diajukan terpisah per
  * suplier katering → tiap suplier = satu lembar SPM sendiri; di dalamnya
- * penerima dikelompokkan per **prodi + tingkat + angkatan** (angkatan = 2 digit
- * depan NIT, diturunkan on-read, tidak disimpan). Menampilkan nomor rekening
- * PENUH taruna (join TARUNA_REKENING, mekanisme LS bayar ke rekening taruna) →
- * role ADMIN/PPK dua lapis (_hanyaAdminPPK_ + ACTION_MAP) + WAJIB 1 baris
- * AUDIT_LOG (daftar NIT terbaca, BUKAN nomornya), persis Form-07. Suplier tiap
- * taruna diambil dari TARUNA_REKENING.penyedia_id (FK PENYEDIA). Mensyaratkan
- * PEMBAYARAN bulan itu sudah ada (→ REKAP sudah melalui FINAL).
+ * penerima dikelompokkan per **prodi + tingkat** (dikonfirmasi Firdaus:
+ * dipecah sesuai ID suplier, prodi, tingkat — angkatan sudah terwakili oleh ID
+ * suplier). Menampilkan nomor rekening PENUH taruna (join TARUNA_REKENING,
+ * mekanisme LS bayar ke rekening taruna) → role ADMIN/PPK dua lapis
+ * (_hanyaAdminPPK_ + ACTION_MAP) + WAJIB 1 baris AUDIT_LOG (daftar NIT terbaca,
+ * BUKAN nomornya), persis Form-07. Suplier tiap taruna diambil dari
+ * TARUNA_REKENING.penyedia_id; nama di-join dari PENYEDIA bila ada (kalau tidak,
+ * frontend menampilkan ID-nya). Mensyaratkan PEMBAYARAN bulan itu sudah ada
+ * (→ REKAP sudah melalui FINAL).
  */
 function cetakForm10(payload, session) {
   _hanyaAdminPPK_(session);
@@ -3293,11 +3295,10 @@ function cetakForm10(payload, session) {
       s.jml_taruna += 1;
       s.total_nominal += nominal;
 
-      var angkatan = nit.slice(0, 2);
       var prodi = t.prodi || '', tingkat = t.tingkat || '';
-      var kk = prodi + '|' + tingkat + '|' + angkatan;
+      var kk = prodi + '|' + tingkat;
       if (!s.kelompok[kk]) {
-        s.kelompok[kk] = { prodi: prodi, tingkat: tingkat, angkatan: angkatan, jml_taruna: 0, total_nominal: 0, baris: [] };
+        s.kelompok[kk] = { prodi: prodi, tingkat: tingkat, jml_taruna: 0, total_nominal: 0, baris: [] };
       }
       var k = s.kelompok[kk];
       k.jml_taruna += 1;
@@ -3312,10 +3313,9 @@ function cetakForm10(payload, session) {
     });
 
     function urutKelompok(a, b) {
-      var ta = URUT_TINGKAT[a.tingkat] || 9, tb = URUT_TINGKAT[b.tingkat] || 9;
-      if (ta !== tb) return ta - tb;
+      // Urut sesuai permintaan: prodi lalu tingkat.
       if (a.prodi !== b.prodi) return a.prodi < b.prodi ? -1 : 1;
-      return a.angkatan < b.angkatan ? -1 : (a.angkatan > b.angkatan ? 1 : 0);
+      return (URUT_TINGKAT[a.tingkat] || 9) - (URUT_TINGKAT[b.tingkat] || 9);
     }
     var perSuplierArr = Object.keys(perSuplier).map(function (kunciSup) {
       var s = perSuplier[kunciSup];

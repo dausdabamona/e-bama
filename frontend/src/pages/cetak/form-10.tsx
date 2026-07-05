@@ -22,7 +22,7 @@ interface BarisF10 {
   hari_makan: number; nominal: number; rekening_lengkap_ada: boolean;
 }
 interface KelompokF10 {
-  prodi: string; tingkat: string; angkatan: string; jml_taruna: number; total_nominal: number; baris: BarisF10[];
+  prodi: string; tingkat: string; jml_taruna: number; total_nominal: number; baris: BarisF10[];
 }
 interface SuplierF10 {
   penyedia_id: string; penyedia_nama: string; jml_taruna: number; total_nominal: number;
@@ -69,13 +69,18 @@ function LembarSuplier({ suplier, urutan, pejabat, bulan }: {
   suplier: SuplierF10; urutan: number; pejabat: Form10Data['pejabat']; bulan: string;
 }) {
   const belumAdaSuplier = !suplier.penyedia_id;
+  // Tampilkan nama suplier bila ada di master PENYEDIA; kalau tidak, tampilkan ID-nya.
+  const labelSuplier = belumAdaSuplier
+    ? '(BELUM DITENTUKAN)'
+    : (suplier.penyedia_nama ? suplier.penyedia_nama.toUpperCase() : `ID ${suplier.penyedia_id}`);
   return (
     <div className={urutan > 0 ? 'break-before-page pt-4' : ''}>
       <div className="text-center">
-        <h2 className="text-base font-bold">
-          RENCANA PENGAJUAN SPM — SUPLIER: {belumAdaSuplier ? '(BELUM DITENTUKAN)' : suplier.penyedia_nama.toUpperCase()}
-        </h2>
-        <p className="text-sm">Bulan {labelBulan(bulan)} — {suplier.jml_taruna} taruna</p>
+        <h2 className="text-base font-bold">RENCANA PENGAJUAN SPM — SUPLIER: {labelSuplier}</h2>
+        <p className="text-sm">
+          Bulan {labelBulan(bulan)} — {suplier.jml_taruna} taruna
+          {suplier.penyedia_id ? <> · ID Suplier: <span className="font-mono">{suplier.penyedia_id}</span></> : null}
+        </p>
       </div>
 
       {belumAdaSuplier && (
@@ -86,9 +91,9 @@ function LembarSuplier({ suplier, urutan, pejabat, bulan }: {
       )}
 
       {suplier.kelompok.map((k) => (
-        <Card key={`${k.prodi}|${k.tingkat}|${k.angkatan}`} className="mt-3 overflow-x-auto print:border-0 print:p-0 print:shadow-none">
+        <Card key={`${k.prodi}|${k.tingkat}`} className="mt-3 overflow-x-auto print:border-0 print:p-0 print:shadow-none">
           <p className="mb-2 text-sm font-semibold text-gray-600 print:text-black">
-            Prodi {k.prodi || '-'} · Tingkat {k.tingkat || '-'} · Angkatan {k.angkatan || '-'} ({k.jml_taruna} taruna)
+            Prodi {k.prodi || '-'} · Tingkat {k.tingkat || '-'} ({k.jml_taruna} taruna)
           </p>
           <TabelCetak headers={['No', 'NIT', 'Nama', 'Bank', 'No. Rekening', 'Hari', 'Nominal (Rp)']}>
             {k.baris.map((b, i) => (
@@ -104,7 +109,7 @@ function LembarSuplier({ suplier, urutan, pejabat, bulan }: {
             ))}
           </TabelCetak>
           <div className="mt-1 flex justify-between text-xs font-semibold">
-            <span>Subtotal {k.prodi} {k.tingkat}/{k.angkatan}</span>
+            <span>Subtotal {k.prodi} {k.tingkat}</span>
             <span>{formatRupiah(k.total_nominal)}</span>
           </div>
         </Card>
@@ -163,8 +168,8 @@ export function HalamanCetakForm10() {
           <Card className="print:border-0 print:p-0 print:shadow-none">
             <p className="text-sm">
               Berikut rencana pengajuan Surat Perintah Membayar (SPM) bantuan biaya makan taruna
-              bulan {labelBulan(data.bulan)}, <strong>dipecah per suplier</strong> (tiap suplier = satu
-              SPM tersendiri) dan dikelompokkan per <strong>program studi, tingkat, dan angkatan</strong>.
+              bulan {labelBulan(data.bulan)}, <strong>dipecah per ID suplier</strong> (tiap suplier = satu
+              SPM tersendiri) dan dikelompokkan per <strong>program studi dan tingkat</strong>.
               Pembayaran mekanisme LS langsung ke rekening masing-masing taruna. Total keseluruhan{' '}
               <strong>{formatRupiah(data.total_nominal)}</strong>.
             </p>

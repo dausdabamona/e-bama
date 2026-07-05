@@ -187,16 +187,19 @@ peta asal per form: `docs/format-dokumen.md`):
 | 07 | Usulan Penahanan & Pendebetan Bank | PEMBAYARAN, REKAP_BULANAN, **TARUNA_REKENING** | ✅ diimplementasi; **ADMIN/PPK saja**, halaman TIDAK di-cache Dexie; **dipisah per bank (BSI/BNI)** + Lampiran Kuasa Blokir + TTD tiap taruna + rekening Senat tujuan + **Mengetahui Direktur & Wadir 3** |
 | 08 | Usulan Pembayaran Luar Kampus | BANTUAN_LUAR_KAMPUS, STATUS_HARIAN, **TARUNA_REKENING** | ✅ diimplementasi — tarif dari `nilai_per_hari` (BANTUAN_LUAR_KAMPUS), jml hari dihitung ulang dari STATUS_HARIAN (dikonfirmasi Firdaus); **ADMIN/PPK saja**, halaman TIDAK di-cache Dexie |
 | 09 | Pendebetan Rekening Senat → Penyedia (per bank) | PEMBAYARAN, REKAP_BULANAN, `TARUNA.bank`, `REKENING_INSTANSI` (Script Property) | ✅ diimplementasi — tahap-2 pembayaran (dokumen-only, mesin status pembayaran TIDAK diubah); role SENAT/PPK/ADMIN; **tidak baca TARUNA_REKENING** (rekening instansi, bukan rekening taruna); Mengetahui Direktur & Wadir 3 |
-| 10 | Rencana Pengajuan SPM per Suplier | REKAP_BULANAN, TARUNA, **TARUNA_REKENING** (rekening PENUH + `penyedia_id`) | ✅ diimplementasi — **ADMIN/PPK saja**, halaman TIDAK di-cache Dexie, tiap panggilan 1 baris AUDIT_LOG; **dipecah per suplier** (tiap suplier = 1 lembar SPM) lalu dikelompokkan **prodi+tingkat+angkatan** (`angkatan = nit.slice(0,2)`, on-read); suplier per taruna dari `TARUNA_REKENING.penyedia_id`; TTD Senat/PPK + Mengetahui Direktur & Wadir 3 |
+| 10 | Rencana Pengajuan SPM per Suplier | REKAP_BULANAN, TARUNA, **TARUNA_REKENING** (rekening PENUH + `penyedia_id`) | ✅ diimplementasi — **ADMIN/PPK saja**, halaman TIDAK di-cache Dexie, tiap panggilan 1 baris AUDIT_LOG; **dipecah per ID suplier** (tiap suplier = 1 lembar SPM) lalu dikelompokkan **prodi+tingkat** (dikonfirmasi Firdaus: angkatan sudah terwakili ID suplier); suplier per taruna dari `TARUNA_REKENING.penyedia_id` (nama di-join PENYEDIA, fallback tampil ID); TTD Senat/PPK + Mengetahui Direktur & Wadir 3 |
 
 Semua 10 form sudah diimplementasi. Desain Form 02/04/08 sebelumnya sempat
 menunggu konfirmasi eksplisit Firdaus (lihat riwayat sesi) — bukan asumsi
 sendiri. Form 09 ditambahkan atas permintaan Firdaus (alur pendebetan 2 tahap:
 taruna→Senat lalu Senat→Penyedia, rekening masing-masing 2 bank BNI/BSI);
 keputusan "dokumen dulu, mesin status tetap, SELESAI tutup manual PPK". Form 10
-menambahkan pemecahan pengajuan SPM ke KPPN **per suplier** (dikonfirmasi
-Firdaus) + kolom `penyedia_id` di TARUNA_REKENING (suplier per rekening taruna);
-angkatan = 2 digit depan NIT.
+menambahkan pemecahan pengajuan SPM ke KPPN **per ID suplier** lalu prodi+tingkat
+(dikonfirmasi Firdaus) + kolom `penyedia_id` di TARUNA_REKENING (suplier per
+rekening taruna). Catatan data riil: `penyedia_id` bisa berupa kode suplier
+eksternal (mis. 7 digit dari SPAN), bukan hanya `PNY-xxxxxx` — supaya `Form-10`
+menampilkan NAMA suplier (bukan cuma ID), sheet PENYEDIA harus memuat baris ber-ID
+tsb; kalau tidak, Form-10 tetap mengelompokkan per ID.
 
 ---
 
