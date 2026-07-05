@@ -123,7 +123,6 @@ function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia,
   rekSenat?: string; rekPenyedia?: string; lamaBlokir: string;
 }) {
   const total = rows.reduce((s, b) => s + b.nominal, 0);
-  const totalHari = rows.reduce((s, b) => s + b.hari_makan, 0);
   const labelBank = bank === 'TANPA_REKENING' ? 'BELUM ADA REKENING' : bank;
   const namaHari = lamaBlokir.trim() || '……';
   return (
@@ -143,7 +142,7 @@ function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia,
         ({rekPenyedia || '…… belum diisi Admin'}). Tanda tangan taruna pada kolom terakhir merupakan pemberian
         kuasa kepada bank untuk mendebet sesuai nilai tersebut.
       </p>
-      <TabelCetak headers={['No', 'NIT', 'Nama Taruna', 'No. Rekening', 'Nilai Debet (Rp)', 'Hari', 'Tanda Tangan Taruna (Kuasa Debet)']}>
+      <TabelCetak headers={['No', 'NIT', 'Nama Taruna', 'No. Rekening', 'Nilai Debet (Rp)', 'Tanda Tangan Taruna (Kuasa Debet)']}>
         {rows.map((b, i) => (
           <BarisCetak key={b.nit}>
             <SelCetak>{i + 1}</SelCetak>
@@ -151,13 +150,12 @@ function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia,
             <SelCetak>{b.nama}</SelCetak>
             <SelCetak>{b.rekening_lengkap_ada ? b.no_rekening_lengkap : 'Belum diisi Admin'}</SelCetak>
             <SelCetak className="text-right">{formatRupiah(b.nominal)}</SelCetak>
-            <SelCetak className="text-right">{b.hari_makan}</SelCetak>
             <SelCetak />
           </BarisCetak>
         ))}
       </TabelCetak>
       <div className="flex justify-between text-sm font-bold">
-        <span>TOTAL BANK {labelBank} ({rows.length} taruna, {totalHari} hari)</span>
+        <span>TOTAL BANK {labelBank} ({rows.length} taruna)</span>
         <span>{formatRupiah(total)}</span>
       </div>
       <p className="text-xs italic">Terbilang: <strong>{terbilangRupiah(total)}</strong></p>
