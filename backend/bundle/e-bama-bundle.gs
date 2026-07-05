@@ -2910,9 +2910,10 @@ function cetakForm07(payload, session) {
       var nominal = _int_(r.nominal, 'nominal');
       totalNominal += nominal;
       return {
-        nit: nit, nama: t.nama || '',
+        nit: nit, nama: t.nama || '', prodi: t.prodi || '', tingkat: t.tingkat || '',
         bank: rek ? rek.bank : '', no_rekening_lengkap: rek ? rek.no_rekening_lengkap : '',
-        nama_pemilik: rek ? rek.nama_pemilik : '', nominal: nominal, rekening_lengkap_ada: !!rek
+        nama_pemilik: rek ? rek.nama_pemilik : '', nominal: nominal,
+        hari_makan: _int_(r.hari_makan || 0, 'hari_makan'), rekening_lengkap_ada: !!rek
       };
     });
 
