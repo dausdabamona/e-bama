@@ -3230,6 +3230,18 @@ function _parseBarisPerTaruna_(nit, uraian, kategori, tarunaValid) {
 }
 
 /**
+ * Kunci dedup untuk no_spm — buang prefix lama "Ref No : " (format kunci
+ * per-taruna sempat menyertakan prefix ini sebelum diperbaiki). Dipakai HANYA
+ * untuk pembandingan "sudah ada / belum", bukan untuk mengubah data yang
+ * tersimpan — supaya baris lama (masih berprefix) & baris baru (tanpa
+ * prefix) dari SP2D yang SAMA tetap dikenali sebagai duplikat, walau bentuk
+ * kuncinya beda karena perbaikan bug sebelumnya.
+ */
+function _kunciNoSpm_(s) {
+  return String(s || '').replace(/^ref\s*no\s*:\s*/i, '').trim();
+}
+
+/**
  * sp2d.import {kategori, baris:[{no_spm, nit?, tgl_spm?, no_sp2d?, tgl_sp2d?,
  * jumlah_pembayaran, status_sp2d?, uraian_asli}]} — HANYA MENAMBAH baris
  * dengan no_spm yang belum pernah ada (dikonfirmasi Firdaus: cek impor bulanan
@@ -3244,7 +3256,7 @@ function sp2dImport(payload, session) {
 
   return withLock(function () {
     var adaNoSpm = {};
-    sheetRead(SHEETS.SP2D_MONITORING).forEach(function (r) { adaNoSpm[String(r.no_spm)] = true; });
+    sheetRead(SHEETS.SP2D_MONITORING).forEach(function (r) { adaNoSpm[_kunciNoSpm_(r.no_spm)] = true; });
     var tarunaValid = {};
     sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaValid[String(t.nit)] = true; });
 
@@ -3252,7 +3264,7 @@ function sp2dImport(payload, session) {
     baris.forEach(function (b) {
       var noSpm = String((b && b.no_spm) || '').trim();
       if (!noSpm) throw _fail_('no_spm wajib diisi pada setiap baris.');
-      if (adaNoSpm[noSpm]) { dilewati++; return; } // sudah pernah masuk — lewati (hanya penambahan)
+      if (adaNoSpm[_kunciNoSpm_(noSpm)]) { dilewati++; return; } // sudah pernah masuk — lewati (hanya penambahan)
 
       var nit = (b && b.nit) ? String(b.nit).trim() : '';
       var uraian = String((b && b.uraian_asli) || '');
@@ -3271,7 +3283,7 @@ function sp2dImport(payload, session) {
         uraian_asli: uraian,
         perlu_cek_manual: hasil.gagal ? 'YA' : ''
       });
-      adaNoSpm[noSpm] = true;
+      adaNoSpm[_kunciNoSpm_(noSpm)] = true;
       ditambah++;
     });
 
