@@ -57,15 +57,17 @@ var ROLES = {
   ADMIN:    'ADMIN',
   WADIR3:   'WADIR3',
   BAAK:     'BAAK',
-  PENYEDIA: 'PENYEDIA'   // rekanan katering eksternal — akses portal terbatas (lihat 01_router.gs PENYEDIA_ACTIONS)
+  PENYEDIA: 'PENYEDIA',       // rekanan katering eksternal — akses portal terbatas (lihat 01_router.gs PENYEDIA_ACTIONS)
+  KETUA_JURUSAN: 'KETUA_JURUSAN' // ketua jurusan/prodi — input absen luar kampus + approve rekap prodinya (scope prodi; lihat 01_router.gs KETUA_JURUSAN_ACTIONS)
 };
 
 // ── Nilai enum per kolom (rujukan validasi dropdown & pengecekan handler) ────
 var ENUM = {
   AKTIF_STATUS:      ['AKTIF', 'NONAKTIF'],                 // PENGGUNA/TARUNA/PENYEDIA.status
-  ROLE:              ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK', 'PENYEDIA'],
+  ROLE:              ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK', 'PENYEDIA', 'KETUA_JURUSAN'],
   BANK:              ['BNI', 'BSI'],                        // TARUNA.bank
   KONTRAK_STATUS:    ['DRAFT', 'DISETUJUI_PPK'],
+  BLK_STATUS:        ['DRAFT', 'DISETUJUI_KAJUR'],          // BANTUAN_LUAR_KAMPUS.status (persetujuan Ketua Jurusan)
   HARI:              ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU', 'MINGGU'], // MENU_KONTRAK.hari
   STATUS_HARIAN:     ['PESIAR', 'CUTI', 'SAKIT_RUMAH', 'PENUNDAAN_STUDI', 'KEGIATAN_LUAR_KAMPUS',
                       'PKL_1', 'PKL_2', 'PKL_3', 'KPA', 'MAGANG', 'PTB'],
@@ -250,6 +252,13 @@ var ACTION_MAP = {
   'status.batch':     { handler: statusBatch,    roles: ['ADMIN', 'PEMBINA', 'BAAK'] },
   'status.list':      { handler: statusList,     roles: [] },
 
+  // Ketua Jurusan (luar kampus) — role KETUA_JURUSAN, scope prodi (25_ketua_jurusan.gs)
+  'kajur.taruna_list':  { handler: kajurTarunaList,  roles: ['KETUA_JURUSAN'] },
+  'kajur.status_set':   { handler: kajurStatusSet,   roles: ['KETUA_JURUSAN'] },
+  'kajur.status_batch': { handler: kajurStatusBatch, roles: ['KETUA_JURUSAN'] },
+  'kajur.rekap':        { handler: kajurRekap,       roles: ['KETUA_JURUSAN'] },
+  'kajur.approve':      { handler: kajurApprove,     roles: ['KETUA_JURUSAN'] },
+
   // Pesanan (TAHAP 3)
   'pesanan.list':     { handler: pesananList,    roles: [] },
   'pesanan.get':      { handler: pesananGet,     roles: [] },
@@ -350,6 +359,22 @@ var PENYEDIA_ACTIONS = {
   'auth.change_pin': true
 };
 
+/**
+ * Allowlist role KETUA_JURUSAN — sama semangatnya dengan PENYEDIA_ACTIONS:
+ * banyak action ber-`roles:[]` mengekspos data seluruh sistem, jadi Ketua Jurusan
+ * HANYA boleh memanggil action di sini (apa pun isi `roles`-nya). Semua data
+ * yang dilihatnya di-scope ke session.prodi di handler (25_ketua_jurusan.gs).
+ */
+var KETUA_JURUSAN_ACTIONS = {
+  'kajur.taruna_list':  true,
+  'kajur.status_set':   true,
+  'kajur.status_batch': true,
+  'kajur.rekap':        true,
+  'kajur.approve':      true,
+  'auth.logout':        true,
+  'auth.change_pin':    true
+};
+
 /** Health check. */
 function doGet(e) {
   return _json_({ ok: true, data: { app: APP_INFO.nama, version: APP_INFO.versi } });
@@ -374,6 +399,10 @@ function doPost(e) {
       // Pagar khusus PENYEDIA: HANYA action di allowlist — TIDAK ikut semantik
       // roles:[] ("semua login") yang mengekspos data seluruh sistem.
       if (session.role === ROLES.PENYEDIA && !PENYEDIA_ACTIONS[action]) {
+        return _json_({ ok: false, error: 'Anda tidak berwenang melakukan aksi ini.' });
+      }
+      // Pagar khusus KETUA_JURUSAN: HANYA action di allowlist (scope prodi di handler).
+      if (session.role === ROLES.KETUA_JURUSAN && !KETUA_JURUSAN_ACTIONS[action]) {
         return _json_({ ok: false, error: 'Anda tidak berwenang melakukan aksi ini.' });
       }
       if (def.roles && def.roles.length > 0 && def.roles.indexOf(session.role) < 0) {
@@ -452,7 +481,11 @@ function validateToken(token) {
   var expMs = (exp instanceof Date) ? exp.getTime() : (exp ? new Date(exp).getTime() : 0);
   if (!expMs || expMs < Date.now()) return null;
   // penyedia_id hanya terisi untuk role PENYEDIA — dipakai row-level scoping di penyedia.portal.
-  return { user_id: u.user_id, nama: u.nama, role: u.role, penyedia_id: String(u.penyedia_id || '') };
+  // prodi hanya terisi untuk role KETUA_JURUSAN — scope input absen & rekap luar kampus per prodi.
+  return {
+    user_id: u.user_id, nama: u.nama, role: u.role,
+    penyedia_id: String(u.penyedia_id || ''), prodi: String(u.prodi || '')
+  };
 }
 
 /**
@@ -465,6 +498,18 @@ function _hanyaPenyedia_(session) {
   if (!session || session.role !== ROLES.PENYEDIA) throw _fail_('Khusus akun penyedia.');
   if (!session.penyedia_id) throw _fail_('Akun penyedia belum tertaut ke data penyedia. Hubungi Admin.');
   return session.penyedia_id;
+}
+
+/**
+ * _hanyaKajur_(session) — pagar tambahan di DALAM handler Ketua Jurusan (mirror
+ * _hanyaPenyedia_). Wajib role KETUA_JURUSAN DAN punya `prodi` tertaut (kalau
+ * kosong → akun salah konfigurasi, tolak supaya tak melihat/mengubah prodi lain).
+ * Mengembalikan prodi untuk dipakai sebagai filter scope.
+ */
+function _hanyaKajur_(session) {
+  if (!session || session.role !== ROLES.KETUA_JURUSAN) throw _fail_('Khusus akun Ketua Jurusan.');
+  if (!session.prodi) throw _fail_('Akun Ketua Jurusan belum tertaut ke prodi. Hubungi Admin.');
+  return session.prodi;
 }
 
 /**
@@ -514,7 +559,7 @@ function penggunaList(payload, session) {
   var rows = sheetRead(SHEETS.PENGGUNA);
   return {
     pengguna: rows.map(function (u) {
-      return { user_id: u.user_id, nama: u.nama, role: u.role, status: u.status, penyedia_id: String(u.penyedia_id || '') };
+      return { user_id: u.user_id, nama: u.nama, role: u.role, status: u.status, penyedia_id: String(u.penyedia_id || ''), prodi: String(u.prodi || '') };
     })
   };
 }
@@ -533,6 +578,21 @@ function _penyediaIdUntukRole_(role, penyediaIdRaw) {
   return pid;
 }
 
+/**
+ * Validasi & normalisasi prodi sesuai role.
+ * - role KETUA_JURUSAN: prodi WAJIB (nilai bebas string prodi, mis. "TPI"); harus
+ *   cocok dengan salah satu nilai TARUNA.prodi supaya scope-nya bermakna.
+ * - role lain: prodi DIPAKSA kosong.
+ */
+function _prodiUntukRole_(role, prodiRaw) {
+  if (role !== ROLES.KETUA_JURUSAN) return '';
+  var prodi = String(prodiRaw || '').trim();
+  if (!prodi) throw _fail_('prodi wajib diisi untuk akun role KETUA_JURUSAN.');
+  var ada = sheetRead(SHEETS.TARUNA, function (r) { return String(r.prodi) === prodi; })[0];
+  if (!ada) throw _fail_('Prodi tidak ditemukan pada data taruna: ' + prodi);
+  return prodi;
+}
+
 /** Tambah/ubah pengguna. Pengguna baru → PIN default. */
 function penggunaUpsert(payload, session) {
   var uid = (payload && payload.user_id != null) ? String(payload.user_id).trim() : '';
@@ -544,22 +604,23 @@ function penggunaUpsert(payload, session) {
   if (ENUM.ROLE.indexOf(role) < 0) throw _fail_('role tidak valid.');
   if (ENUM.AKTIF_STATUS.indexOf(status) < 0) throw _fail_('status tidak valid.');
   var penyediaId = _penyediaIdUntukRole_(role, payload && payload.penyedia_id);
+  var prodi = _prodiUntukRole_(role, payload && payload.prodi);
 
   var ada = sheetRead(SHEETS.PENGGUNA, function (r) { return String(r.user_id) === uid; })[0];
   if (ada) {
-    var patch = { nama: nama, role: role, status: status, penyedia_id: penyediaId };
+    var patch = { nama: nama, role: role, status: status, penyedia_id: penyediaId, prodi: prodi };
     var baru = sheetUpdate(SHEETS.PENGGUNA, 'user_id', uid, patch);
     auditLog(session, 'pengguna.upsert', 'PENGGUNA', uid,
-      { nama: ada.nama, role: ada.role, status: ada.status, penyedia_id: String(ada.penyedia_id || '') }, patch);
-    return { pengguna: { user_id: uid, nama: baru.nama, role: baru.role, status: baru.status, penyedia_id: penyediaId } };
+      { nama: ada.nama, role: ada.role, status: ada.status, penyedia_id: String(ada.penyedia_id || ''), prodi: String(ada.prodi || '') }, patch);
+    return { pengguna: { user_id: uid, nama: baru.nama, role: baru.role, status: baru.status, penyedia_id: penyediaId, prodi: prodi } };
   }
   sheetAppend(SHEETS.PENGGUNA, {
     user_id: uid, nama: nama, role: role,
     pin_hash: _sha256Hex_(_PIN_DEFAULT_ + _getSalt_()),
-    token: '', token_exp: '', penyedia_id: penyediaId, status: status
+    token: '', token_exp: '', penyedia_id: penyediaId, status: status, prodi: prodi
   });
-  auditLog(session, 'pengguna.upsert', 'PENGGUNA', uid, null, { nama: nama, role: role, status: status, penyedia_id: penyediaId });
-  return { pengguna: { user_id: uid, nama: nama, role: role, status: status, penyedia_id: penyediaId } };
+  auditLog(session, 'pengguna.upsert', 'PENGGUNA', uid, null, { nama: nama, role: role, status: status, penyedia_id: penyediaId, prodi: prodi });
+  return { pengguna: { user_id: uid, nama: nama, role: role, status: status, penyedia_id: penyediaId, prodi: prodi } };
 }
 
 /** Reset PIN pengguna ke default. */
@@ -3188,13 +3249,20 @@ function cetakForm08(payload, session) {
         bank: rek ? rek.bank : '', no_rekening_lengkap: rek ? rek.no_rekening_lengkap : '',
         nama_pemilik: rek ? rek.nama_pemilik : '', rekening_lengkap_ada: !!rek,
         jml_hari: jmlHari, total_hari_impor: totalHariImpor, hari_cocok: jmlHari === totalHariImpor,
-        nilai_per_hari: nilaiPerHari, nominal: nominal
+        nilai_per_hari: nilaiPerHari, nominal: nominal,
+        // Persetujuan Ketua Jurusan (soft-gate: ditampilkan, tidak menghentikan cetak).
+        disetujui_kajur: String(r.status) === 'DISETUJUI_KAJUR'
       };
     });
 
     auditLog(session, 'cetak.form08', 'TARUNA_REKENING', nitList.join(','), null, { nit_list: nitList });
 
-    return { bulan: bulan, kegiatan: kegiatan, baris: baris, total_nominal: totalNominal, pejabat: PEJABAT };
+    // Semua baris sudah disetujui Ketua Jurusan? (untuk peringatan di halaman cetak)
+    var semuaDisetujuiKajur = baris.length > 0 && baris.every(function (b) { return b.disetujui_kajur; });
+    return {
+      bulan: bulan, kegiatan: kegiatan, baris: baris, total_nominal: totalNominal,
+      semua_disetujui_kajur: semuaDisetujuiKajur, pejabat: PEJABAT
+    };
   });
 }
 
@@ -4247,6 +4315,172 @@ function penyediaPortal(payload, session) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
+// ▼▼▼ 25_ketua_jurusan.gs ▼▼▼
+// ═════════════════════════════════════════════════════════════════════════════
+/**
+ * 25_ketua_jurusan.gs — Peran KETUA_JURUSAN (ketua jurusan/prodi).
+ *
+ * Tugas (di-scope ke session.prodi):
+ *  1. Input absen luar kampus taruna prodinya → STATUS_HARIAN dengan status ∈
+ *     STATUS_LUAR_KAMPUS. BOLEH tanggal lampau (taruna PKL berada di luar kampus,
+ *     absen sering diinput mundur) — memang tidak ada date-guard.
+ *  2. Menyetujui rekap bantuan luar kampus prodinya: BANTUAN_LUAR_KAMPUS
+ *     DRAFT → DISETUJUI_KAJUR (persetujuan Ketua Jurusan sebelum PPK memproses).
+ *  3. Melihat REKAP saja (TANPA nomor rekening).
+ *
+ * Setiap handler memanggil _hanyaKajur_(session) (pagar dalam-handler) DAN router
+ * membatasi lewat KETUA_JURUSAN_ACTIONS (deny-by-default, seperti PENYEDIA).
+ * ACTION: kajur.taruna_list, kajur.status_set, kajur.status_batch, kajur.rekap, kajur.approve.
+ * Setiap aksi tulis → withLock + auditLog.
+ */
+
+/** Baris TARUNA satu prodi (nit, nama, tingkat, kelas — TANPA rekening). */
+function _tarunaProdi_(prodi) {
+  return sheetRead(SHEETS.TARUNA, function (r) { return String(r.prodi) === String(prodi); });
+}
+
+/** Pastikan taruna ada & berada di prodi Ketua Jurusan. */
+function _pastikanTarunaProdi_(nit, prodi) {
+  var t = sheetRead(SHEETS.TARUNA, function (r) { return String(r.nit) === String(nit); })[0];
+  if (!t) throw _fail_('Taruna tidak ditemukan: ' + nit);
+  if (String(t.prodi) !== String(prodi)) throw _fail_('Taruna di luar prodi Anda: ' + nit);
+  return t;
+}
+
+/** Daftar taruna prodi Ketua Jurusan (untuk UI input absen). */
+function kajurTarunaList(payload, session) {
+  var prodi = _hanyaKajur_(session);
+  var rows = _tarunaProdi_(prodi).map(function (t) {
+    return {
+      nit: String(t.nit), nama: t.nama || '', prodi: t.prodi || '',
+      tingkat: t.tingkat || '', kelas: t.kelas || '', status: t.status || ''
+    };
+  });
+  return { taruna: rows, prodi: prodi };
+}
+
+/** Set absen luar kampus satu taruna. Payload {tanggal, nit, status}. Backdate diizinkan. */
+function kajurStatusSet(payload, session) {
+  var prodi = _hanyaKajur_(session);
+  var tanggal = _wajibTgl_(payload && payload.tanggal, 'tanggal');
+  var nit = String((payload && payload.nit) || '').trim();
+  if (!nit) throw _fail_('nit wajib diisi.');
+  var status = String((payload && payload.status) || '');
+  if (STATUS_LUAR_KAMPUS.indexOf(status) < 0) {
+    throw _fail_('Ketua Jurusan hanya boleh menginput status luar kampus: ' + STATUS_LUAR_KAMPUS.join(' / '));
+  }
+  _pastikanTarunaProdi_(nit, prodi);
+  return withLock(function () { return _statusUpsert_(session, tanggal, nit, status); });
+}
+
+/** Set absen luar kampus massal. Payload {tanggal, status, nit:[]}. */
+function kajurStatusBatch(payload, session) {
+  var prodi = _hanyaKajur_(session);
+  var tanggal = _wajibTgl_(payload && payload.tanggal, 'tanggal');
+  var status = String((payload && payload.status) || '');
+  if (STATUS_LUAR_KAMPUS.indexOf(status) < 0) {
+    throw _fail_('Ketua Jurusan hanya boleh menginput status luar kampus: ' + STATUS_LUAR_KAMPUS.join(' / '));
+  }
+  var daftar = (payload && payload.nit) || [];
+  if (!daftar.length) throw _fail_('nit harus berupa daftar minimal 1 taruna.');
+  // Validasi semua nit dalam prodi DULU (all-or-nothing sebelum menulis).
+  var prodiNit = {};
+  _tarunaProdi_(prodi).forEach(function (t) { prodiNit[String(t.nit)] = true; });
+  daftar.forEach(function (nit) {
+    if (!prodiNit[String(nit).trim()]) throw _fail_('Taruna di luar prodi Anda: ' + nit);
+  });
+  return withLock(function () {
+    var n = 0;
+    daftar.forEach(function (nit) { _statusUpsert_(session, tanggal, String(nit).trim(), status); n++; });
+    return { jml: n };
+  });
+}
+
+/**
+ * Rekap luar kampus prodi untuk bulan (TANPA rekening). Per taruna: jml hari luar
+ * kampus dihitung dari STATUS_HARIAN (status ∈ STATUS_LUAR_KAMPUS) bulan itu —
+ * sumber kebenaran yang sama dengan Form-08 — di-join BANTUAN_LUAR_KAMPUS
+ * (kegiatan/nilai_per_hari/nominal/status) bila ada. Payload {bulan}.
+ */
+function kajurRekap(payload, session) {
+  var prodi = _hanyaKajur_(session);
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  var nitSet = {};
+  _tarunaProdi_(prodi).forEach(function (t) { nitSet[String(t.nit)] = t; });
+
+  // Hari luar kampus per nit dari STATUS_HARIAN bulan itu (prodi ini saja).
+  var hariByNit = {};
+  sheetRead(SHEETS.STATUS_HARIAN, function (r) {
+    return _bulanStr_(r.tanggal) === bulan && STATUS_LUAR_KAMPUS.indexOf(r.status) >= 0 && nitSet[String(r.nit)];
+  }).forEach(function (r) {
+    var nit = String(r.nit);
+    hariByNit[nit] = (hariByNit[nit] || 0) + 1;
+  });
+
+  // Join BANTUAN_LUAR_KAMPUS (bulan itu, prodi ini) untuk kegiatan/tarif/nominal/status.
+  var blkByNit = {};
+  sheetRead(SHEETS.BANTUAN_LUAR_KAMPUS, function (r) {
+    return _bulanStr_(r.bulan) === bulan && nitSet[String(r.nit)];
+  }).forEach(function (r) {
+    var nit = String(r.nit);
+    if (!blkByNit[nit]) blkByNit[nit] = [];
+    blkByNit[nit].push(r);
+  });
+
+  var kunci = {};
+  Object.keys(hariByNit).forEach(function (n) { kunci[n] = true; });
+  Object.keys(blkByNit).forEach(function (n) { kunci[n] = true; });
+  var baris = Object.keys(kunci).sort().map(function (nit) {
+    var t = nitSet[nit] || {};
+    var blkRows = blkByNit[nit] || [];
+    var kegiatan = blkRows.map(function (r) { return r.kegiatan; }).join(', ');
+    var nilaiPerHari = blkRows.length ? _int_(blkRows[0].nilai_per_hari || 0, 'nilai_per_hari') : 0;
+    var hari = hariByNit[nit] || 0;
+    // Nominal = hari (dari absen) × tarif (dari BLK) — konsisten dengan Form-08.
+    var nominal = Math.round(hari * nilaiPerHari);
+    // disetujui_kajur = SEMUA baris BLK taruna ini sudah DISETUJUI_KAJUR.
+    var semuaSetuju = blkRows.length > 0 && blkRows.every(function (r) { return String(r.status) === 'DISETUJUI_KAJUR'; });
+    return {
+      nit: nit, nama: t.nama || '', tingkat: t.tingkat || '', kelas: t.kelas || '',
+      kegiatan: kegiatan, hari_luar_kampus: hari, nilai_per_hari: nilaiPerHari,
+      nominal: nominal, ada_blk: blkRows.length > 0, disetujui_kajur: semuaSetuju
+    };
+  });
+
+  var totalNominal = 0;
+  baris.forEach(function (b) { totalNominal += b.nominal; });
+  return { bulan: bulan, prodi: prodi, baris: baris, total_nominal: totalNominal };
+}
+
+/**
+ * Setujui rekap luar kampus prodi untuk bulan: set BANTUAN_LUAR_KAMPUS.status
+ * (baris nit berprodi session.prodi & bulan itu) DRAFT → DISETUJUI_KAJUR.
+ * Payload {bulan}.
+ */
+function kajurApprove(payload, session) {
+  var prodi = _hanyaKajur_(session);
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  return withLock(function () {
+    var nitProdi = {};
+    _tarunaProdi_(prodi).forEach(function (t) { nitProdi[String(t.nit)] = true; });
+    var rows = sheetRead(SHEETS.BANTUAN_LUAR_KAMPUS, function (r) {
+      return _bulanStr_(r.bulan) === bulan && nitProdi[String(r.nit)];
+    });
+    if (!rows.length) throw _fail_('Belum ada data bantuan luar kampus prodi ' + prodi + ' untuk bulan ' + bulan + '.');
+    var n = 0;
+    rows.forEach(function (r) {
+      if (String(r.status) === 'DISETUJUI_KAJUR') return;
+      sheetUpdate(SHEETS.BANTUAN_LUAR_KAMPUS, 'bantuan_id', r.bantuan_id,
+        { status: 'DISETUJUI_KAJUR', approved_by: session.user_id, approved_at: new Date() });
+      auditLog(session, 'kajur.approve', 'BANTUAN_LUAR_KAMPUS', r.bantuan_id,
+        { status: r.status || 'DRAFT' }, { status: 'DISETUJUI_KAJUR', prodi: prodi, bulan: bulan });
+      n++;
+    });
+    return { disetujui: n, prodi: prodi, bulan: bulan };
+  });
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
 // ▼▼▼ 99_setup.gs ▼▼▼
 // ═════════════════════════════════════════════════════════════════════════════
 /**
@@ -4298,7 +4532,10 @@ function _skema_() {
   return [
     [SHEETS.PENGGUNA, [
       ['user_id','s'], ['nama','s'], ['role', E.ROLE], ['pin_hash','s'],
-      ['token','s'], ['token_exp','dt'], ['status', E.AKTIF_STATUS]
+      ['token','s'], ['token_exp','dt'], ['status', E.AKTIF_STATUS],
+      // penyedia_id (FK PENYEDIA) & prodi (scope KETUA_JURUSAN) di-append di AKHIR
+      // supaya setupDatabase idempotent tak menggeser data lama.
+      ['penyedia_id','s'], ['prodi','s']
     ]],
     [SHEETS.TARUNA, [
       ['nit','s'], ['nama','s'], ['prodi','s'], ['tingkat','s'], ['kelas','s'],
@@ -4368,7 +4605,10 @@ function _skema_() {
     [SHEETS.BANTUAN_LUAR_KAMPUS, [
       ['bantuan_id','s'], ['nit','s'], ['kegiatan','s'], ['bulan','s'], ['periode','s'],
       ['total_hari','i'], ['nilai_per_hari','i'], ['nominal','i'], ['pembayaran_ke','i'],
-      ['keterangan','s']
+      ['keterangan','s'],
+      // Persetujuan Ketua Jurusan (di-append di AKHIR utk migrasi idempotent):
+      // status DRAFT→DISETUJUI_KAJUR + siapa/kapan menyetujui.
+      ['status', E.BLK_STATUS], ['approved_by','s'], ['approved_at','dt']
     ]],
     [SHEETS.TARUNA_REKENING, [
       ['nit','s'], ['no_rekening_lengkap','s'], ['bank', E.BANK], ['nama_pemilik','s'],

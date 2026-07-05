@@ -428,13 +428,20 @@ function cetakForm08(payload, session) {
         bank: rek ? rek.bank : '', no_rekening_lengkap: rek ? rek.no_rekening_lengkap : '',
         nama_pemilik: rek ? rek.nama_pemilik : '', rekening_lengkap_ada: !!rek,
         jml_hari: jmlHari, total_hari_impor: totalHariImpor, hari_cocok: jmlHari === totalHariImpor,
-        nilai_per_hari: nilaiPerHari, nominal: nominal
+        nilai_per_hari: nilaiPerHari, nominal: nominal,
+        // Persetujuan Ketua Jurusan (soft-gate: ditampilkan, tidak menghentikan cetak).
+        disetujui_kajur: String(r.status) === 'DISETUJUI_KAJUR'
       };
     });
 
     auditLog(session, 'cetak.form08', 'TARUNA_REKENING', nitList.join(','), null, { nit_list: nitList });
 
-    return { bulan: bulan, kegiatan: kegiatan, baris: baris, total_nominal: totalNominal, pejabat: PEJABAT };
+    // Semua baris sudah disetujui Ketua Jurusan? (untuk peringatan di halaman cetak)
+    var semuaDisetujuiKajur = baris.length > 0 && baris.every(function (b) { return b.disetujui_kajur; });
+    return {
+      bulan: bulan, kegiatan: kegiatan, baris: baris, total_nominal: totalNominal,
+      semua_disetujui_kajur: semuaDisetujuiKajur, pejabat: PEJABAT
+    };
   });
 }
 

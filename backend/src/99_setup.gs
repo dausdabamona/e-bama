@@ -47,7 +47,10 @@ function _skema_() {
   return [
     [SHEETS.PENGGUNA, [
       ['user_id','s'], ['nama','s'], ['role', E.ROLE], ['pin_hash','s'],
-      ['token','s'], ['token_exp','dt'], ['status', E.AKTIF_STATUS]
+      ['token','s'], ['token_exp','dt'], ['status', E.AKTIF_STATUS],
+      // penyedia_id (FK PENYEDIA) & prodi (scope KETUA_JURUSAN) di-append di AKHIR
+      // supaya setupDatabase idempotent tak menggeser data lama.
+      ['penyedia_id','s'], ['prodi','s']
     ]],
     [SHEETS.TARUNA, [
       ['nit','s'], ['nama','s'], ['prodi','s'], ['tingkat','s'], ['kelas','s'],
@@ -117,7 +120,10 @@ function _skema_() {
     [SHEETS.BANTUAN_LUAR_KAMPUS, [
       ['bantuan_id','s'], ['nit','s'], ['kegiatan','s'], ['bulan','s'], ['periode','s'],
       ['total_hari','i'], ['nilai_per_hari','i'], ['nominal','i'], ['pembayaran_ke','i'],
-      ['keterangan','s']
+      ['keterangan','s'],
+      // Persetujuan Ketua Jurusan (di-append di AKHIR utk migrasi idempotent):
+      // status DRAFT→DISETUJUI_KAJUR + siapa/kapan menyetujui.
+      ['status', E.BLK_STATUS], ['approved_by','s'], ['approved_at','dt']
     ]],
     [SHEETS.TARUNA_REKENING, [
       ['nit','s'], ['no_rekening_lengkap','s'], ['bank', E.BANK], ['nama_pemilik','s'],

@@ -22,12 +22,13 @@
 |---|---|---|
 | user_id | string | kunci; kode singkat, mis. `ppk01`, `senat01` |
 | nama | string | |
-| role | enum | `KPA` / `PPK` / `SENAT` / `PEMBINA` / `ADMIN` / `WADIR3` / `BAAK` / `PENYEDIA` |
+| role | enum | `KPA` / `PPK` / `SENAT` / `PEMBINA` / `ADMIN` / `WADIR3` / `BAAK` / `PENYEDIA` / `KETUA_JURUSAN` |
 | pin_hash | string | SHA-256(kata_sandi + SALT); SALT di Script Properties. Nama kolom dipertahankan (`pin_hash`) walau kredensialnya kini kata sandi bebas min 6 karakter (bukan PIN 6 digit) — hash sama, tak perlu migrasi |
 | token | string | token sesi aktif (UUID) |
 | token_exp | datetime | kadaluarsa 24 jam sejak login |
 | penyedia_id | FK → PENYEDIA | **hanya untuk role `PENYEDIA`** (akun portal rekanan katering). Menautkan akun ke SATU penyedia — semua data yang dilihat akun ini dibatasi ke `penyedia_id` ini (row-level scoping). Kosong untuk role internal. Wajib & harus valid saat role=`PENYEDIA` (divalidasi `pengguna.upsert`) |
 | status | enum | `AKTIF` / `NONAKTIF` |
+| prodi | string | **hanya untuk role `KETUA_JURUSAN`** — menautkan akun ke SATU prodi (harus cocok `TARUNA.prodi`). Ketua Jurusan hanya bisa input absen luar kampus & lihat rekap taruna prodi ini (row-level scoping). Kosong untuk role lain. Di-append di AKHIR skema (migrasi idempotent). |
 
 **Role `PENYEDIA` (rekanan eksternal) — pagar akses ketat.** Berbeda dari 7 role
 internal, akun `PENYEDIA` adalah rekanan di luar kampus yang login sendiri untuk
@@ -349,9 +350,16 @@ Periode Pembayaran, Total Hari, Nilai/Hari, Pembayaran_ke).
 | nominal 📸 | integer | snapshot = total_hari × nilai_per_hari saat diimpor |
 | pembayaran_ke | integer | nomor tahap pembayaran (1, 2, 3, dst.) |
 | keterangan | string | opsional, mis. nama file sumber untuk jejak migrasi |
+| status | enum | `DRAFT` / `DISETUJUI_KAJUR` — persetujuan Ketua Jurusan (`kajur.approve`). Di-append di AKHIR (migrasi idempotent); baris lama tanpa nilai dianggap DRAFT |
+| approved_by | FK → PENGGUNA | Ketua Jurusan yang menyetujui (diisi `kajur.approve`) |
+| approved_at | datetime | waktu persetujuan |
 
 Kunci gabungan (nit, kegiatan, bulan, pembayaran_ke) — upsert, aman diimpor
-ulang. Nomor rekening taruna **TIDAK** disalin dari dokumen sumber (dokumen
+ulang. **Persetujuan Ketua Jurusan:** jml hari makan luar kampus diinput Ketua
+Jurusan lewat STATUS_HARIAN (status ∈ STATUS_LUAR_KAMPUS, boleh tanggal lampau);
+lalu Ketua Jurusan menyetujui rekap prodinya (`kajur.approve` → `DISETUJUI_KAJUR`).
+Form-08 menampilkan flag `disetujui_kajur` per baris (soft-gate, tidak menghentikan
+cetak). Nomor rekening taruna **TIDAK** disalin dari dokumen sumber (dokumen
 kertas Ketua Jurusan/panitia sering memuat rekening lengkap — DILARANG masuk
 sistem, lihat aturan `rek_mask` di sheet TARUNA).
 

@@ -77,6 +77,13 @@ e-bama/
 
 - **Role dicek di GAS (backend), BUKAN di frontend.** Frontend hanya
   menyembunyikan menu; otorisasi sebenarnya di `ACTION_MAP.roles`.
+- **Peran ber-scope (deny-by-default).** `PENYEDIA` (tautan `penyedia_id`) &
+  `KETUA_JURUSAN` (tautan `prodi`) TIDAK ikut semantik `roles:[]` — router
+  membatasi keduanya lewat allowlist (`PENYEDIA_ACTIONS` / `KETUA_JURUSAN_ACTIONS`)
+  DAN handler memakai pagar `_hanyaPenyedia_`/`_hanyaKajur_` + scope data ke
+  tautannya. `KETUA_JURUSAN`: input absen luar kampus (STATUS_HARIAN luar kampus,
+  boleh tanggal lampau) + approve rekap prodinya (BANTUAN_LUAR_KAMPUS
+  `DRAFT→DISETUJUI_KAJUR`) + lihat rekap TANPA rekening (`25_ketua_jurusan.gs`).
 - **Rekening taruna hanya 4 digit terakhir** (`rek_mask`, pola `••••1234`) di
   sheet TARUNA dan di **SEMUA** action/tampilan lain — validasi menolak input
   yang terlihat seperti nomor rekening penuh lewat `taruna.upsert` maupun impor
@@ -185,7 +192,7 @@ peta asal per form: `docs/format-dokumen.md`):
 | 05 | BA Rekonsiliasi 3 Titik | TARUNA, PESANAN, REALISASI | ✅ diimplementasi |
 | 06 | Verifikasi & Rencana Pembayaran PPK | PEMBAYARAN, REKAP_BULANAN | ✅ diimplementasi (`_terbilang_()` di `03_helpers.gs`) |
 | 07 | Permohonan Pemblokiran & Pendebetan Rekening Taruna | PEMBAYARAN, REKAP_BULANAN, **TARUNA_REKENING**, KONTRAK | ✅ diimplementasi; **ADMIN/PPK saja**, halaman TIDAK di-cache Dexie; taruna Rp0 dikecualikan; **dipisah per bank (BSI/BNI)**, total **per bank saja** (tanpa total gabungan); alur: dana cair ke rekening taruna → **Direktur+Ketua Senat+Wadir 3** minta bank blokir N hari → debet per orang ke rekening Senat → teruskan total ke rekening penyedia; **rekening penyedia dari KONTRAK (`rek_penyedia_bni/bsi`), fallback Script Property**; No/Tgl Kontrak+Adendum tampil; TTD taruna = kuasa debet (lampiran Kuasa Blokir terpisah dihapus) |
-| 08 | Usulan Pembayaran Luar Kampus | BANTUAN_LUAR_KAMPUS, STATUS_HARIAN, **TARUNA_REKENING** | ✅ diimplementasi — tarif dari `nilai_per_hari` (BANTUAN_LUAR_KAMPUS), jml hari dihitung ulang dari STATUS_HARIAN (dikonfirmasi Firdaus); **ADMIN/PPK saja**, halaman TIDAK di-cache Dexie |
+| 08 | Usulan Pembayaran Luar Kampus | BANTUAN_LUAR_KAMPUS, STATUS_HARIAN, **TARUNA_REKENING** | ✅ diimplementasi — tarif dari `nilai_per_hari` (BANTUAN_LUAR_KAMPUS), jml hari dihitung ulang dari STATUS_HARIAN (dikonfirmasi Firdaus); **ADMIN/PPK saja**, halaman TIDAK di-cache Dexie; menampilkan flag `disetujui_kajur` per baris (persetujuan Ketua Jurusan — soft-gate, tak menghentikan cetak) |
 | 09 | Pendebetan Rekening Senat → Penyedia (per bank) | PEMBAYARAN, REKAP_BULANAN, `TARUNA_REKENING.bank`, `REKENING_INSTANSI` (Script Property) | ✅ diimplementasi — tahap-2 pembayaran (dokumen-only, mesin status pembayaran TIDAK diubah); role SENAT/PPK/ADMIN; total per bank **identik dgn Form 07** (dikelompokkan `TARUNA_REKENING.bank` — HANYA kolom bank, bukan nomor → tak di-audit; Rp0 dikecualikan; taruna tanpa rekening → grup TANPA_REKENING); rekening tujuan **Penyedia dari KONTRAK (`rek_penyedia_bni/bsi`), fallback** `getRekeningInstansi()`; rekening Senat dari `getRekeningInstansi()`; No/Tgl Kontrak+Adendum tampil; Mengetahui Direktur & Wadir 3 |
 | 10 | Rencana Pengajuan SPM per Suplier | REKAP_BULANAN, TARUNA, **TARUNA_REKENING** (rekening PENUH + `penyedia_id`) | ✅ diimplementasi — **ADMIN/PPK saja**, halaman TIDAK di-cache Dexie, tiap panggilan 1 baris AUDIT_LOG; **dipecah per ID suplier** (tiap suplier = 1 lembar SPM) lalu dikelompokkan **prodi+tingkat** (dikonfirmasi Firdaus: angkatan sudah terwakili ID suplier); suplier per taruna dari `TARUNA_REKENING.penyedia_id` (nama di-join PENYEDIA, fallback tampil ID); TTD PPK saja |
 

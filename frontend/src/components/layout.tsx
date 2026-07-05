@@ -14,7 +14,8 @@ interface ItemNav {
 // Label role untuk indikator "sedang aktif sebagai" di header.
 const LABEL_ROLE: Record<Role, string> = {
   KPA: 'KPA', PPK: 'PPK', SENAT: 'Senat', PEMBINA: 'Pembina',
-  ADMIN: 'Admin', WADIR3: 'Wadir 3', BAAK: 'BAAK', PENYEDIA: 'Penyedia'
+  ADMIN: 'Admin', WADIR3: 'Wadir 3', BAAK: 'BAAK', PENYEDIA: 'Penyedia',
+  KETUA_JURUSAN: 'Ketua Jurusan'
 };
 
 // Bottom-nav per role (sesuai PROMPT 5)
@@ -63,6 +64,10 @@ export const NAV_PER_ROLE: Record<Role, ItemNav[]> = {
   ],
   PENYEDIA: [
     { ke: '/penyedia-portal', label: 'Beranda', ikon: '🍽️' },
+    { ke: '/akun', label: 'Akun', ikon: '👤' }
+  ],
+  KETUA_JURUSAN: [
+    { ke: '/luar-kampus-kajur', label: 'Luar Kampus', ikon: '🧳' },
     { ke: '/akun', label: 'Akun', ikon: '👤' }
   ]
 };

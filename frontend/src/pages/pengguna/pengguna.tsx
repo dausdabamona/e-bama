@@ -14,10 +14,11 @@ import { useToast } from '../../components/ui/toast';
 import { api } from '../../lib/api';
 import { useListCache } from '../../lib/use-list-cache';
 
-interface Pengguna { user_id: string; nama: string; role: string; status: string; penyedia_id?: string }
+interface Pengguna { user_id: string; nama: string; role: string; status: string; penyedia_id?: string; prodi?: string }
 interface Penyedia { penyedia_id: string; nama: string }
+interface TarunaProdi { prodi: string }
 
-const ROLES = ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK', 'PENYEDIA'];
+const ROLES = ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK', 'PENYEDIA', 'KETUA_JURUSAN'];
 
 export function HalamanPengguna() {
   const { toast } = useToast();
@@ -54,7 +55,7 @@ export function HalamanPengguna() {
     const statusBaru = p.status === 'AKTIF' ? 'NONAKTIF' : 'AKTIF';
     setProses(p.user_id);
     try {
-      await api('pengguna.upsert', { user_id: p.user_id, nama: p.nama, role: p.role, status: statusBaru, penyedia_id: p.penyedia_id ?? '' });
+      await api('pengguna.upsert', { user_id: p.user_id, nama: p.nama, role: p.role, status: statusBaru, penyedia_id: p.penyedia_id ?? '', prodi: p.prodi ?? '' });
       toast(`${p.nama} → ${statusBaru}.`, 'sukses');
       refresh();
     } catch (e) {
@@ -137,18 +138,27 @@ function ModalForm({ awal, onClose, onSukses }: {
   const [role, setRole] = useState(awal?.role ?? ROLES[0]);
   const [status, setStatus] = useState(awal?.status ?? 'AKTIF');
   const [penyediaId, setPenyediaId] = useState(awal?.penyedia_id ?? '');
+  const [prodi, setProdi] = useState(awal?.prodi ?? '');
   const [proses, setProses] = useState(false);
   const [galat, setGalat] = useState('');
 
   // Daftar penyedia hanya perlu saat role PENYEDIA (untuk menautkan akun).
   const penyediaQ = useListCache<{ penyedia: Penyedia[] }>('penyedia.list', {});
+  // Daftar prodi (dari data taruna) untuk menautkan akun KETUA_JURUSAN.
+  const tarunaQ = useListCache<{ taruna: TarunaProdi[] }>('taruna.list', {});
+  const daftarProdi = Array.from(new Set((tarunaQ.data?.taruna ?? []).map((t) => t.prodi).filter(Boolean))).sort();
 
   async function simpan() {
     if (!userId.trim() || !nama.trim()) { setGalat('user_id dan nama wajib diisi.'); return; }
     if (role === 'PENYEDIA' && !penyediaId) { setGalat('Pilih penyedia yang ditautkan ke akun ini.'); return; }
+    if (role === 'KETUA_JURUSAN' && !prodi) { setGalat('Pilih prodi yang ditautkan ke akun Ketua Jurusan ini.'); return; }
     setProses(true); setGalat('');
     try {
-      await api('pengguna.upsert', { user_id: userId.trim(), nama: nama.trim(), role, status, penyedia_id: role === 'PENYEDIA' ? penyediaId : '' });
+      await api('pengguna.upsert', {
+        user_id: userId.trim(), nama: nama.trim(), role, status,
+        penyedia_id: role === 'PENYEDIA' ? penyediaId : '',
+        prodi: role === 'KETUA_JURUSAN' ? prodi : ''
+      });
       toast(awal ? 'Pengguna diperbarui.' : 'Pengguna baru dibuat (kata sandi default 123456).', 'sukses');
       onSukses();
     } catch (e) {
@@ -181,6 +191,17 @@ function ModalForm({ awal, onClose, onSukses }: {
               ))}
             </select>
             <p className="mt-1 text-xs text-gray-400">Akun penyedia hanya bisa melihat data penyedia ini (kontrak, jadwal, pembayaran) — tanpa data taruna/rekening.</p>
+          </div>
+        )}
+        {role === 'KETUA_JURUSAN' && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Prodi yang ditautkan</label>
+            <select value={prodi} onChange={(e) => setProdi(e.target.value)}
+              className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2.5">
+              <option value="">— pilih prodi —</option>
+              {daftarProdi.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+            <p className="mt-1 text-xs text-gray-400">Akun Ketua Jurusan hanya bisa menginput absen luar kampus &amp; melihat rekap taruna prodi ini — tanpa nomor rekening.</p>
           </div>
         )}
         <div>

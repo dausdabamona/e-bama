@@ -49,7 +49,11 @@ function validateToken(token) {
   var expMs = (exp instanceof Date) ? exp.getTime() : (exp ? new Date(exp).getTime() : 0);
   if (!expMs || expMs < Date.now()) return null;
   // penyedia_id hanya terisi untuk role PENYEDIA — dipakai row-level scoping di penyedia.portal.
-  return { user_id: u.user_id, nama: u.nama, role: u.role, penyedia_id: String(u.penyedia_id || '') };
+  // prodi hanya terisi untuk role KETUA_JURUSAN — scope input absen & rekap luar kampus per prodi.
+  return {
+    user_id: u.user_id, nama: u.nama, role: u.role,
+    penyedia_id: String(u.penyedia_id || ''), prodi: String(u.prodi || '')
+  };
 }
 
 /**
@@ -62,6 +66,18 @@ function _hanyaPenyedia_(session) {
   if (!session || session.role !== ROLES.PENYEDIA) throw _fail_('Khusus akun penyedia.');
   if (!session.penyedia_id) throw _fail_('Akun penyedia belum tertaut ke data penyedia. Hubungi Admin.');
   return session.penyedia_id;
+}
+
+/**
+ * _hanyaKajur_(session) — pagar tambahan di DALAM handler Ketua Jurusan (mirror
+ * _hanyaPenyedia_). Wajib role KETUA_JURUSAN DAN punya `prodi` tertaut (kalau
+ * kosong → akun salah konfigurasi, tolak supaya tak melihat/mengubah prodi lain).
+ * Mengembalikan prodi untuk dipakai sebagai filter scope.
+ */
+function _hanyaKajur_(session) {
+  if (!session || session.role !== ROLES.KETUA_JURUSAN) throw _fail_('Khusus akun Ketua Jurusan.');
+  if (!session.prodi) throw _fail_('Akun Ketua Jurusan belum tertaut ke prodi. Hubungi Admin.');
+  return session.prodi;
 }
 
 /**
@@ -111,7 +127,7 @@ function penggunaList(payload, session) {
   var rows = sheetRead(SHEETS.PENGGUNA);
   return {
     pengguna: rows.map(function (u) {
-      return { user_id: u.user_id, nama: u.nama, role: u.role, status: u.status, penyedia_id: String(u.penyedia_id || '') };
+      return { user_id: u.user_id, nama: u.nama, role: u.role, status: u.status, penyedia_id: String(u.penyedia_id || ''), prodi: String(u.prodi || '') };
     })
   };
 }
@@ -130,6 +146,21 @@ function _penyediaIdUntukRole_(role, penyediaIdRaw) {
   return pid;
 }
 
+/**
+ * Validasi & normalisasi prodi sesuai role.
+ * - role KETUA_JURUSAN: prodi WAJIB (nilai bebas string prodi, mis. "TPI"); harus
+ *   cocok dengan salah satu nilai TARUNA.prodi supaya scope-nya bermakna.
+ * - role lain: prodi DIPAKSA kosong.
+ */
+function _prodiUntukRole_(role, prodiRaw) {
+  if (role !== ROLES.KETUA_JURUSAN) return '';
+  var prodi = String(prodiRaw || '').trim();
+  if (!prodi) throw _fail_('prodi wajib diisi untuk akun role KETUA_JURUSAN.');
+  var ada = sheetRead(SHEETS.TARUNA, function (r) { return String(r.prodi) === prodi; })[0];
+  if (!ada) throw _fail_('Prodi tidak ditemukan pada data taruna: ' + prodi);
+  return prodi;
+}
+
 /** Tambah/ubah pengguna. Pengguna baru → PIN default. */
 function penggunaUpsert(payload, session) {
   var uid = (payload && payload.user_id != null) ? String(payload.user_id).trim() : '';
@@ -141,22 +172,23 @@ function penggunaUpsert(payload, session) {
   if (ENUM.ROLE.indexOf(role) < 0) throw _fail_('role tidak valid.');
   if (ENUM.AKTIF_STATUS.indexOf(status) < 0) throw _fail_('status tidak valid.');
   var penyediaId = _penyediaIdUntukRole_(role, payload && payload.penyedia_id);
+  var prodi = _prodiUntukRole_(role, payload && payload.prodi);
 
   var ada = sheetRead(SHEETS.PENGGUNA, function (r) { return String(r.user_id) === uid; })[0];
   if (ada) {
-    var patch = { nama: nama, role: role, status: status, penyedia_id: penyediaId };
+    var patch = { nama: nama, role: role, status: status, penyedia_id: penyediaId, prodi: prodi };
     var baru = sheetUpdate(SHEETS.PENGGUNA, 'user_id', uid, patch);
     auditLog(session, 'pengguna.upsert', 'PENGGUNA', uid,
-      { nama: ada.nama, role: ada.role, status: ada.status, penyedia_id: String(ada.penyedia_id || '') }, patch);
-    return { pengguna: { user_id: uid, nama: baru.nama, role: baru.role, status: baru.status, penyedia_id: penyediaId } };
+      { nama: ada.nama, role: ada.role, status: ada.status, penyedia_id: String(ada.penyedia_id || ''), prodi: String(ada.prodi || '') }, patch);
+    return { pengguna: { user_id: uid, nama: baru.nama, role: baru.role, status: baru.status, penyedia_id: penyediaId, prodi: prodi } };
   }
   sheetAppend(SHEETS.PENGGUNA, {
     user_id: uid, nama: nama, role: role,
     pin_hash: _sha256Hex_(_PIN_DEFAULT_ + _getSalt_()),
-    token: '', token_exp: '', penyedia_id: penyediaId, status: status
+    token: '', token_exp: '', penyedia_id: penyediaId, status: status, prodi: prodi
   });
-  auditLog(session, 'pengguna.upsert', 'PENGGUNA', uid, null, { nama: nama, role: role, status: status, penyedia_id: penyediaId });
-  return { pengguna: { user_id: uid, nama: nama, role: role, status: status, penyedia_id: penyediaId } };
+  auditLog(session, 'pengguna.upsert', 'PENGGUNA', uid, null, { nama: nama, role: role, status: status, penyedia_id: penyediaId, prodi: prodi });
+  return { pengguna: { user_id: uid, nama: nama, role: role, status: status, penyedia_id: penyediaId, prodi: prodi } };
 }
 
 /** Reset PIN pengguna ke default. */

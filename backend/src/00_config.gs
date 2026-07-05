@@ -47,15 +47,17 @@ var ROLES = {
   ADMIN:    'ADMIN',
   WADIR3:   'WADIR3',
   BAAK:     'BAAK',
-  PENYEDIA: 'PENYEDIA'   // rekanan katering eksternal — akses portal terbatas (lihat 01_router.gs PENYEDIA_ACTIONS)
+  PENYEDIA: 'PENYEDIA',       // rekanan katering eksternal — akses portal terbatas (lihat 01_router.gs PENYEDIA_ACTIONS)
+  KETUA_JURUSAN: 'KETUA_JURUSAN' // ketua jurusan/prodi — input absen luar kampus + approve rekap prodinya (scope prodi; lihat 01_router.gs KETUA_JURUSAN_ACTIONS)
 };
 
 // ── Nilai enum per kolom (rujukan validasi dropdown & pengecekan handler) ────
 var ENUM = {
   AKTIF_STATUS:      ['AKTIF', 'NONAKTIF'],                 // PENGGUNA/TARUNA/PENYEDIA.status
-  ROLE:              ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK', 'PENYEDIA'],
+  ROLE:              ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK', 'PENYEDIA', 'KETUA_JURUSAN'],
   BANK:              ['BNI', 'BSI'],                        // TARUNA.bank
   KONTRAK_STATUS:    ['DRAFT', 'DISETUJUI_PPK'],
+  BLK_STATUS:        ['DRAFT', 'DISETUJUI_KAJUR'],          // BANTUAN_LUAR_KAMPUS.status (persetujuan Ketua Jurusan)
   HARI:              ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU', 'MINGGU'], // MENU_KONTRAK.hari
   STATUS_HARIAN:     ['PESIAR', 'CUTI', 'SAKIT_RUMAH', 'PENUNDAAN_STUDI', 'KEGIATAN_LUAR_KAMPUS',
                       'PKL_1', 'PKL_2', 'PKL_3', 'KPA', 'MAGANG', 'PTB'],

@@ -38,6 +38,13 @@ var ACTION_MAP = {
   'status.batch':     { handler: statusBatch,    roles: ['ADMIN', 'PEMBINA', 'BAAK'] },
   'status.list':      { handler: statusList,     roles: [] },
 
+  // Ketua Jurusan (luar kampus) — role KETUA_JURUSAN, scope prodi (25_ketua_jurusan.gs)
+  'kajur.taruna_list':  { handler: kajurTarunaList,  roles: ['KETUA_JURUSAN'] },
+  'kajur.status_set':   { handler: kajurStatusSet,   roles: ['KETUA_JURUSAN'] },
+  'kajur.status_batch': { handler: kajurStatusBatch, roles: ['KETUA_JURUSAN'] },
+  'kajur.rekap':        { handler: kajurRekap,       roles: ['KETUA_JURUSAN'] },
+  'kajur.approve':      { handler: kajurApprove,     roles: ['KETUA_JURUSAN'] },
+
   // Pesanan (TAHAP 3)
   'pesanan.list':     { handler: pesananList,    roles: [] },
   'pesanan.get':      { handler: pesananGet,     roles: [] },
@@ -138,6 +145,22 @@ var PENYEDIA_ACTIONS = {
   'auth.change_pin': true
 };
 
+/**
+ * Allowlist role KETUA_JURUSAN — sama semangatnya dengan PENYEDIA_ACTIONS:
+ * banyak action ber-`roles:[]` mengekspos data seluruh sistem, jadi Ketua Jurusan
+ * HANYA boleh memanggil action di sini (apa pun isi `roles`-nya). Semua data
+ * yang dilihatnya di-scope ke session.prodi di handler (25_ketua_jurusan.gs).
+ */
+var KETUA_JURUSAN_ACTIONS = {
+  'kajur.taruna_list':  true,
+  'kajur.status_set':   true,
+  'kajur.status_batch': true,
+  'kajur.rekap':        true,
+  'kajur.approve':      true,
+  'auth.logout':        true,
+  'auth.change_pin':    true
+};
+
 /** Health check. */
 function doGet(e) {
   return _json_({ ok: true, data: { app: APP_INFO.nama, version: APP_INFO.versi } });
@@ -162,6 +185,10 @@ function doPost(e) {
       // Pagar khusus PENYEDIA: HANYA action di allowlist — TIDAK ikut semantik
       // roles:[] ("semua login") yang mengekspos data seluruh sistem.
       if (session.role === ROLES.PENYEDIA && !PENYEDIA_ACTIONS[action]) {
+        return _json_({ ok: false, error: 'Anda tidak berwenang melakukan aksi ini.' });
+      }
+      // Pagar khusus KETUA_JURUSAN: HANYA action di allowlist (scope prodi di handler).
+      if (session.role === ROLES.KETUA_JURUSAN && !KETUA_JURUSAN_ACTIONS[action]) {
         return _json_({ ok: false, error: 'Anda tidak berwenang melakukan aksi ini.' });
       }
       if (def.roles && def.roles.length > 0 && def.roles.indexOf(session.role) < 0) {
