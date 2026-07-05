@@ -199,6 +199,11 @@ export function HalamanCetakForm07() {
   // Lampiran blokir per bank (BSI/BNI dipisah) — untuk diajukan ke masing-masing bank.
   const [lampiranBank, setLampiranBank] = useState(true);
 
+  // Abaikan taruna bernilai Rp0 (backend juga memfilter; ini jaga-jaga bila GAS
+  // belum di-deploy ulang). Total dihitung ulang dari baris yang benar-benar dibayar.
+  const barisBayar = (data?.baris ?? []).filter((b) => b.nominal > 0);
+  const totalBayar = barisBayar.reduce((s, b) => s + b.nominal, 0);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between print:hidden">
@@ -241,7 +246,7 @@ export function HalamanCetakForm07() {
               Sehubungan dengan pelaksanaan bantuan biaya makan taruna Politeknik Kelautan dan
               Perikanan Sorong bulan {labelBulan(data.bulan)}, dengan ini Ketua Senat Taruna
               mengajukan usulan penahanan dan pendebetan otomatis rekening taruna penerima
-              bantuan (daftar terlampir) sejumlah <strong>{formatRupiah(data.total_nominal)}</strong>,
+              bantuan (daftar terlampir) sejumlah <strong>{formatRupiah(totalBayar)}</strong>,
               untuk selanjutnya diteruskan sebagai pembayaran ke rekening Senat Taruna dan
               disalurkan kepada penyedia jasa boga sesuai kontrak (SOP PR/PKU/KU-001/2025).
             </p>
@@ -253,24 +258,38 @@ export function HalamanCetakForm07() {
           </Card>
 
           <Card className="overflow-x-auto print:border-0 print:p-0 print:shadow-none">
-            <p className="mb-2 text-sm font-semibold text-gray-600 print:text-black">Lampiran: Daftar Taruna Penerima</p>
-            <TabelCetak headers={['No', 'NIT', 'Nama', 'Bank', 'No. Rekening', 'Jumlah']}>
-              {data.baris.map((b, i) => (
-                <BarisCetak key={b.nit}>
-                  <SelCetak>{i + 1}</SelCetak>
-                  <SelCetak>{b.nit}</SelCetak>
-                  <SelCetak>{b.nama}</SelCetak>
-                  <SelCetak>{b.rekening_lengkap_ada ? b.bank : '—'}</SelCetak>
-                  <SelCetak>{b.rekening_lengkap_ada ? b.no_rekening_lengkap : 'Belum diisi Admin'}</SelCetak>
-                  <SelCetak className="text-right">{formatRupiah(b.nominal)}</SelCetak>
-                </BarisCetak>
-              ))}
-            </TabelCetak>
+            <p className="mb-2 text-sm font-semibold text-gray-600 print:text-black">
+              Lampiran: Daftar Taruna Penerima — <strong>dipisah per bank (BSI &amp; BNI)</strong>
+            </p>
+            {kelompokBank(barisBayar).map((g) => {
+              const labelBank = g.bank === 'TANPA_REKENING' ? 'BELUM ADA REKENING' : g.bank;
+              const subtotal = g.rows.reduce((s, b) => s + b.nominal, 0);
+              return (
+                <div key={g.bank} className="mb-3">
+                  <p className="mb-1 text-xs font-semibold print:text-black">Bank {labelBank} — {g.rows.length} taruna</p>
+                  <TabelCetak headers={['No', 'NIT', 'Nama', 'No. Rekening', 'Jumlah']}>
+                    {g.rows.map((b, i) => (
+                      <BarisCetak key={b.nit}>
+                        <SelCetak>{i + 1}</SelCetak>
+                        <SelCetak>{b.nit}</SelCetak>
+                        <SelCetak>{b.nama}</SelCetak>
+                        <SelCetak>{b.rekening_lengkap_ada ? b.no_rekening_lengkap : 'Belum diisi Admin'}</SelCetak>
+                        <SelCetak className="text-right">{formatRupiah(b.nominal)}</SelCetak>
+                      </BarisCetak>
+                    ))}
+                  </TabelCetak>
+                  <div className="mt-1 flex justify-between text-xs font-semibold">
+                    <span>Subtotal {labelBank}</span>
+                    <span>{formatRupiah(subtotal)}</span>
+                  </div>
+                </div>
+              );
+            })}
             <div className="mt-2 flex justify-between text-sm font-bold">
               <span>TOTAL</span>
-              <span>{formatRupiah(data.total_nominal)}</span>
+              <span>{formatRupiah(totalBayar)}</span>
             </div>
-            {data.baris.some((b) => !b.rekening_lengkap_ada) && (
+            {barisBayar.some((b) => !b.rekening_lengkap_ada) && (
               <p className="mt-2 text-xs text-red-600 print:hidden">
                 ⚠️ Ada taruna yang rekening lengkapnya belum diisi Admin — lengkapi dulu di
                 halaman Data Taruna sebelum surat ini diajukan ke bank.
@@ -284,7 +303,7 @@ export function HalamanCetakForm07() {
           />
 
           {/* Lampiran blokir per bank — masing-masing halaman cetak sendiri, diajukan ke bank terkait */}
-          {lampiranBank && kelompokBank(data.baris).map((g) => (
+          {lampiranBank && kelompokBank(barisBayar).map((g) => (
             <div key={g.bank} className="flex flex-col gap-6">
               <LampiranBlokirBank bank={g.bank} rows={g.rows} bulan={data.bulan} pejabat={data.pejabat}
                 rekSenat={g.bank === 'BNI' ? data.rekening_senat?.BNI : g.bank === 'BSI' ? data.rekening_senat?.BSI : ''} />

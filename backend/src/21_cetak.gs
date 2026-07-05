@@ -299,6 +299,9 @@ function cetakForm07(payload, session) {
 
     var rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
     if (!rekapRows.length) throw _fail_('Belum ada rekap untuk bulan ' + bulan + '.');
+    // Abaikan taruna bernilai Rp0 (tidak makan bulan ini) — tak perlu diblokir/didebet,
+    // dan rekening lengkapnya tidak perlu ikut terbaca/diaudit.
+    rekapRows = rekapRows.filter(function (r) { return _int_(r.nominal || 0, 'nominal') > 0; });
 
     var tarunaByNit = {};
     sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
@@ -514,6 +517,8 @@ function cetakForm10(payload, session) {
     }
     var rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
     if (!rekapRows.length) throw _fail_('Belum ada rekap untuk bulan ' + bulan + '.');
+    // Abaikan taruna bernilai Rp0 (tidak makan bulan ini) — tak masuk pengajuan SPM.
+    rekapRows = rekapRows.filter(function (r) { return _int_(r.nominal || 0, 'nominal') > 0; });
 
     var tarunaByNit = {};
     sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
