@@ -150,6 +150,7 @@ function sp2dImport(payload, session) {
     sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaValid[String(t.nit)] = true; });
 
     var ditambah = 0, dilewati = 0;
+    var bulanDalamKampusTersentuh = {}; // dipakai sinkronisasi PEMBAYARAN di bawah
     baris.forEach(function (b) {
       var noSpm = String((b && b.no_spm) || '').trim();
       if (!noSpm) throw _fail_('no_spm wajib diisi pada setiap baris.');
@@ -174,10 +175,20 @@ function sp2dImport(payload, session) {
       });
       adaNoSpm[_kunciNoSpm_(noSpm)] = true;
       ditambah++;
+      if (kategori === 'DALAM_KAMPUS' && !hasil.gagal && hasil.bulan) bulanDalamKampusTersentuh[hasil.bulan] = true;
     });
 
     auditLog(session, 'sp2d.import', 'SP2D_MONITORING', null, null,
       { kategori: kategori, ditambah: ditambah, dilewati: dilewati });
+
+    // Sinkronkan PEMBAYARAN Dalam Kampus bulan yang tersentuh — begitu SEMUA
+    // kelompok Prodi+Tingkat bulan itu cocok, otomatis SELESAI (dikonfirmasi
+    // Firdaus: SP2D terbit lengkap = dana sudah cair ke taruna, tanpa PPK
+    // perlu ketik ulang satu nomor SPM/SP2D "wakil" secara manual).
+    Object.keys(bulanDalamKampusTersentuh).forEach(function (bln) {
+      _sinkronkanPembayaranDariSp2d_(bln, session, 'AUTO_IMPOR');
+    });
+
     return { ditambah: ditambah, dilewati: dilewati };
   });
 }
@@ -190,6 +201,25 @@ function _kelompokkanJumlah_(items, kunciFn, nilaiFn) {
     map[k] = (map[k] || 0) + nilaiFn(it);
   });
   return map;
+}
+
+/**
+ * SUM(nominal) REKAP_BULANAN `bulan` per kelompok (prodi|tingkat), di-join
+ * TARUNA — sumber angka "Sistem" Dalam Kampus. Diekstrak supaya sp2dRekonsiliasi
+ * (kolom `dalam_kampus`) dan _rincianSp2dDalamKampus_ (halaman Pembayaran)
+ * menghitung dari rumus yang SAMA — angka tak akan pernah beda antar dua
+ * tampilan. `bulan` difilter dengan _bulanStr_ (kolom bulan bisa auto-tertafsir
+ * Date oleh Google Sheets; lihat catatan panjang di sp2dRekonsiliasi).
+ */
+function _sistemDalamKampusPerKelompok_(bulan, tarunaByNit) {
+  var rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
+  return _kelompokkanJumlah_(
+    rekapRows.map(function (r) {
+      var t = tarunaByNit[String(r.nit)] || {};
+      return { kunci: (t.prodi || '?') + '|' + (t.tingkat || '?'), nominal: _int_(r.nominal || 0, 'nominal') };
+    }),
+    function (x) { return x.kunci; }, function (x) { return x.nominal; }
+  );
 }
 
 /**
@@ -235,13 +265,7 @@ function sp2dRekonsiliasi(payload, session) {
 
   // ── Dalam Kampus (agregat): REKAP_BULANAN × TARUNA, kelompok (prodi, tingkat) ──
   var rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
-  var sistemDalam = _kelompokkanJumlah_(
-    rekapRows.map(function (r) {
-      var t = tarunaByNit[String(r.nit)] || {};
-      return { kunci: (t.prodi || '?') + '|' + (t.tingkat || '?'), nominal: _int_(r.nominal || 0, 'nominal') };
-    }),
-    function (x) { return x.kunci; }, function (x) { return x.nominal; }
-  );
+  var sistemDalam = _sistemDalamKampusPerKelompok_(bulan, tarunaByNit);
   var sp2dDalam = _kelompokkanJumlah_(
     sp2dAgregat.filter(function (r) { return r.kategori === 'DALAM_KAMPUS'; }),
     function (r) { return r.prodi + '|' + r.tingkat; },
@@ -390,4 +414,69 @@ function sp2dRekonsiliasi(payload, session) {
     cross_check_sp2d: crossCheckSp2d,
     perlu_cek_manual: perluCekManual
   };
+}
+
+/**
+ * Rincian SP2D Dalam Kampus per kelompok (Prodi+Tingkat) untuk `bulan` — versi
+ * "per baris" dari `dalam_kampus` di sp2dRekonsiliasi, dipakai halaman
+ * Pembayaran (relasi 1 bulan PEMBAYARAN : N SP2D). KPPN menerbitkan SATU SP2D
+ * per kelompok Prodi+Tingkat, jadi satu bulan pembayaran Dalam Kampus terdiri
+ * dari BANYAK SP2D. Tiap kelompok memuat daftar `rincian` (satu entri per baris
+ * SP2D_MONITORING agregat: no_spm, no_sp2d, tgl, nominal, status).
+ *
+ * Sama seperti `dalam_kampus`: hanya baris `kategori==='DALAM_KAMPUS' && !nit`
+ * (agregat, bukan SPANExt per-taruna) dan `perlu_cek_manual!=='YA'` yang masuk
+ * agregat. Kelompok dobel (mis. MP/II dua SP2D) SUM-nya digabung, tapi tiap
+ * SP2D tetap tampil sebagai baris `rincian` terpisah.
+ *
+ * `lengkap` = untuk SETIAP kelompok yang Sistem-nya > 0, SUM(SP2D) == Sistem,
+ * DAN minimal ada satu kelompok bersistem > 0 (dikonfirmasi Firdaus). Kelompok
+ * bersistem 0 tidak menghalangi kelengkapan (tapi tetap tampil sebagai anomali
+ * kalau ada SP2D nyasar). `perlu_cek_manual` = jumlah baris Dalam Kampus bulan
+ * ini yang gagal parse (SP2D ada tapi tak terhitung — perlu koreksi manual).
+ */
+function _rincianSp2dDalamKampus_(bulan) {
+  var tarunaByNit = {};
+  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+
+  var sistemDalam = _sistemDalamKampusPerKelompok_(bulan, tarunaByNit);
+
+  // _bulanStr_ (BUKAN String() polos) — lihat catatan di sp2dRekonsiliasi.
+  var semua = sheetRead(SHEETS.SP2D_MONITORING, function (r) {
+    return _bulanStr_(r.bulan) === bulan && r.kategori === 'DALAM_KAMPUS';
+  });
+  var agregat = semua.filter(function (r) { return !r.nit && r.perlu_cek_manual !== 'YA'; });
+  var perluCekManual = semua.filter(function (r) { return r.perlu_cek_manual === 'YA'; }).length;
+
+  var sp2dPerKunci = {};
+  var rincianPerKunci = {};
+  agregat.forEach(function (r) {
+    var kunci = r.prodi + '|' + r.tingkat;
+    var jml = _int_(r.jumlah_pembayaran || 0, 'jumlah_pembayaran');
+    sp2dPerKunci[kunci] = (sp2dPerKunci[kunci] || 0) + jml;
+    if (!rincianPerKunci[kunci]) rincianPerKunci[kunci] = [];
+    rincianPerKunci[kunci].push({
+      no_spm: String(r.no_spm || ''), no_sp2d: String(r.no_sp2d || ''),
+      tgl_spm: _tglStr_(r.tgl_spm) || '', tgl_sp2d: _tglStr_(r.tgl_sp2d) || '',
+      jumlah_pembayaran: jml, status_sp2d: String(r.status_sp2d || '')
+    });
+  });
+
+  var kunciSemua = {};
+  Object.keys(sistemDalam).forEach(function (k) { kunciSemua[k] = true; });
+  Object.keys(sp2dPerKunci).forEach(function (k) { kunciSemua[k] = true; });
+
+  var adaSistem = false, semuaCocok = true;
+  var kelompok = Object.keys(kunciSemua).sort().map(function (k) {
+    var parts = k.split('|');
+    var sistem = sistemDalam[k] || 0, sp2d = sp2dPerKunci[k] || 0;
+    if (sistem > 0) { adaSistem = true; if (sistem !== sp2d) semuaCocok = false; }
+    return {
+      prodi: parts[0], tingkat: parts[1], sistem: sistem, sp2d: sp2d,
+      selisih: sistem - sp2d, cocok: sistem === sp2d,
+      rincian: rincianPerKunci[k] || []
+    };
+  });
+
+  return { bulan: bulan, kelompok: kelompok, lengkap: adaSistem && semuaCocok, perlu_cek_manual: perluCekManual };
 }

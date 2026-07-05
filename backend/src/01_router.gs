@@ -65,6 +65,9 @@ var ACTION_MAP = {
   'bayar.get':        { handler: bayarGet,       roles: ['PPK', 'KPA', 'SENAT', 'WADIR3'] },
   'bayar.create':     { handler: bayarCreate,    roles: ['PPK'] },
   'bayar.update':     { handler: bayarUpdate,    roles: ['PPK'] },
+  // bayar.sync: tandai SELESAI dari kelengkapan SP2D_MONITORING (relasi 1:N) —
+  // pelengkap auto-sync di sp2d.import; lihat 15_pembayaran.gs
+  'bayar.sync':       { handler: bayarSync,      roles: ['PPK'] },
   // bayar.close: fallback manual (baris historis status lama) — bukan alur normal, lihat 15_pembayaran.gs
   'bayar.close':      { handler: bayarClose,     roles: ['PPK'] },
 

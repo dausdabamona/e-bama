@@ -115,12 +115,25 @@ Transisi ilegal → error eksplisit (mis. "Pesanan berstatus DRAFT, tidak bisa d
 > Persetujuan rekap (Wadir 3 → PPK verifikasi → PPK finalkan) sudah dilalui
 > saat rekap berstatus `FINAL`, yang menjadi syarat `bayar.create`.
 
+> **Relasi 1 PEMBAYARAN : N SP2D.** Satu baris PEMBAYARAN (per bulan) mewakili
+> BANYAK SP2D nyata — KPPN menerbitkan satu SP2D per kelompok **Prodi+Tingkat**
+> (mis. Januari 2026 = 10 SP2D). Field `no_spm`/`no_sp2d` di sheet PEMBAYARAN
+> cuma "wakil" untuk input manual/fallback; rincian SP2D sebenarnya TIDAK
+> disalin, tapi diturunkan **LIVE** dari `SP2D_MONITORING` (via
+> `_rincianSp2dDalamKampus_`, `23_sp2d.gs`) dan ditempel di `bayar.list`/
+> `bayar.get` sebagai `sp2d_rincian` (daftar kelompok Prodi+Tingkat, tiap
+> kelompok memuat sub-daftar No. SP2D) + `sp2d_lengkap` (semua kelompok
+> bersistem >0 sudah cocok) + `sp2d_perlu_cek_manual` (jumlah baris gagal
+> parse). Begitu `sp2d_lengkap`, status OTOMATIS `SELESAI` — dijalankan dari
+> `sp2d.import` (auto) atau `bayar.sync` (manual).
+
 | Action | Role | Keterangan |
 |---|---|---|
 | `bayar.create` | PPK | syarat REKAP bulan tsb `FINAL` (setelah Wadir 3 setujui → PPK verifikasi → PPK finalkan); `nilai_total` = SUM(nominal) snapshot |
-| `bayar.update` | PPK | isi no_spm/tgl_spm, no_sp2d/tgl_sp2d; No. SP2D terisi → status **langsung `SELESAI`**; lampiran surat blokir / bukti debet / invoice (bisa diunggah kapan saja) |
+| `bayar.update` | PPK | isi no_spm/tgl_spm, no_sp2d/tgl_sp2d; No. SP2D terisi → status **langsung `SELESAI`**; lampiran surat blokir / bukti debet / invoice (bisa diunggah kapan saja). "Wakil" manual / fallback — cara utama ke `SELESAI` adalah lewat kelengkapan `SP2D_MONITORING` + `bayar.sync` |
+| `bayar.sync` | PPK | `{bulan}` → tandai `SELESAI` bila PEMBAYARAN bulan itu masih `DIAJUKAN` DAN `_rincianSp2dDalamKampus_(bulan).lengkap`; kalau belum lengkap → error berisi jumlah kelompok yang belum cocok. Untuk kasus SP2D diunggah **sebelum** `bayar.create` (auto-sync di `sp2d.import` tak sempat menemukan barisnya) |
 | `bayar.close` | PPK | fallback manual → `SELESAI`; **bukan bagian alur normal** — hanya untuk baris historis yang masih berstatus lama (`SP2D_TERBIT`/`DITRANSFER`/`DIKONFIRMASI`) dari sebelum penyederhanaan ini |
-| `bayar.list` / `bayar.get` | PPK, KPA, SENAT, WADIR3 | |
+| `bayar.list` / `bayar.get` | PPK, KPA, SENAT, WADIR3 | balasan diperkaya `sp2d_rincian` + `sp2d_lengkap` + `sp2d_perlu_cek_manual` (LIVE dari `SP2D_MONITORING`) |
 
 ### Tagihan Gagal Debet — status `TERTAGIH → LUNAS | DIHAPUSKAN | ESKALASI_MANUAL`
 

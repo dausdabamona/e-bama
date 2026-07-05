@@ -192,12 +192,22 @@ fallback manual untuk baris historis berstatus lama (`SP2D_TERBIT`/
 | bulan | string | `YYYY-MM`; unik per kontrak |
 | kontrak_id | FK → KONTRAK | |
 | nilai_total 📸 | integer | snapshot SUM(nominal) REKAP_BULANAN FINAL bulan tsb |
-| no_spm | string | input manual PPK |
+| no_spm | string | "wakil" manual PPK (fallback) — lihat catatan 1:N di bawah |
 | tgl_spm | date | |
-| no_sp2d | string | input manual PPK; terisi → status langsung `SELESAI` |
+| no_sp2d | string | "wakil" manual PPK (fallback); terisi → status langsung `SELESAI` |
 | tgl_sp2d | date | |
 | konfirmasi_senat_at | datetime | **legacy** — tidak lagi diisi (dulu: invoice diterima penyedia, SOP 15–16); dipertahankan hanya untuk baris historis |
 | status | enum | `DIAJUKAN` / `SELESAI` (nilai lama `SP2D_TERBIT`/`DITRANSFER`/`DIKONFIRMASI` hanya mungkin muncul di baris historis) |
+
+> **Relasi 1 PEMBAYARAN : N SP2D.** Satu baris (per bulan) mewakili BANYAK SP2D
+> nyata — KPPN menerbitkan satu SP2D per kelompok **Prodi+Tingkat** (mis. Januari
+> 2026 = 10 SP2D). `no_spm`/`no_sp2d` di sheet ini hanya "wakil" untuk input
+> manual/fallback; rincian SP2D sebenarnya **tidak disimpan di sini** — diturunkan
+> LIVE dari `SP2D_MONITORING` (§17) via `_rincianSp2dDalamKampus_` (`23_sp2d.gs`)
+> dan ditempel di `bayar.list`/`bayar.get` sebagai `sp2d_rincian`/`sp2d_lengkap`.
+> Status `SELESAI` otomatis begitu semua kelompok cocok (`sp2d.import` auto atau
+> `bayar.sync` manual). Tidak ada perubahan kolom untuk fitur ini (rincian selalu
+> live, tidak disalin).
 
 Surat blokir, bukti debet bank, invoice penyedia → LAMPIRAN `ref_type=PEMBAYARAN`.
 
@@ -471,6 +481,19 @@ SAJA, `prodi`/`tingkat` hasil join TARUNA saat itu), **cross-check per SP2D**
 (3) *SP2D Rincian* (SPANExt) = siapa penerima + nominal masing-masing.
 `cross_check_sp2d` mengecek lapis 2 vs 3 (internal SP2D); perbandingan per
 kelompok/per taruna mengecek lapis 1 vs (2/3).
+
+**Relasi ke PEMBAYARAN (1 : N).** Satu baris `PEMBAYARAN` (per bulan) memayungi
+BANYAK baris SP2D_MONITORING — KPPN menerbitkan satu SP2D per kelompok
+Prodi+Tingkat, jadi satu bulan pembayaran Dalam Kampus = beberapa SP2D (contoh
+nyata Januari 2026 = **10 SP2D**: TPI/I, MP/I, MP/II ×2, TBP/II ×2, MP/III,
+TBP/III, TBP/I, TPI/II). Halaman Pembayaran menurunkan rincian ini **LIVE** lewat
+`_rincianSp2dDalamKampus_(bulan)` (`23_sp2d.gs`) — mengelompokkan baris agregat
+(`kategori='DALAM_KAMPUS'`, `nit` kosong, `perlu_cek_manual≠'YA'`) per
+Prodi+Tingkat, SUM `jumlah_pembayaran`-nya, dan membandingkan dengan
+`_sistemDalamKampusPerKelompok_` (SUM REKAP_BULANAN). Bila SETIAP kelompok
+bersistem >0 sudah cocok (`lengkap`), status PEMBAYARAN otomatis `SELESAI`
+(dijalankan dari `sp2d.import` auto-sync atau `bayar.sync` manual). Rincian TIDAK
+disalin ke sheet PEMBAYARAN — selalu diturunkan on-read, tanpa kolom baru.
 
 ---
 

@@ -269,6 +269,9 @@ var ACTION_MAP = {
   'bayar.get':        { handler: bayarGet,       roles: ['PPK', 'KPA', 'SENAT', 'WADIR3'] },
   'bayar.create':     { handler: bayarCreate,    roles: ['PPK'] },
   'bayar.update':     { handler: bayarUpdate,    roles: ['PPK'] },
+  // bayar.sync: tandai SELESAI dari kelengkapan SP2D_MONITORING (relasi 1:N) —
+  // pelengkap auto-sync di sp2d.import; lihat 15_pembayaran.gs
+  'bayar.sync':       { handler: bayarSync,      roles: ['PPK'] },
   // bayar.close: fallback manual (baris historis status lama) — bukan alur normal, lihat 15_pembayaran.gs
   'bayar.close':      { handler: bayarClose,     roles: ['PPK'] },
 
@@ -1735,10 +1738,21 @@ function rekapInputHistoris(payload, session) {
  * status PEMBAYARAN ini. Begitu No. SP2D diketahui, mencetak & mengirim
  * Form-07 ke bank jadi MENDESAK (uang sudah cair, jendela blokir singkat).
  *
- * ACTION: bayar.list, bayar.get (PPK, KPA, Senat), bayar.create, bayar.update (PPK).
- * bayar.close tersisa sebagai fallback manual (mis. baris historis yang masih
- * berstatus lama SP2D_TERBIT/DITRANSFER/DIKONFIRMASI dari sebelum
- * penyederhanaan ini) — bukan bagian alur normal lagi.
+ * ACTION: bayar.list, bayar.get (PPK, KPA, Senat), bayar.create, bayar.update,
+ * bayar.sync (PPK). bayar.close tersisa sebagai fallback manual (mis. baris
+ * historis yang masih berstatus lama SP2D_TERBIT/DITRANSFER/DIKONFIRMASI dari
+ * sebelum penyederhanaan ini) — bukan bagian alur normal lagi.
+ *
+ * RELASI 1:N dengan SP2D_MONITORING — satu baris PEMBAYARAN (per bulan) mewakili
+ * BANYAK SP2D nyata: KPPN menerbitkan satu SP2D per kelompok Prodi+Tingkat (mis.
+ * Januari 2026 = 10 SP2D). Field no_spm/no_sp2d di sheet ini cuma "wakil" untuk
+ * input manual/fallback — rincian SP2D sebenarnya TIDAK disalin ke sini, tapi
+ * diturunkan LIVE dari SP2D_MONITORING lewat _rincianSp2dDalamKampus_ (23_sp2d.gs)
+ * dan ditempel di bayar.list/bayar.get sebagai sp2d_rincian + sp2d_lengkap.
+ * Begitu SEMUA kelompok Prodi+Tingkat (yang REKAP-nya >0) punya SP2D yang SUM-nya
+ * cocok, pembayaran OTOMATIS SELESAI — dijalankan otomatis dari sp2d.import
+ * (_sinkronkanPembayaranDariSp2d_) atau manual lewat bayar.sync (untuk kasus SP2D
+ * kadung diunggah SEBELUM bayar.create dibuat).
  *
  * nilai_total = SNAPSHOT SUM(nominal) REKAP_BULANAN FINAL — beku setelah ditulis.
  * Lampiran (surat blokir, bukti debet, invoice) → LAMPIRAN ref_type=PEMBAYARAN.
@@ -1763,7 +1777,24 @@ function _kontrakBulan_(bulan) {
   return rows[0];
 }
 
-/** Daftar pembayaran, filter {bulan?}. */
+/**
+ * Tempel rincian SP2D LIVE ke satu baris pembayaran (tanpa mengubah data
+ * tersimpan). sp2d_rincian = daftar kelompok Prodi+Tingkat (masing-masing
+ * dengan sub-daftar No. SP2D), sp2d_lengkap = true bila semua kelompok
+ * bersistem >0 sudah cocok. Diturunkan dari SP2D_MONITORING via
+ * _rincianSp2dDalamKampus_ (23_sp2d.gs) — 1 PEMBAYARAN : N SP2D.
+ */
+function _bayarDenganSp2d_(b) {
+  var r = _rincianSp2dDalamKampus_(_bulanStr_(b.bulan));
+  var salin = {};
+  Object.keys(b).forEach(function (k) { salin[k] = b[k]; });
+  salin.sp2d_rincian = r.kelompok;
+  salin.sp2d_lengkap = r.lengkap;
+  salin.sp2d_perlu_cek_manual = r.perlu_cek_manual;
+  return salin;
+}
+
+/** Daftar pembayaran, filter {bulan?} — diperkaya rincian SP2D live. */
 function bayarList(payload, session) {
   var bulan = payload && payload.bulan;
   // _bulanStr_ (BUKAN String() polos) — kolom bulan bisa auto-tertafsir Date
@@ -1773,13 +1804,13 @@ function bayarList(payload, session) {
   var rows = sheetRead(SHEETS.PEMBAYARAN, function (r) {
     return !bulan || _bulanStr_(r.bulan) === bulan;
   });
-  return { pembayaran: rows };
+  return { pembayaran: rows.map(_bayarDenganSp2d_) };
 }
 
-/** Detail pembayaran + lampiran. */
+/** Detail pembayaran + lampiran + rincian SP2D live. */
 function bayarGet(payload, session) {
   var b = _bayar_(payload && payload.bayar_id);
-  return { pembayaran: b, lampiran: lampiranList('PEMBAYARAN', b.bayar_id) };
+  return { pembayaran: _bayarDenganSp2d_(b), lampiran: lampiranList('PEMBAYARAN', b.bayar_id) };
 }
 
 /** Buat pembayaran: syarat rekap bulan FINAL (PPK finalkan = siap bayar); nilai_total = SUM(nominal) snapshot. */
@@ -1864,6 +1895,51 @@ function bayarClose(payload, session) {
   sheetUpdate(SHEETS.PEMBAYARAN, 'bayar_id', b.bayar_id, { status: 'SELESAI' });
   auditLog(session, 'bayar.close', 'PEMBAYARAN', b.bayar_id, { status: b.status }, { status: 'SELESAI' });
   return { bayar_id: b.bayar_id, status: 'SELESAI' };
+}
+
+/**
+ * Sinkronkan status PEMBAYARAN dari kelengkapan SP2D_MONITORING. Kalau ada
+ * pembayaran bulan `bulan` yang masih DIAJUKAN DAN semua SP2D-nya sudah lengkap
+ * (_rincianSp2dDalamKampus_(bulan).lengkap), tandai SELESAI + audit.
+ *
+ * SENGAJA TIDAK melempar error (return {ok, alasan}) supaya aman dipanggil
+ * silent dari sp2dImport (23_sp2d.gs) — kegagalan sinkron (mis. SP2D belum
+ * lengkap) BUKAN kegagalan impor. `sumber` ('AUTO_IMPOR'/'MANUAL') dicatat di
+ * audit untuk jejak asal transisi. Dibungkus withLock sendiri (reentrant-safe,
+ * 03_helpers.gs) supaya aman baik dipanggil dari dalam lock sp2dImport maupun
+ * langsung dari action bayarSync.
+ */
+function _sinkronkanPembayaranDariSp2d_(bulan, session, sumber) {
+  var bln = _bulanStr_(bulan);
+  return withLock(function () {
+    var b = sheetRead(SHEETS.PEMBAYARAN, function (r) { return _bulanStr_(r.bulan) === bln; })[0];
+    if (!b) return { ok: false, alasan: 'Belum ada pembayaran untuk bulan ' + bln + '.' };
+    if (b.status !== 'DIAJUKAN') return { ok: false, alasan: 'Pembayaran ' + b.bayar_id + ' berstatus ' + b.status + ', tidak disinkronkan.' };
+
+    var rincian = _rincianSp2dDalamKampus_(bln);
+    if (!rincian.lengkap) {
+      var belum = rincian.kelompok.filter(function (k) { return k.sistem > 0 && !k.cocok; }).length;
+      return { ok: false, alasan: 'SP2D belum lengkap: ' + belum + ' kelompok Prodi+Tingkat belum cocok.' };
+    }
+
+    sheetUpdate(SHEETS.PEMBAYARAN, 'bayar_id', b.bayar_id, { status: 'SELESAI' });
+    auditLog(session, 'bayar.sync', 'PEMBAYARAN', b.bayar_id,
+      { status: b.status }, { status: 'SELESAI', sumber: sumber || 'AUTO_IMPOR' });
+    return { ok: true, bayar_id: b.bayar_id, status: 'SELESAI' };
+  });
+}
+
+/**
+ * PPK: sinkronkan manual status pembayaran dari SP2D_MONITORING. Untuk kasus
+ * SP2D kadung diunggah SEBELUM bayar.create dibuat (auto-sync di sp2dImport tak
+ * sempat menemukan barisnya). Payload {bulan}. Kalau belum lengkap → error
+ * dengan alasan (bukan silent).
+ */
+function bayarSync(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  var hasil = _sinkronkanPembayaranDariSp2d_(bulan, session, 'MANUAL');
+  if (!hasil.ok) throw _fail_(hasil.alasan);
+  return { bayar_id: hasil.bayar_id, status: hasil.status };
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -3463,6 +3539,7 @@ function sp2dImport(payload, session) {
     sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaValid[String(t.nit)] = true; });
 
     var ditambah = 0, dilewati = 0;
+    var bulanDalamKampusTersentuh = {}; // dipakai sinkronisasi PEMBAYARAN di bawah
     baris.forEach(function (b) {
       var noSpm = String((b && b.no_spm) || '').trim();
       if (!noSpm) throw _fail_('no_spm wajib diisi pada setiap baris.');
@@ -3487,10 +3564,20 @@ function sp2dImport(payload, session) {
       });
       adaNoSpm[_kunciNoSpm_(noSpm)] = true;
       ditambah++;
+      if (kategori === 'DALAM_KAMPUS' && !hasil.gagal && hasil.bulan) bulanDalamKampusTersentuh[hasil.bulan] = true;
     });
 
     auditLog(session, 'sp2d.import', 'SP2D_MONITORING', null, null,
       { kategori: kategori, ditambah: ditambah, dilewati: dilewati });
+
+    // Sinkronkan PEMBAYARAN Dalam Kampus bulan yang tersentuh — begitu SEMUA
+    // kelompok Prodi+Tingkat bulan itu cocok, otomatis SELESAI (dikonfirmasi
+    // Firdaus: SP2D terbit lengkap = dana sudah cair ke taruna, tanpa PPK
+    // perlu ketik ulang satu nomor SPM/SP2D "wakil" secara manual).
+    Object.keys(bulanDalamKampusTersentuh).forEach(function (bln) {
+      _sinkronkanPembayaranDariSp2d_(bln, session, 'AUTO_IMPOR');
+    });
+
     return { ditambah: ditambah, dilewati: dilewati };
   });
 }
@@ -3503,6 +3590,25 @@ function _kelompokkanJumlah_(items, kunciFn, nilaiFn) {
     map[k] = (map[k] || 0) + nilaiFn(it);
   });
   return map;
+}
+
+/**
+ * SUM(nominal) REKAP_BULANAN `bulan` per kelompok (prodi|tingkat), di-join
+ * TARUNA — sumber angka "Sistem" Dalam Kampus. Diekstrak supaya sp2dRekonsiliasi
+ * (kolom `dalam_kampus`) dan _rincianSp2dDalamKampus_ (halaman Pembayaran)
+ * menghitung dari rumus yang SAMA — angka tak akan pernah beda antar dua
+ * tampilan. `bulan` difilter dengan _bulanStr_ (kolom bulan bisa auto-tertafsir
+ * Date oleh Google Sheets; lihat catatan panjang di sp2dRekonsiliasi).
+ */
+function _sistemDalamKampusPerKelompok_(bulan, tarunaByNit) {
+  var rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
+  return _kelompokkanJumlah_(
+    rekapRows.map(function (r) {
+      var t = tarunaByNit[String(r.nit)] || {};
+      return { kunci: (t.prodi || '?') + '|' + (t.tingkat || '?'), nominal: _int_(r.nominal || 0, 'nominal') };
+    }),
+    function (x) { return x.kunci; }, function (x) { return x.nominal; }
+  );
 }
 
 /**
@@ -3548,13 +3654,7 @@ function sp2dRekonsiliasi(payload, session) {
 
   // ── Dalam Kampus (agregat): REKAP_BULANAN × TARUNA, kelompok (prodi, tingkat) ──
   var rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
-  var sistemDalam = _kelompokkanJumlah_(
-    rekapRows.map(function (r) {
-      var t = tarunaByNit[String(r.nit)] || {};
-      return { kunci: (t.prodi || '?') + '|' + (t.tingkat || '?'), nominal: _int_(r.nominal || 0, 'nominal') };
-    }),
-    function (x) { return x.kunci; }, function (x) { return x.nominal; }
-  );
+  var sistemDalam = _sistemDalamKampusPerKelompok_(bulan, tarunaByNit);
   var sp2dDalam = _kelompokkanJumlah_(
     sp2dAgregat.filter(function (r) { return r.kategori === 'DALAM_KAMPUS'; }),
     function (r) { return r.prodi + '|' + r.tingkat; },
@@ -3703,6 +3803,71 @@ function sp2dRekonsiliasi(payload, session) {
     cross_check_sp2d: crossCheckSp2d,
     perlu_cek_manual: perluCekManual
   };
+}
+
+/**
+ * Rincian SP2D Dalam Kampus per kelompok (Prodi+Tingkat) untuk `bulan` — versi
+ * "per baris" dari `dalam_kampus` di sp2dRekonsiliasi, dipakai halaman
+ * Pembayaran (relasi 1 bulan PEMBAYARAN : N SP2D). KPPN menerbitkan SATU SP2D
+ * per kelompok Prodi+Tingkat, jadi satu bulan pembayaran Dalam Kampus terdiri
+ * dari BANYAK SP2D. Tiap kelompok memuat daftar `rincian` (satu entri per baris
+ * SP2D_MONITORING agregat: no_spm, no_sp2d, tgl, nominal, status).
+ *
+ * Sama seperti `dalam_kampus`: hanya baris `kategori==='DALAM_KAMPUS' && !nit`
+ * (agregat, bukan SPANExt per-taruna) dan `perlu_cek_manual!=='YA'` yang masuk
+ * agregat. Kelompok dobel (mis. MP/II dua SP2D) SUM-nya digabung, tapi tiap
+ * SP2D tetap tampil sebagai baris `rincian` terpisah.
+ *
+ * `lengkap` = untuk SETIAP kelompok yang Sistem-nya > 0, SUM(SP2D) == Sistem,
+ * DAN minimal ada satu kelompok bersistem > 0 (dikonfirmasi Firdaus). Kelompok
+ * bersistem 0 tidak menghalangi kelengkapan (tapi tetap tampil sebagai anomali
+ * kalau ada SP2D nyasar). `perlu_cek_manual` = jumlah baris Dalam Kampus bulan
+ * ini yang gagal parse (SP2D ada tapi tak terhitung — perlu koreksi manual).
+ */
+function _rincianSp2dDalamKampus_(bulan) {
+  var tarunaByNit = {};
+  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+
+  var sistemDalam = _sistemDalamKampusPerKelompok_(bulan, tarunaByNit);
+
+  // _bulanStr_ (BUKAN String() polos) — lihat catatan di sp2dRekonsiliasi.
+  var semua = sheetRead(SHEETS.SP2D_MONITORING, function (r) {
+    return _bulanStr_(r.bulan) === bulan && r.kategori === 'DALAM_KAMPUS';
+  });
+  var agregat = semua.filter(function (r) { return !r.nit && r.perlu_cek_manual !== 'YA'; });
+  var perluCekManual = semua.filter(function (r) { return r.perlu_cek_manual === 'YA'; }).length;
+
+  var sp2dPerKunci = {};
+  var rincianPerKunci = {};
+  agregat.forEach(function (r) {
+    var kunci = r.prodi + '|' + r.tingkat;
+    var jml = _int_(r.jumlah_pembayaran || 0, 'jumlah_pembayaran');
+    sp2dPerKunci[kunci] = (sp2dPerKunci[kunci] || 0) + jml;
+    if (!rincianPerKunci[kunci]) rincianPerKunci[kunci] = [];
+    rincianPerKunci[kunci].push({
+      no_spm: String(r.no_spm || ''), no_sp2d: String(r.no_sp2d || ''),
+      tgl_spm: _tglStr_(r.tgl_spm) || '', tgl_sp2d: _tglStr_(r.tgl_sp2d) || '',
+      jumlah_pembayaran: jml, status_sp2d: String(r.status_sp2d || '')
+    });
+  });
+
+  var kunciSemua = {};
+  Object.keys(sistemDalam).forEach(function (k) { kunciSemua[k] = true; });
+  Object.keys(sp2dPerKunci).forEach(function (k) { kunciSemua[k] = true; });
+
+  var adaSistem = false, semuaCocok = true;
+  var kelompok = Object.keys(kunciSemua).sort().map(function (k) {
+    var parts = k.split('|');
+    var sistem = sistemDalam[k] || 0, sp2d = sp2dPerKunci[k] || 0;
+    if (sistem > 0) { adaSistem = true; if (sistem !== sp2d) semuaCocok = false; }
+    return {
+      prodi: parts[0], tingkat: parts[1], sistem: sistem, sp2d: sp2d,
+      selisih: sistem - sp2d, cocok: sistem === sp2d,
+      rincian: rincianPerKunci[k] || []
+    };
+  });
+
+  return { bulan: bulan, kelompok: kelompok, lengkap: adaSistem && semuaCocok, perlu_cek_manual: perluCekManual };
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

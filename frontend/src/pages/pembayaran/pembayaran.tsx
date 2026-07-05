@@ -3,7 +3,7 @@
 // (SP2D = dana SUDAH cair ke rekening taruna). Tidak ada lagi konfirmasi
 // Senat/tutup manual di alur normal — pendebetan taruna→Senat→Penyedia
 // berjalan lewat dokumen cetak terpisah (Form-07 lalu Form-09).
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/auth-context';
 import { BulanPicker, bulanIni } from '../../components/bulan-picker';
@@ -93,6 +93,20 @@ export function HalamanPembayaran() {
     }
   }
 
+  /** Sinkronkan status dari kelengkapan SP2D_MONITORING (relasi 1 bulan : N SP2D). */
+  async function sinkronkan() {
+    setProses(true);
+    try {
+      await api('bayar.sync', { bulan });
+      toast('Tersinkron — semua SP2D lengkap, pembayaran SELESAI.', 'sukses');
+      refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
+    } finally {
+      setProses(false);
+    }
+  }
+
   /** Fallback: baris historis yang kadung berstatus lama (sebelum penyederhanaan). */
   async function tutupManual() {
     setProses(true);
@@ -109,7 +123,16 @@ export function HalamanPembayaran() {
 
   const idx = b ? URUTAN_STATUS.indexOf(b.status) : -1;
   const statusLegacy = b && idx < 0; // status lama (SP2D_TERBIT/DITRANSFER/DIKONFIRMASI) dari sebelum disederhanakan
-  const sp2dSudahAda = b ? !!b.no_sp2d : false;
+
+  // Rincian SP2D LIVE dari SP2D_MONITORING (relasi 1 bulan : N SP2D). sp2dSudahAda
+  // = ada minimal satu SP2D terunggah (lewat rincian) ATAU No. SP2D "wakil" manual.
+  const rincianSp2d = b?.sp2d_rincian ?? [];
+  const sp2dLengkap = !!b?.sp2d_lengkap;
+  const kelompokBersistem = rincianSp2d.filter((k) => k.sistem > 0);
+  const kelompokCocok = kelompokBersistem.filter((k) => k.cocok).length;
+  const kelompokBelum = kelompokBersistem.length - kelompokCocok;
+  const adaSp2dTerunggah = rincianSp2d.some((k) => k.sp2d > 0);
+  const sp2dSudahAda = b ? (!!b.no_sp2d || adaSp2dTerunggah) : false;
 
   return (
     <div className="flex flex-col gap-4">
@@ -145,6 +168,95 @@ export function HalamanPembayaran() {
                   </li>
                 ))}
               </ol>
+            )}
+          </Card>
+
+          {/* Rincian SP2D LIVE dari SP2D_MONITORING — 1 bulan pembayaran = N SP2D
+              (KPPN terbitkan 1 SP2D per kelompok Prodi+Tingkat). Read-only; angka
+              diturunkan dari menu Laporan (impor Monitoring SP2D), bukan diketik di sini. */}
+          <Card className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-gray-600">📋 Rincian SP2D dari SP2D_MONITORING</p>
+              {rincianSp2d.length > 0 && (
+                sp2dLengkap
+                  ? <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">✅ Semua {kelompokBersistem.length} kelompok cocok</span>
+                  : <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">⏳ Menunggu {kelompokBelum} dari {kelompokBersistem.length} kelompok</span>
+              )}
+            </div>
+
+            {rincianSp2d.length === 0 ? (
+              <p className="text-xs text-gray-500">
+                Belum ada SP2D terunggah untuk bulan ini. Unggah file Monitoring SP2D lewat menu{' '}
+                <Link to="/laporan" className="text-primary underline">Laporan</Link> — rincian per No. SP2D
+                akan muncul di sini otomatis.
+              </p>
+            ) : (
+              <>
+                <p className="text-xs text-gray-500">
+                  Satu bulan pembayaran terdiri dari <strong>banyak SP2D</strong> — KPPN menerbitkan satu SP2D
+                  per kelompok Prodi+Tingkat. Angka di bawah diturunkan langsung dari data Monitoring SP2D
+                  (menu Laporan), bukan diketik manual.
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-200 text-left text-gray-500">
+                        <th className="py-1 pr-2">Prodi/Tingkat</th>
+                        <th className="py-1 pr-2 text-right">Sistem</th>
+                        <th className="py-1 pr-2 text-right">SP2D</th>
+                        <th className="py-1">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rincianSp2d.map((k) => (
+                        <Fragment key={`${k.prodi}|${k.tingkat}`}>
+                          <tr className={`border-b border-gray-100 ${k.cocok ? '' : k.sistem > 0 ? 'bg-amber-50' : 'bg-red-50'}`}>
+                            <td className="py-1 pr-2 font-medium">{k.prodi} / {k.tingkat}</td>
+                            <td className="py-1 pr-2 text-right">{formatRupiah(k.sistem)}</td>
+                            <td className="py-1 pr-2 text-right">{formatRupiah(k.sp2d)}</td>
+                            <td className="py-1">
+                              {k.cocok
+                                ? <span className="text-green-700">✓ cocok</span>
+                                : k.sistem > 0
+                                  ? <span className="text-amber-700">kurang {formatRupiah(k.selisih)}</span>
+                                  : <span className="text-red-600">SP2D nyasar</span>}
+                            </td>
+                          </tr>
+                          {k.rincian.length > 0 && (
+                            <tr>
+                              <td colSpan={4} className="px-2 pb-2">
+                                <ul className="ml-1 list-disc pl-4 text-[11px] text-gray-500">
+                                  {k.rincian.map((sp, i) => (
+                                    <li key={sp.no_sp2d || `${sp.no_spm}-${i}`}>
+                                      No. SP2D <span className="font-mono">{sp.no_sp2d || '(belum terbit)'}</span>
+                                      {' — '}{formatRupiah(sp.jumlah_pembayaran)}
+                                      {sp.tgl_sp2d ? ` • ${sp.tgl_sp2d}` : ''}
+                                      {sp.status_sp2d ? ` • ${sp.status_sp2d}` : ''}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {b.sp2d_perlu_cek_manual ? (
+                  <p className="text-xs text-amber-700">
+                    ⚠️ {b.sp2d_perlu_cek_manual} baris SP2D bulan ini gagal terbaca otomatis (perlu cek manual di
+                    menu Laporan) — belum ikut dihitung.
+                  </p>
+                ) : null}
+
+                {session?.role === 'PPK' && b.status === 'DIAJUKAN' && sp2dLengkap && (
+                  <Button onClick={() => void sinkronkan()} disabled={proses}>
+                    🔄 Sinkronkan Sekarang → SELESAI
+                  </Button>
+                )}
+              </>
             )}
           </Card>
 
@@ -203,15 +315,21 @@ export function HalamanPembayaran() {
 
           {session?.role === 'PPK' && b.status === 'DIAJUKAN' && (
             <Card className="flex flex-col gap-3">
-              <p className="text-sm font-semibold text-gray-600">Input SPM</p>
-              <Input label="No. SPM" value={noSpm} onChange={(e) => setNoSpm(e.target.value)} />
+              <p className="text-sm font-semibold text-gray-600">Input Manual (fallback/opsional)</p>
+              <p className="text-xs text-gray-500">
+                Cara utama menuju SELESAI adalah lewat impor Monitoring SP2D di menu Laporan lalu
+                <strong> Sinkronkan</strong> di atas. Kolom di bawah hanya "wakil" manual — untuk kasus
+                khusus (mis. SP2D belum terekam di Monitoring). Mengisi No. SP2D di sini langsung menandai
+                pembayaran SELESAI.
+              </p>
+              <Input label="No. SPM (wakil)" value={noSpm} onChange={(e) => setNoSpm(e.target.value)} />
               <Input label="Tanggal SPM" type="date" value={tglSpm} onChange={(e) => setTglSpm(e.target.value)} />
-              <Button onClick={() => void simpanSpm()} disabled={proses}>Simpan SPM</Button>
+              <Button varian="garis" onClick={() => void simpanSpm()} disabled={proses}>Simpan SPM</Button>
 
-              <p className="mt-2 text-sm font-semibold text-gray-600">Input SP2D (langsung SELESAI)</p>
-              <Input label="No. SP2D" value={noSp2d} onChange={(e) => setNoSp2d(e.target.value)} />
+              <p className="mt-2 text-sm font-semibold text-gray-600">Input SP2D manual (langsung SELESAI)</p>
+              <Input label="No. SP2D (wakil)" value={noSp2d} onChange={(e) => setNoSp2d(e.target.value)} />
               <Input label="Tanggal SP2D" type="date" value={tglSp2d} onChange={(e) => setTglSp2d(e.target.value)} />
-              <Button onClick={() => void simpanSp2d()} disabled={proses}>Simpan SP2D</Button>
+              <Button varian="garis" onClick={() => void simpanSp2d()} disabled={proses}>Simpan SP2D</Button>
             </Card>
           )}
 
