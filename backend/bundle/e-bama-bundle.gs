@@ -3900,6 +3900,14 @@ function sp2dRekonsiliasi(payload, session) {
       sp2dPerTarunaDalam, function (r) { return String(r.nit); },
       function (r) { return _int_(r.jumlah_pembayaran || 0, 'jumlah_pembayaran'); }
     );
+    // Kumpulkan No. SP2D per taruna (satu taruna bisa punya >1 baris SPANExt).
+    var noSp2dDalamNit = {};
+    sp2dPerTarunaDalam.forEach(function (r) {
+      var nit = String(r.nit), no = String(r.no_sp2d || '').trim();
+      if (!no) return;
+      if (!noSp2dDalamNit[nit]) noSp2dDalamNit[nit] = [];
+      if (noSp2dDalamNit[nit].indexOf(no) === -1) noSp2dDalamNit[nit].push(no);
+    });
     var kunciDalamNit = {};
     Object.keys(sistemDalamNit).forEach(function (k) { kunciDalamNit[k] = true; });
     Object.keys(sp2dDalamNit).forEach(function (k) { kunciDalamNit[k] = true; });
@@ -3908,7 +3916,8 @@ function sp2dRekonsiliasi(payload, session) {
       var sistem = sistemDalamNit[nit] || 0, sp2d = sp2dDalamNit[nit] || 0;
       return {
         nit: nit, nama: t.nama || '', prodi: t.prodi || '', tingkat: t.tingkat || '',
-        sistem: sistem, sp2d: sp2d, selisih: sistem - sp2d, cocok: sistem === sp2d
+        sistem: sistem, sp2d: sp2d, selisih: sistem - sp2d, cocok: sistem === sp2d,
+        no_sp2d: (noSp2dDalamNit[nit] || []).sort()
       };
     });
   }

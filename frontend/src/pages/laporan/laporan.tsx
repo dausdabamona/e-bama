@@ -28,7 +28,7 @@ interface Laporan {
 
 interface BarisRekon { prodi: string; tingkat: string; sistem: number; sp2d: number; selisih: number; cocok: boolean }
 interface BarisRekonLuar extends BarisRekon { kegiatan: string }
-interface BarisRekonPerTaruna { nit: string; nama: string; prodi: string; tingkat: string; sistem: number; sp2d: number; selisih: number; cocok: boolean }
+interface BarisRekonPerTaruna { nit: string; nama: string; prodi: string; tingkat: string; sistem: number; sp2d: number; selisih: number; cocok: boolean; no_sp2d?: string[] }
 interface BarisRekonLuarPerTaruna extends BarisRekonPerTaruna { kegiatan: string }
 interface CrossCheckSp2d {
   no_sp2d: string; kategori: string; prodi: string; tingkat: string; kegiatan: string;
@@ -493,6 +493,7 @@ export function HalamanLaporan() {
                       <thead>
                         <tr className="border-b border-gray-200 text-left text-gray-500">
                           <th className="py-1 pr-2">Nama</th><th className="py-1 pr-2">Prodi/Tingkat</th>
+                          <th className="py-1 pr-2">No. SP2D</th>
                           <th className="py-1 pr-2 text-right">Sistem</th><th className="py-1 pr-2 text-right">SP2D</th>
                           <th className="py-1 pr-2 text-right">Selisih</th><th className="py-1">Status</th>
                         </tr>
@@ -502,6 +503,7 @@ export function HalamanLaporan() {
                           <tr key={r.nit} className={`border-b border-gray-100 ${r.cocok ? '' : 'bg-red-50'}`}>
                             <td className="py-1 pr-2">{r.nama || r.nit}</td>
                             <td className="py-1 pr-2">{r.prodi || '?'}/{r.tingkat || '?'}</td>
+                            <td className="py-1 pr-2 text-gray-500">{r.no_sp2d && r.no_sp2d.length > 0 ? r.no_sp2d.join(', ') : '—'}</td>
                             <td className="py-1 pr-2 text-right">{formatRupiah(r.sistem)}</td>
                             <td className="py-1 pr-2 text-right">{formatRupiah(r.sp2d)}</td>
                             <td className="py-1 pr-2 text-right">{formatRupiah(r.selisih)}</td>
