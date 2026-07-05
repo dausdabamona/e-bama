@@ -142,8 +142,8 @@ function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia,
       <p className="text-xs">Kepada Yth. Pimpinan Bank {labelBank} — di tempat.</p>
       <p className="text-xs">
         Setelah dana bantuan biaya makan taruna bulan {labelBulan(bulan)} cair ke rekening masing-masing
-        taruna, kami memohon Bank {labelBank} berkenan: <strong>(1)</strong> memblokir rekening taruna pada
-        daftar di bawah selama <strong>{namaHari} hari</strong>; <strong>(2)</strong> mendebet dana sesuai nilai
+        taruna, dengan ini kami mengajukan permohonan kepada Bank {labelBank} untuk: <strong>(1)</strong> memblokir
+        rekening taruna pada daftar di bawah selama <strong>{namaHari} hari</strong>; <strong>(2)</strong> mendebet dana sesuai nilai
         per orang ke <strong>Rekening Senat Taruna {bank}</strong> ({rekSenat || '…… belum diisi Admin'}
         {rekSenatNama ? ` a.n. ${rekSenatNama}` : ''});
         <strong> (3)</strong> meneruskan total dana yang berhasil didebet ke <strong>rekening penyedia jasa boga {bank}</strong>{' '}
@@ -236,16 +236,14 @@ export function HalamanCetakForm07() {
           <Card className="print:border-0 print:p-0 print:shadow-none">
             <p className="text-sm">
               Setelah dana bantuan biaya makan taruna Politeknik Kelautan dan Perikanan Sorong
-              bulan {labelBulan(data.bulan)} <strong>cair ke rekening masing-masing taruna</strong>
-              {' '}(mekanisme LS), Direktur Politeknik KP Sorong bersama Ketua Senat Taruna dan
-              Wakil Direktur III memohon kepada bank penyalur untuk: <strong>(1)</strong> memblokir
-              rekening taruna penerima sebagaimana daftar terlampir selama{' '}
-              <strong>{(lamaBlokir.trim() || '……')} hari</strong>; <strong>(2)</strong> mendebet dana
-              sesuai nilai per orang ke <strong>Rekening Senat Taruna</strong>; lalu <strong>(3)</strong>{' '}
-              meneruskan total dana yang berhasil didebet ke <strong>rekening penyedia jasa boga</strong>{' '}
-              sesuai kontrak (SOP PR/PKU/KU-001/2025). Karena dana taruna tersebar di{' '}
-              <strong>2 bank (BNI &amp; BSI)</strong>, permohonan dan totalnya dibuat{' '}
-              <strong>terpisah per bank</strong> (rincian &amp; tanda tangan taruna sebagai kuasa debet terlampir).
+              bulan {labelBulan(data.bulan)} <strong>cair ke rekening masing-masing taruna</strong>{' '}
+              melalui mekanisme pembayaran langsung (LS), dengan ini kami mengajukan permohonan kepada
+              bank penyalur untuk: <strong>(1)</strong> memblokir rekening taruna penerima sebagaimana
+              daftar terlampir selama <strong>{(lamaBlokir.trim() || '……')} hari</strong>;{' '}
+              <strong>(2)</strong> mendebet dana sesuai nilai per orang ke <strong>Rekening Senat Taruna</strong>;
+              dan <strong>(3)</strong> meneruskan total dana yang berhasil didebet ke{' '}
+              <strong>rekening penyedia jasa boga</strong>. Daftar nilai dan tanda tangan taruna sebagai
+              kuasa pendebetan terlampir.
             </p>
             <div className="mt-2 flex flex-col gap-1 text-xs">
               <div className="flex justify-between"><span>No. SPM</span><span>{data.pembayaran.no_spm || '-'}</span></div>
