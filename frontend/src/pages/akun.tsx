@@ -53,7 +53,7 @@ export function HalamanAkun() {
       {(session?.role === 'PPK' || session?.role === 'ADMIN') && (
         <Link to="/rekap/historis"><Button varian="garis" className="w-full">🗂️ Input Rekap Historis (Migrasi)</Button></Link>
       )}
-      {(session?.role === 'PPK' || session?.role === 'ADMIN' || session?.role === 'KPA' || session?.role === 'WADIR3') && (
+      {(session?.role === 'PPK' || session?.role === 'ADMIN' || session?.role === 'KPA') && (
         <Link to="/luar-kampus"><Button varian="garis" className="w-full">🧳 Bantuan Luar Kampus (PKL/KPA/PTB)</Button></Link>
       )}
       {(session?.role === 'ADMIN' || session?.role === 'PPK' || session?.role === 'KPA' || session?.role === 'WADIR3') && (
