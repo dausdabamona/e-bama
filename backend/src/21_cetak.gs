@@ -332,6 +332,13 @@ function cetakForm07(payload, session) {
     auditLog(session, 'cetak.form07', 'TARUNA_REKENING', nitList.join(','), null, { nit_list: nitList });
 
     var rekInst = getRekeningInstansi();
+    // Rekening penyedia (tujuan akhir) diambil dari KONTRAK pembayaran ini bila diisi;
+    // fallback ke Script Property. Rekening Senat + nama a.n. tetap Script Property.
+    var kontrak = sheetRead(SHEETS.KONTRAK, function (r) { return String(r.kontrak_id) === String(pembayaran.kontrak_id); })[0];
+    var rekPenyedia = {
+      BNI: (kontrak && kontrak.rek_penyedia_bni) ? String(kontrak.rek_penyedia_bni) : (rekInst.penyedia.BNI || ''),
+      BSI: (kontrak && kontrak.rek_penyedia_bsi) ? String(kontrak.rek_penyedia_bsi) : (rekInst.penyedia.BSI || '')
+    };
     return {
       bulan: bulan,
       pembayaran: {
@@ -347,9 +354,14 @@ function cetakForm07(payload, session) {
       // Rekening tujuan pendebetan per bank: taruna → Senat, lalu Senat → Penyedia
       // (+ nama pemilik rekening untuk "a.n." di surat ke bank).
       rekening_senat: rekInst.senat,
-      rekening_penyedia: rekInst.penyedia,
+      rekening_penyedia: rekPenyedia,
       rekening_senat_nama: rekInst.senat_nama,
-      rekening_penyedia_nama: rekInst.penyedia_nama
+      rekening_penyedia_nama: rekInst.penyedia_nama,
+      kontrak: {
+        no_kontrak: kontrak ? String(kontrak.no_kontrak || '') : '',
+        tgl_kontrak: kontrak ? _tglStr_(kontrak.tgl_kontrak) : '',
+        adendum: kontrak ? String(kontrak.adendum || '') : ''
+      }
     };
   });
 }
@@ -462,6 +474,19 @@ function cetakForm09(payload, session) {
   sheetRead(SHEETS.TARUNA_REKENING, function (r) { return nitList.indexOf(String(r.nit)) >= 0; })
     .forEach(function (r) { bankByNit[String(r.nit)] = String(r.bank || ''); });
 
+  // Kontrak pembayaran ini: sumber rekening penyedia per bank (nomor PENUH) +
+  // nama penyedia + data dokumen kontrak. Rekening penyedia diambil dari kontrak;
+  // bila kosong, fallback ke Script Property (getRekeningInstansi) demi kompatibilitas.
+  var kontrak = sheetRead(SHEETS.KONTRAK, function (r) { return String(r.kontrak_id) === String(pembayaran.kontrak_id); })[0];
+  var kRekPenyedia = { BNI: '', BSI: '' };
+  var penyediaNama = '';
+  if (kontrak) {
+    kRekPenyedia.BNI = String(kontrak.rek_penyedia_bni || '');
+    kRekPenyedia.BSI = String(kontrak.rek_penyedia_bsi || '');
+    var p = sheetRead(SHEETS.PENYEDIA, function (r) { return String(r.penyedia_id) === String(kontrak.penyedia_id); })[0];
+    if (p) penyediaNama = p.nama || '';
+  }
+
   var rek = getRekeningInstansi();
   var agg = {}; // bank -> {total, jml}
   rekapRows.forEach(function (r) {
@@ -478,19 +503,11 @@ function cetakForm09(payload, session) {
       return {
         bank: bank, jml_taruna: agg[bank].jml, total: agg[bank].total,
         rek_senat_sumber: rek.senat[bank] || '',
-        rek_penyedia_tujuan: rek.penyedia[bank] || '',
+        rek_penyedia_tujuan: (kRekPenyedia[bank] || '') || rek.penyedia[bank] || '',
         rek_senat_nama: rek.senat_nama[bank] || '',
         rek_penyedia_nama: rek.penyedia_nama[bank] || ''
       };
     });
-
-  // Nama penyedia dari kontrak pembayaran.
-  var penyediaNama = '';
-  var kontrak = sheetRead(SHEETS.KONTRAK, function (r) { return String(r.kontrak_id) === String(pembayaran.kontrak_id); })[0];
-  if (kontrak) {
-    var p = sheetRead(SHEETS.PENYEDIA, function (r) { return String(r.penyedia_id) === String(kontrak.penyedia_id); })[0];
-    if (p) penyediaNama = p.nama || '';
-  }
 
   var totalNominal = 0;
   perBank.forEach(function (b) { totalNominal += b.total; });
@@ -505,6 +522,11 @@ function cetakForm09(payload, session) {
       no_spm: pembayaran.no_spm, tgl_spm: _tglStr_(pembayaran.tgl_spm),
       no_sp2d: pembayaran.no_sp2d, tgl_sp2d: _tglStr_(pembayaran.tgl_sp2d),
       status: pembayaran.status
+    },
+    kontrak: {
+      no_kontrak: kontrak ? String(kontrak.no_kontrak || '') : '',
+      tgl_kontrak: kontrak ? _tglStr_(kontrak.tgl_kontrak) : '',
+      adendum: kontrak ? String(kontrak.adendum || '') : ''
     },
     pejabat: PEJABAT
   };

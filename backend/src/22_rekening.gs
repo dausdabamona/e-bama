@@ -124,7 +124,6 @@ function rekeningSimpanBatch(payload, session) {
 
   var tarunaValid = {};
   sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaValid[String(t.nit)] = true; });
-  var penyediaValid = _penyediaById_();
 
   // Validasi semua baris DULU sebelum menulis apa pun (all-or-nothing).
   baris.forEach(function (b) {
@@ -134,8 +133,10 @@ function rekeningSimpanBatch(payload, session) {
     if (!(b.no_rekening_lengkap && String(b.no_rekening_lengkap).trim())) throw _fail_('no_rekening_lengkap wajib diisi untuk NIT ' + nit + '.');
     if (ENUM.BANK.indexOf(b.bank) < 0) throw _fail_('bank tidak valid untuk NIT ' + nit + '.');
     if (!(b.nama_pemilik && String(b.nama_pemilik).trim())) throw _fail_('nama_pemilik wajib diisi untuk NIT ' + nit + '.');
-    var pid = (b && b.penyedia_id != null) ? String(b.penyedia_id).trim() : '';
-    if (pid && !penyediaValid[pid]) throw _fail_('Penyedia tidak ditemukan untuk NIT ' + nit + ': ' + pid);
+    // penyedia_id di impor batch BOLEH kode suplier eksternal (mis. 7 digit SPAN)
+    // yang belum ada di master PENYEDIA — disimpan apa adanya; Form-10 tetap
+    // mengelompokkan per ID (nama tampil setelah master diisi). Tidak divalidasi
+    // ketat di sini (beda dari rekening.simpan modal yang pakai dropdown terkontrol).
   });
 
   return withLock(function () {

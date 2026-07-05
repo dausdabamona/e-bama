@@ -79,6 +79,14 @@ TANPA identitas staf internal).
 | status | enum | `DRAFT` / `DISETUJUI_PPK` |
 | approved_by | FK → PENGGUNA | |
 | approved_at | datetime | |
+| no_kontrak | string | nomor surat kontrak riil (beda dari `kontrak_id` internal); opsional. Di-append di akhir (migrasi idempotent). |
+| tgl_kontrak | date | tanggal kontrak ditandatangani; opsional |
+| adendum | string | catatan adendum kontrak; opsional |
+| rek_penyedia_bni | string | nomor rekening PENUH penyedia di BNI (payee); dipakai Form-07/09 (fallback Script Property) |
+| rek_penyedia_bsi | string | nomor rekening PENUH penyedia di BSI (payee); dipakai Form-07/09 (fallback Script Property) |
+
+> 5 kolom terakhir di-**append di AKHIR** array skema supaya `setupDatabase()`
+> (idempotent, tulis-ulang header) tidak menggeser data lama.
 
 Lampiran kontrak (menu & nilai gizi, BA penunjukan penyedia, notulen rapat) → LAMPIRAN `ref_type=KONTRAK`.
 

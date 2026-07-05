@@ -134,7 +134,14 @@ function kontrakUpsert(payload, session) {
     harga_per_porsi: _int_(payload.harga_per_porsi, 'harga_per_porsi'),
     porsi_per_hari: _int_(payload.porsi_per_hari, 'porsi_per_hari'),
     tgl_mulai: _wajibTgl_(payload.tgl_mulai, 'tgl_mulai'),
-    tgl_akhir: _wajibTgl_(payload.tgl_akhir, 'tgl_akhir')
+    tgl_akhir: _wajibTgl_(payload.tgl_akhir, 'tgl_akhir'),
+    // Data dokumen kontrak riil (semua opsional). Rekening penyedia = nomor PENUH
+    // (payee bisnis, bukan rekening pribadi taruna) → dipakai Form-07/09.
+    no_kontrak: String((payload && payload.no_kontrak) || '').trim(),
+    tgl_kontrak: (payload && payload.tgl_kontrak) ? _wajibTgl_(payload.tgl_kontrak, 'tgl_kontrak') : '',
+    adendum: String((payload && payload.adendum) || '').trim(),
+    rek_penyedia_bni: String((payload && payload.rek_penyedia_bni) || '').replace(/\D/g, ''),
+    rek_penyedia_bsi: String((payload && payload.rek_penyedia_bsi) || '').replace(/\D/g, '')
   };
   if (obj.tgl_mulai > obj.tgl_akhir) throw _fail_('tgl_mulai tidak boleh setelah tgl_akhir.');
 

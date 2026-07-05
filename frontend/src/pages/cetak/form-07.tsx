@@ -69,6 +69,7 @@ interface Form07Data {
   rekening_penyedia?: { BNI?: string; BSI?: string };
   rekening_senat_nama?: { BNI?: string; BSI?: string };
   rekening_penyedia_nama?: { BNI?: string; BSI?: string };
+  kontrak?: { no_kontrak: string; tgl_kontrak: string; adendum: string };
 }
 
 /**
@@ -257,6 +258,12 @@ export function HalamanCetakForm07() {
               kuasa pendebetan terlampir.
             </p>
             <div className="mt-2 flex flex-col gap-1 text-xs">
+              {data.kontrak?.no_kontrak && (
+                <div className="flex justify-between"><span>No. Kontrak</span><span>{data.kontrak.no_kontrak}{data.kontrak.tgl_kontrak ? ` · ${data.kontrak.tgl_kontrak}` : ''}</span></div>
+              )}
+              {data.kontrak?.adendum && (
+                <div className="flex justify-between"><span>Adendum</span><span>{data.kontrak.adendum}</span></div>
+              )}
               <div className="flex justify-between"><span>No. SPM</span><span>{data.pembayaran.no_spm || '-'}</span></div>
               <div className="flex justify-between"><span>No. SP2D</span><span>{data.pembayaran.no_sp2d || '-'}</span></div>
               <div className="flex justify-between"><span>Tanggal SP2D</span><span>{data.pembayaran.tgl_sp2d || '-'}</span></div>

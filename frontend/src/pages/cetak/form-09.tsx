@@ -23,6 +23,7 @@ interface PerBank {
 interface Form09Data {
   bulan: string; penyedia_nama: string; per_bank: PerBank[]; total_nominal: number; nominal_terbilang: string;
   pembayaran: { no_spm: string; tgl_spm: string; no_sp2d: string; tgl_sp2d: string; status: string };
+  kontrak?: { no_kontrak: string; tgl_kontrak: string; adendum: string };
   pejabat: { PPK: Pejabat; KPA: Pejabat; DIREKTUR: Pejabat; WADIR3: Pejabat };
 }
 
@@ -99,6 +100,12 @@ export function HalamanCetakForm09() {
               Pendebetan dilakukan <strong>per bank</strong> (rekening Senat dan penyedia masing-masing di BNI dan BSI).
             </p>
             <div className="mt-2 flex flex-col gap-1 text-xs">
+              {data.kontrak?.no_kontrak && (
+                <div className="flex justify-between"><span>No. Kontrak</span><span>{data.kontrak.no_kontrak}{data.kontrak.tgl_kontrak ? ` · ${data.kontrak.tgl_kontrak}` : ''}</span></div>
+              )}
+              {data.kontrak?.adendum && (
+                <div className="flex justify-between"><span>Adendum</span><span>{data.kontrak.adendum}</span></div>
+              )}
               <div className="flex justify-between"><span>No. SPM</span><span>{data.pembayaran.no_spm || '-'}</span></div>
               <div className="flex justify-between"><span>No. SP2D</span><span>{data.pembayaran.no_sp2d || '-'}</span></div>
               <div className="flex justify-between"><span>Tanggal SP2D</span><span>{data.pembayaran.tgl_sp2d || '-'}</span></div>

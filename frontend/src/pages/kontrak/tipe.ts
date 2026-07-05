@@ -17,6 +17,12 @@ export interface Kontrak {
   status: 'DRAFT' | 'DISETUJUI_PPK';
   approved_by: string;
   approved_at: string;
+  // Data dokumen kontrak riil (opsional; rekening penyedia = nomor PENUH, dipakai Form-07/09)
+  no_kontrak?: string;
+  tgl_kontrak?: string;
+  adendum?: string;
+  rek_penyedia_bni?: string;
+  rek_penyedia_bsi?: string;
 }
 
 export const JENIS_LAMPIRAN_KONTRAK: { jenis: string; label: string }[] = [

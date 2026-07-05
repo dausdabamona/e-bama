@@ -70,6 +70,15 @@ export function HalamanKontrak() {
                   {formatRupiah(k.harga_per_porsi)}/porsi · {k.porsi_per_hari}× sehari
                 </p>
                 <p className="text-xs text-gray-400">{k.tgl_mulai} s.d. {k.tgl_akhir}</p>
+                {k.no_kontrak && (
+                  <p className="text-xs text-gray-500">No. {k.no_kontrak}{k.tgl_kontrak ? ` · ${k.tgl_kontrak}` : ''}</p>
+                )}
+                {k.adendum && <p className="text-xs text-gray-500">Adendum: {k.adendum}</p>}
+                {(k.rek_penyedia_bni || k.rek_penyedia_bsi) && (
+                  <p className="text-xs text-gray-500">
+                    Rek. penyedia{k.rek_penyedia_bni ? ` · BNI ${k.rek_penyedia_bni}` : ''}{k.rek_penyedia_bsi ? ` · BSI ${k.rek_penyedia_bsi}` : ''}
+                  </p>
+                )}
               </div>
               <Badge status={k.status} />
             </div>
@@ -198,18 +207,25 @@ function ModalKontrak({ awal, penyedia, onClose, onSukses }: {
   const [porsi, setPorsi] = useState(awal ? String(awal.porsi_per_hari) : '3');
   const [tglMulai, setTglMulai] = useState(awal?.tgl_mulai ?? '');
   const [tglAkhir, setTglAkhir] = useState(awal?.tgl_akhir ?? '');
+  const [noKontrak, setNoKontrak] = useState(awal?.no_kontrak ?? '');
+  const [tglKontrak, setTglKontrak] = useState(awal?.tgl_kontrak ?? '');
+  const [adendum, setAdendum] = useState(awal?.adendum ?? '');
+  const [rekBni, setRekBni] = useState(awal?.rek_penyedia_bni ?? '');
+  const [rekBsi, setRekBsi] = useState(awal?.rek_penyedia_bsi ?? '');
   const [proses, setProses] = useState(false);
   const [galat, setGalat] = useState('');
 
   async function simpan() {
     if (!penyediaId) { setGalat('Pilih penyedia.'); return; }
-    if (!harga || !porsi || !tglMulai || !tglAkhir) { setGalat('Semua kolom wajib diisi.'); return; }
+    if (!harga || !porsi || !tglMulai || !tglAkhir) { setGalat('Harga, porsi, dan periode wajib diisi.'); return; }
     setProses(true); setGalat('');
     try {
       await api('kontrak.upsert', {
         kontrak_id: awal?.kontrak_id, penyedia_id: penyediaId,
         harga_per_porsi: Number(harga), porsi_per_hari: Number(porsi),
-        tgl_mulai: tglMulai, tgl_akhir: tglAkhir
+        tgl_mulai: tglMulai, tgl_akhir: tglAkhir,
+        no_kontrak: noKontrak, tgl_kontrak: tglKontrak, adendum: adendum,
+        rek_penyedia_bni: rekBni, rek_penyedia_bsi: rekBsi
       });
       toast('Kontrak tersimpan.', 'sukses');
       onSukses();
@@ -236,6 +252,16 @@ function ModalKontrak({ awal, penyedia, onClose, onSukses }: {
         <div className="flex gap-2">
           <Input label="Tgl Mulai" type="date" value={tglMulai} onChange={(e) => setTglMulai(e.target.value)} />
           <Input label="Tgl Akhir" type="date" value={tglAkhir} onChange={(e) => setTglAkhir(e.target.value)} />
+        </div>
+        <div className="border-t border-gray-100 pt-2">
+          <p className="mb-2 text-xs font-semibold text-gray-500">Data Dokumen Kontrak (opsional)</p>
+          <div className="flex flex-col gap-3">
+            <Input label="Nomor Kontrak" value={noKontrak} onChange={(e) => setNoKontrak(e.target.value)} />
+            <Input label="Tanggal Kontrak" type="date" value={tglKontrak} onChange={(e) => setTglKontrak(e.target.value)} />
+            <Input label="Adendum" value={adendum} onChange={(e) => setAdendum(e.target.value)} />
+            <Input label="Rekening Penyedia BNI (nomor penuh)" value={rekBni} onChange={(e) => setRekBni(e.target.value)} />
+            <Input label="Rekening Penyedia BSI (nomor penuh)" value={rekBsi} onChange={(e) => setRekBsi(e.target.value)} />
+          </div>
         </div>
         {galat && <p className="text-sm text-red-600">{galat}</p>}
         <Button onClick={() => void simpan()} disabled={proses}>{proses ? 'Menyimpan…' : 'Simpan'}</Button>

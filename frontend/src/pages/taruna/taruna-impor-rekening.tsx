@@ -25,6 +25,7 @@ const BANK = ['BNI', 'BSI'];
 interface BarisImporRekening {
   rekening: string; nominal: number; status: string; namaBank: string;
   bankBaris: string; // kosong = pakai selector Bank global
+  penyediaId: string; // opsional, dari kolom penyedia_id CSV (suplier per taruna → Form-10)
   nitTerpilih: string; kandidat: { nit: string; nama: string }[]; sumberLangsung: boolean;
 }
 
@@ -72,6 +73,7 @@ export function HalamanTarunaImporRekening() {
     const iStatus = cariIndeksKolom(header, 'status', 'status_lengkap');
     const iNama = cariIndeksKolom(header, 'nama di bank', 'nama');
     const iBank = cariIndeksKolom(header, 'bank');
+    const iPenyedia = cariIndeksKolom(header, 'penyedia_id', 'penyediaid', 'penyedia', 'suplier');
     const namaByNit = new Map(daftarTaruna.map((t) => [t.nit, t.nama]));
 
     if (iRek < 0) {
@@ -90,6 +92,7 @@ export function HalamanTarunaImporRekening() {
           status: iStatus >= 0 ? (row[iStatus] ?? '').trim() : '',
           namaBank: namaTaruna,
           bankBaris: iBank >= 0 ? (row[iBank] ?? '').trim() : '',
+          penyediaId: iPenyedia >= 0 ? (row[iPenyedia] ?? '').trim() : '',
           nitTerpilih: nit,
           kandidat: nit ? [{ nit, nama: namaTaruna || nit }] : [],
           sumberLangsung: true
@@ -114,6 +117,7 @@ export function HalamanTarunaImporRekening() {
         status: iStatus >= 0 ? (row[iStatus] ?? '').trim() : '',
         namaBank,
         bankBaris: iBank >= 0 ? (row[iBank] ?? '').trim() : '',
+        penyediaId: iPenyedia >= 0 ? (row[iPenyedia] ?? '').trim() : '',
         nitTerpilih: kandidat.length === 1 ? kandidat[0].nit : '',
         kandidat,
         sumberLangsung: false
@@ -144,7 +148,8 @@ export function HalamanTarunaImporRekening() {
       const hasil = await api<{ disimpan: number }>('rekening.simpan_batch', {
         baris: baris.filter((b) => b.nitTerpilih).map((b) => ({
           nit: b.nitTerpilih, no_rekening_lengkap: b.rekening, bank: b.bankBaris || bank,
-          nama_pemilik: namaByNit.get(b.nitTerpilih) ?? b.namaBank
+          nama_pemilik: namaByNit.get(b.nitTerpilih) ?? b.namaBank,
+          penyedia_id: b.penyediaId || undefined
         }))
       });
       toast(`${hasil.disimpan} rekening tersimpan.`, 'sukses');

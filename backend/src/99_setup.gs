@@ -60,7 +60,13 @@ function _skema_() {
     [SHEETS.KONTRAK, [
       ['kontrak_id','s'], ['penyedia_id','s'], ['harga_per_porsi','i'],
       ['porsi_per_hari','i'], ['tgl_mulai','d'], ['tgl_akhir','d'],
-      ['status', E.KONTRAK_STATUS], ['approved_by','s'], ['approved_at','dt']
+      ['status', E.KONTRAK_STATUS], ['approved_by','s'], ['approved_at','dt'],
+      // Data dokumen kontrak riil (di-append di AKHIR utk migrasi setupDatabase idempotent):
+      // no_kontrak = nomor surat kontrak (beda dari kontrak_id internal), tgl_kontrak
+      // = tanggal kontrak, adendum = catatan adendum, rek_penyedia_bni/bsi = nomor
+      // rekening PENUH penyedia per bank (dipakai Form-07/09).
+      ['no_kontrak','s'], ['tgl_kontrak','d'], ['adendum','s'],
+      ['rek_penyedia_bni','s'], ['rek_penyedia_bsi','s']
     ]],
     [SHEETS.MENU_KONTRAK, [
       ['menu_id','s'], ['kontrak_id','s'], ['hari', E.HARI],
