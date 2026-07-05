@@ -115,40 +115,48 @@ var PEJABAT = {
 // Script Properties (bukan sheet) supaya tanpa perubahan skema. Isi sekali lewat
 // setRekeningInstansi() dari editor GAS. Dua bank (BNI/BSI): alur debet paralel
 // taruna BSI→Senat BSI→Penyedia BSI; idem BNI.
+// Rekening instansi per bank + NAMA pemilik rekening (a.n.) untuk surat ke bank.
+// senat_nama/penyedia_nama opsional — mis. penyedia_nama.BNI = 'Mukhori'.
+var _REKENING_INSTANSI_GRUP = ['senat', 'penyedia', 'senat_nama', 'penyedia_nama'];
 var _REKENING_INSTANSI_DEFAULT = {
-  senat:    { BNI: '', BSI: '' },
-  penyedia: { BNI: '', BSI: '' }
+  senat:         { BNI: '', BSI: '' },
+  penyedia:      { BNI: '', BSI: '' },
+  senat_nama:    { BNI: '', BSI: '' },
+  penyedia_nama: { BNI: '', BSI: '' }
 };
 
 /** getRekeningInstansi() — rekening instansi efektif (default ← override Script Properties). */
 function getRekeningInstansi() {
   var d = _REKENING_INSTANSI_DEFAULT;
-  var out = {
-    senat:    { BNI: d.senat.BNI,    BSI: d.senat.BSI },
-    penyedia: { BNI: d.penyedia.BNI, BSI: d.penyedia.BSI }
-  };
+  var out = {};
+  _REKENING_INSTANSI_GRUP.forEach(function (grp) { out[grp] = { BNI: d[grp].BNI, BSI: d[grp].BSI }; });
   var raw = PropertiesService.getScriptProperties().getProperty('REKENING_INSTANSI');
   if (raw) {
     var o = JSON.parse(raw);
-    if (o.senat)    { if (o.senat.BNI    !== undefined) out.senat.BNI    = o.senat.BNI;
-                      if (o.senat.BSI    !== undefined) out.senat.BSI    = o.senat.BSI; }
-    if (o.penyedia) { if (o.penyedia.BNI !== undefined) out.penyedia.BNI = o.penyedia.BNI;
-                      if (o.penyedia.BSI !== undefined) out.penyedia.BSI = o.penyedia.BSI; }
+    _REKENING_INSTANSI_GRUP.forEach(function (grp) {
+      if (o[grp]) {
+        if (o[grp].BNI !== undefined) out[grp].BNI = o[grp].BNI;
+        if (o[grp].BSI !== undefined) out[grp].BSI = o[grp].BSI;
+      }
+    });
   }
   return out;
 }
 
 /**
- * setRekeningInstansi(obj) — isi/ubah rekening instansi dari editor GAS. Contoh:
- * setRekeningInstansi({ senat:{BNI:'123', BSI:'456'}, penyedia:{BNI:'789', BSI:'012'} })
- * Disimpan utuh (bukan merge per-kunci) — sertakan seluruh nilai yang diinginkan.
+ * setRekeningInstansi(obj) — isi/ubah rekening instansi dari editor GAS. Merge
+ * per-kunci (nilai yang tak disebut tetap seperti sebelumnya). Contoh:
+ *   setRekeningInstansi({ senat:{BNI:'2026715541'},
+ *                         penyedia:{BNI:'1946986806'}, penyedia_nama:{BNI:'Mukhori'} })
  */
 function setRekeningInstansi(obj) {
   var cur = getRekeningInstansi();
-  if (obj && obj.senat)    { if (obj.senat.BNI    !== undefined) cur.senat.BNI    = obj.senat.BNI;
-                             if (obj.senat.BSI    !== undefined) cur.senat.BSI    = obj.senat.BSI; }
-  if (obj && obj.penyedia) { if (obj.penyedia.BNI !== undefined) cur.penyedia.BNI = obj.penyedia.BNI;
-                             if (obj.penyedia.BSI !== undefined) cur.penyedia.BSI = obj.penyedia.BSI; }
+  _REKENING_INSTANSI_GRUP.forEach(function (grp) {
+    if (obj && obj[grp]) {
+      if (obj[grp].BNI !== undefined) cur[grp].BNI = obj[grp].BNI;
+      if (obj[grp].BSI !== undefined) cur[grp].BSI = obj[grp].BSI;
+    }
+  });
   PropertiesService.getScriptProperties().setProperty('REKENING_INSTANSI', JSON.stringify(cur));
   return cur;
 }
@@ -3076,6 +3084,7 @@ function cetakForm07(payload, session) {
     // pernah menulis nomor rekeningnya sendiri ke AUDIT_LOG.
     auditLog(session, 'cetak.form07', 'TARUNA_REKENING', nitList.join(','), null, { nit_list: nitList });
 
+    var rekInst = getRekeningInstansi();
     return {
       bulan: bulan,
       pembayaran: {
@@ -3088,9 +3097,12 @@ function cetakForm07(payload, session) {
       baris: baris,
       total_nominal: totalNominal,
       pejabat: PEJABAT,
-      // Rekening tujuan pendebetan per bank: taruna → Senat, lalu Senat → Penyedia.
-      rekening_senat: getRekeningInstansi().senat,
-      rekening_penyedia: getRekeningInstansi().penyedia
+      // Rekening tujuan pendebetan per bank: taruna → Senat, lalu Senat → Penyedia
+      // (+ nama pemilik rekening untuk "a.n." di surat ke bank).
+      rekening_senat: rekInst.senat,
+      rekening_penyedia: rekInst.penyedia,
+      rekening_senat_nama: rekInst.senat_nama,
+      rekening_penyedia_nama: rekInst.penyedia_nama
     };
   });
 }
@@ -3209,7 +3221,9 @@ function cetakForm09(payload, session) {
       return {
         bank: bank, jml_taruna: agg[bank].jml, total: agg[bank].total,
         rek_senat_sumber: rek.senat[bank] || '',
-        rek_penyedia_tujuan: rek.penyedia[bank] || ''
+        rek_penyedia_tujuan: rek.penyedia[bank] || '',
+        rek_senat_nama: rek.senat_nama[bank] || '',
+        rek_penyedia_nama: rek.penyedia_nama[bank] || ''
       };
     });
 

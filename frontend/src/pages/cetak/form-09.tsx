@@ -18,6 +18,7 @@ import { formatRupiah } from '../tagihan/tipe';
 interface Pejabat { nama: string; nip: string }
 interface PerBank {
   bank: string; jml_taruna: number; total: number; rek_senat_sumber: string; rek_penyedia_tujuan: string;
+  rek_senat_nama?: string; rek_penyedia_nama?: string;
 }
 interface Form09Data {
   bulan: string; penyedia_nama: string; per_bank: PerBank[]; total_nominal: number; nominal_terbilang: string;
@@ -111,8 +112,8 @@ export function HalamanCetakForm09() {
                 <BarisCetak key={b.bank}>
                   <SelCetak>{b.bank}</SelCetak>
                   <SelCetak className="text-right">{b.jml_taruna}</SelCetak>
-                  <SelCetak>{b.rek_senat_sumber || '…… (belum diisi Admin)'}</SelCetak>
-                  <SelCetak>{b.rek_penyedia_tujuan || '…… (belum diisi Admin)'}</SelCetak>
+                  <SelCetak>{(b.rek_senat_sumber || '…… (belum diisi Admin)') + (b.rek_senat_nama ? ` a.n. ${b.rek_senat_nama}` : '')}</SelCetak>
+                  <SelCetak>{(b.rek_penyedia_tujuan || '…… (belum diisi Admin)') + (b.rek_penyedia_nama ? ` a.n. ${b.rek_penyedia_nama}` : '')}</SelCetak>
                   <SelCetak className="text-right">{formatRupiah(b.total)}</SelCetak>
                 </BarisCetak>
               ))}

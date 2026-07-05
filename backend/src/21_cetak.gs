@@ -331,6 +331,7 @@ function cetakForm07(payload, session) {
     // pernah menulis nomor rekeningnya sendiri ke AUDIT_LOG.
     auditLog(session, 'cetak.form07', 'TARUNA_REKENING', nitList.join(','), null, { nit_list: nitList });
 
+    var rekInst = getRekeningInstansi();
     return {
       bulan: bulan,
       pembayaran: {
@@ -343,9 +344,12 @@ function cetakForm07(payload, session) {
       baris: baris,
       total_nominal: totalNominal,
       pejabat: PEJABAT,
-      // Rekening tujuan pendebetan per bank: taruna → Senat, lalu Senat → Penyedia.
-      rekening_senat: getRekeningInstansi().senat,
-      rekening_penyedia: getRekeningInstansi().penyedia
+      // Rekening tujuan pendebetan per bank: taruna → Senat, lalu Senat → Penyedia
+      // (+ nama pemilik rekening untuk "a.n." di surat ke bank).
+      rekening_senat: rekInst.senat,
+      rekening_penyedia: rekInst.penyedia,
+      rekening_senat_nama: rekInst.senat_nama,
+      rekening_penyedia_nama: rekInst.penyedia_nama
     };
   });
 }
@@ -464,7 +468,9 @@ function cetakForm09(payload, session) {
       return {
         bank: bank, jml_taruna: agg[bank].jml, total: agg[bank].total,
         rek_senat_sumber: rek.senat[bank] || '',
-        rek_penyedia_tujuan: rek.penyedia[bank] || ''
+        rek_penyedia_tujuan: rek.penyedia[bank] || '',
+        rek_senat_nama: rek.senat_nama[bank] || '',
+        rek_penyedia_nama: rek.penyedia_nama[bank] || ''
       };
     });
 

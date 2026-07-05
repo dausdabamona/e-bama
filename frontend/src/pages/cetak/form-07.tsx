@@ -67,6 +67,8 @@ interface Form07Data {
   pejabat: { PPK: Pejabat; KPA: Pejabat; DIREKTUR: Pejabat; WADIR3: Pejabat };
   rekening_senat?: { BNI?: string; BSI?: string };
   rekening_penyedia?: { BNI?: string; BSI?: string };
+  rekening_senat_nama?: { BNI?: string; BSI?: string };
+  rekening_penyedia_nama?: { BNI?: string; BSI?: string };
 }
 
 /** Blok TTD surat ke bank: Ketua Senat → Wakil Direktur III → Direktur (pengirim surat). */
@@ -118,9 +120,9 @@ function useTanpaCache<T>(action: string, payload?: unknown) {
  * SPM per orang ke Rekening Senat, (3) teruskan total ke rekening penyedia.
  * Kolom Tanda Tangan taruna = pemberian kuasa mendebet.
  */
-function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia, lamaBlokir }: {
+function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia, rekSenatNama, rekPenyediaNama, lamaBlokir }: {
   bank: string; rows: BarisForm07[]; bulan: string; pejabat: Form07Data['pejabat'];
-  rekSenat?: string; rekPenyedia?: string; lamaBlokir: string;
+  rekSenat?: string; rekPenyedia?: string; rekSenatNama?: string; rekPenyediaNama?: string; lamaBlokir: string;
 }) {
   const total = rows.reduce((s, b) => s + b.nominal, 0);
   const labelBank = bank === 'TANPA_REKENING' ? 'BELUM ADA REKENING' : bank;
@@ -137,10 +139,11 @@ function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia,
         Setelah dana bantuan biaya makan taruna bulan {labelBulan(bulan)} cair ke rekening masing-masing
         taruna, kami memohon Bank {labelBank} berkenan: <strong>(1)</strong> memblokir rekening taruna pada
         daftar di bawah selama <strong>{namaHari} hari</strong>; <strong>(2)</strong> mendebet dana sesuai nilai
-        per orang ke <strong>Rekening Senat Taruna {bank}</strong> ({rekSenat || '…… belum diisi Admin'});
+        per orang ke <strong>Rekening Senat Taruna {bank}</strong> ({rekSenat || '…… belum diisi Admin'}
+        {rekSenatNama ? ` a.n. ${rekSenatNama}` : ''});
         <strong> (3)</strong> meneruskan total dana yang berhasil didebet ke <strong>rekening penyedia jasa boga {bank}</strong>{' '}
-        ({rekPenyedia || '…… belum diisi Admin'}). Tanda tangan taruna pada kolom terakhir merupakan pemberian
-        kuasa kepada bank untuk mendebet sesuai nilai tersebut.
+        ({rekPenyedia || '…… belum diisi Admin'}{rekPenyediaNama ? ` a.n. ${rekPenyediaNama}` : ''}). Tanda tangan
+        taruna pada kolom terakhir merupakan pemberian kuasa kepada bank untuk mendebet sesuai nilai tersebut.
       </p>
       <TabelCetak headers={['No', 'NIT', 'Nama Taruna', 'No. Rekening', 'Nilai Debet (Rp)', 'Tanda Tangan Taruna (Kuasa Debet)']}>
         {rows.map((b, i) => (
@@ -293,7 +296,9 @@ export function HalamanCetakForm07() {
             <LampiranBlokirBank key={g.bank} bank={g.bank} rows={g.rows} bulan={data.bulan} pejabat={data.pejabat}
               lamaBlokir={lamaBlokir}
               rekSenat={g.bank === 'BNI' ? data.rekening_senat?.BNI : g.bank === 'BSI' ? data.rekening_senat?.BSI : ''}
-              rekPenyedia={g.bank === 'BNI' ? data.rekening_penyedia?.BNI : g.bank === 'BSI' ? data.rekening_penyedia?.BSI : ''} />
+              rekPenyedia={g.bank === 'BNI' ? data.rekening_penyedia?.BNI : g.bank === 'BSI' ? data.rekening_penyedia?.BSI : ''}
+              rekSenatNama={g.bank === 'BNI' ? data.rekening_senat_nama?.BNI : g.bank === 'BSI' ? data.rekening_senat_nama?.BSI : ''}
+              rekPenyediaNama={g.bank === 'BNI' ? data.rekening_penyedia_nama?.BNI : g.bank === 'BSI' ? data.rekening_penyedia_nama?.BSI : ''} />
           ))}
         </div>
       )}
