@@ -124,6 +124,8 @@ var ACTION_MAP = {
   // Rekonsiliasi SP2D (Monitoring SP2D OM-SPAN vs data sistem)
   'sp2d.import':        { handler: sp2dImport,        roles: ['PPK', 'ADMIN'] },
   'sp2d.rekonsiliasi':  { handler: sp2dRekonsiliasi,  roles: ['PPK', 'KPA', 'WADIR3', 'ADMIN'] },
+  'sp2d.list':          { handler: sp2dList,          roles: ['PPK', 'ADMIN'] },
+  'sp2d.koreksi':       { handler: sp2dKoreksi,       roles: ['PPK', 'ADMIN'] },
 
   // Portal Penyedia (rekanan eksternal) — akses SANGAT terbatas, lihat PENYEDIA_ACTIONS
   'penyedia.portal':    { handler: penyediaPortal,    roles: ['PENYEDIA'] }

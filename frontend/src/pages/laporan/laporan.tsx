@@ -164,6 +164,122 @@ function validasiBarisPerTaruna(kolomIdx: Record<string, number>, row: string[],
   };
 }
 
+const KEGIATAN_LUAR = ['KPA', 'PKL_1', 'PKL_2', 'PKL_3', 'MAGANG', 'PTB', 'KEGIATAN_LUAR_KAMPUS'];
+interface BarisSp2dKoreksi {
+  no_spm: string; kategori: string; nit: string; prodi: string; tingkat: string;
+  kegiatan: string; jumlah_pembayaran: number; no_sp2d: string; uraian_asli: string; perlu_cek_manual: string;
+}
+
+/**
+ * Panel koreksi baris SP2D yang "salah tempat" — pindahkan kategori/kegiatan,
+ * per satu transaksi (tombol Koreksi per baris) atau massal (centang + Terapkan).
+ * Hanya menyentuh SP2D_MONITORING (via sp2d.koreksi); rekap & pembayaran aman.
+ */
+function PanelKoreksiSp2d({ bulan, onKoreksi }: { bulan: string; onKoreksi: () => void }) {
+  const { toast } = useToast();
+  const listQ = useListCache<{ baris: BarisSp2dKoreksi[] }>('sp2d.list', { bulan });
+  const baris = listQ.data?.baris ?? [];
+  const [buka, setBuka] = useState(false);
+  const [pilih, setPilih] = useState<Record<string, boolean>>({});
+  const [kategori, setKategori] = useState<'DALAM_KAMPUS' | 'LUAR_KAMPUS'>('LUAR_KAMPUS');
+  const [kegiatan, setKegiatan] = useState('KPA');
+  const [proses, setProses] = useState(false);
+  const terpilih = Object.keys(pilih).filter((k) => pilih[k]);
+
+  async function koreksi(noSpmList: string[]) {
+    if (!noSpmList.length) { toast('Pilih minimal satu baris.', 'galat'); return; }
+    setProses(true);
+    try {
+      const hasil = await api<{ dikoreksi: number }>('sp2d.koreksi', {
+        no_spm_list: noSpmList, kategori,
+        kegiatan: kategori === 'LUAR_KAMPUS' ? kegiatan : ''
+      });
+      toast(`${hasil.dikoreksi} baris SP2D dikoreksi ke ${kategori.replace('_', ' ')}${kategori === 'LUAR_KAMPUS' ? ` (${kegiatan})` : ''}.`, 'sukses');
+      setPilih({});
+      listQ.refresh();
+      onKoreksi();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
+    } finally {
+      setProses(false);
+    }
+  }
+
+  return (
+    <Card className="flex flex-col gap-2 print:hidden">
+      <button className="flex items-center justify-between text-left" onClick={() => setBuka((v) => !v)}>
+        <span className="text-sm font-semibold text-gray-600">🔧 Koreksi Baris SP2D (pindahkan yang salah tempat)</span>
+        <span className="text-gray-400">{buka ? '▾' : '▸'}</span>
+      </button>
+      {buka && (
+        <>
+          <p className="text-xs text-gray-500">
+            Ubah kategori/kegiatan baris SP2D yang salah tempat — <strong>per baris</strong> (tombol Koreksi)
+            atau <strong>massal</strong> (centang beberapa lalu Terapkan). Hanya memperbaiki data monitoring
+            SP2D; rekap &amp; pembayaran tidak terpengaruh. Tercatat di Log Audit.
+          </p>
+          <div className="flex flex-wrap items-end gap-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">Pindahkan ke</label>
+              <select value={kategori} onChange={(e) => setKategori(e.target.value as 'DALAM_KAMPUS' | 'LUAR_KAMPUS')}
+                className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
+                <option value="DALAM_KAMPUS">Dalam Kampus</option>
+                <option value="LUAR_KAMPUS">Luar Kampus</option>
+              </select>
+            </div>
+            {kategori === 'LUAR_KAMPUS' && (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Kegiatan</label>
+                <select value={kegiatan} onChange={(e) => setKegiatan(e.target.value)}
+                  className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
+                  {KEGIATAN_LUAR.map((k) => <option key={k} value={k}>{k.replace(/_/g, ' ')}</option>)}
+                </select>
+              </div>
+            )}
+            <Button onClick={() => void koreksi(terpilih)} disabled={proses || terpilih.length === 0}>
+              Terapkan ke terpilih ({terpilih.length})
+            </Button>
+          </div>
+
+          {listQ.memuat && !listQ.data && <LoadingSpinner label="Memuat baris SP2D…" />}
+          {listQ.data && baris.length === 0 && <p className="text-xs text-gray-500">Belum ada baris SP2D bulan ini.</p>}
+          {baris.length > 0 && (
+            <div className="max-h-96 overflow-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-200 text-left text-gray-500">
+                    <th className="py-1 pr-2"></th><th className="py-1 pr-2">No. SPM</th>
+                    <th className="py-1 pr-2">Kategori</th><th className="py-1 pr-2">Prodi/Tingkat/Keg.</th>
+                    <th className="py-1 pr-2 text-right">Nominal</th><th className="py-1"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {baris.map((r) => (
+                    <tr key={r.no_spm} className={`border-b border-gray-100 ${r.perlu_cek_manual ? 'bg-amber-50' : ''}`}>
+                      <td className="py-1 pr-2">
+                        <input type="checkbox" className="h-4 w-4" checked={!!pilih[r.no_spm]}
+                          onChange={(e) => setPilih((p) => ({ ...p, [r.no_spm]: e.target.checked }))} />
+                      </td>
+                      <td className="py-1 pr-2 font-mono">{r.no_spm}</td>
+                      <td className="py-1 pr-2">{r.kategori.replace('_', ' ')}{r.perlu_cek_manual ? ' ⚠️' : ''}</td>
+                      <td className="py-1 pr-2">{r.prodi || '?'}/{r.tingkat || '?'}{r.kegiatan ? ` · ${r.kegiatan}` : ''}{r.nit ? ` · ${r.nit}` : ''}</td>
+                      <td className="py-1 pr-2 text-right">{formatRupiah(r.jumlah_pembayaran)}</td>
+                      <td className="py-1">
+                        <button className="text-primary underline disabled:opacity-50" disabled={proses}
+                          onClick={() => void koreksi([r.no_spm])}>Koreksi</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
 export function HalamanLaporan() {
   const { session } = useAuth();
   const { toast } = useToast();
@@ -604,6 +720,8 @@ export function HalamanLaporan() {
               </div>
             )}
           </Card>
+
+          {bisaImporSp2d && <PanelKoreksiSp2d bulan={bulan} onKoreksi={rekonQ.refresh} />}
 
           {bisaImporSp2d && (
             <Card className="flex flex-col gap-2 print:hidden">

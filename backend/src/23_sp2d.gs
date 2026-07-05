@@ -449,6 +449,65 @@ function sp2dRekonsiliasi(payload, session) {
 }
 
 /**
+ * sp2d.list {bulan} — daftar baris SP2D_MONITORING bulan itu (field ringkas)
+ * untuk penelusuran & koreksi manual di UI. READ-ONLY. Role PPK/ADMIN.
+ */
+function sp2dList(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  var rows = sheetRead(SHEETS.SP2D_MONITORING, function (r) { return _bulanStr_(r.bulan) === bulan; })
+    .map(function (r) {
+      return {
+        no_spm: String(r.no_spm || ''), kategori: String(r.kategori || ''),
+        nit: String(r.nit || ''), prodi: String(r.prodi || ''), tingkat: String(r.tingkat || ''),
+        kegiatan: String(r.kegiatan || ''), jumlah_pembayaran: _int_(r.jumlah_pembayaran || 0, 'jumlah_pembayaran'),
+        no_sp2d: String(r.no_sp2d || ''), uraian_asli: String(r.uraian_asli || ''),
+        perlu_cek_manual: String(r.perlu_cek_manual || '')
+      };
+    });
+  return { bulan: bulan, baris: rows };
+}
+
+/**
+ * sp2d.koreksi {no_spm | no_spm_list:[], kategori, kegiatan?} — pindahkan baris
+ * SP2D_MONITORING yang "salah tempat" ke kategori/kegiatan yang benar (massal
+ * atau per satu transaksi). HANYA mengubah kolom kategori/kegiatan +
+ * membersihkan perlu_cek_manual (koreksi manual = terverifikasi). TIDAK menyentuh
+ * REKAP_BULANAN/PEMBAYARAN/BANTUAN_LUAR_KAMPUS dan TIDAK memicu sinkron pembayaran
+ * — rekonsiliasi otomatis menyesuaikan saat dibaca ulang. withLock + 1 AUDIT_LOG
+ * per baris. Role PPK/ADMIN. Baris dicocokkan lewat _kunciNoSpm_ (toleran prefix).
+ */
+function sp2dKoreksi(payload, session) {
+  var kategori = payload && payload.kategori;
+  if (ENUM.SP2D_KATEGORI.indexOf(kategori) < 0) throw _fail_('kategori tidak valid.');
+  var kegiatan = (kategori === 'LUAR_KAMPUS') ? String((payload && payload.kegiatan) || '').trim() : '';
+
+  var daftar = (payload && payload.no_spm_list) ? payload.no_spm_list
+    : ((payload && payload.no_spm) ? [payload.no_spm] : []);
+  daftar = daftar.map(function (s) { return String(s || '').trim(); }).filter(function (s) { return s; });
+  if (!daftar.length) throw _fail_('no_spm (atau no_spm_list) wajib diisi.');
+
+  return withLock(function () {
+    // Peta kunci no_spm → baris asli, untuk pencocokan toleran prefix "Ref No :".
+    var byKunci = {};
+    sheetRead(SHEETS.SP2D_MONITORING).forEach(function (r) { byKunci[_kunciNoSpm_(r.no_spm)] = r; });
+
+    var dikoreksi = 0, takKetemu = [];
+    daftar.forEach(function (noSpm) {
+      var r = byKunci[_kunciNoSpm_(noSpm)];
+      if (!r) { takKetemu.push(noSpm); return; }
+      var patch = { kategori: kategori, kegiatan: kegiatan, perlu_cek_manual: '' };
+      sheetUpdate(SHEETS.SP2D_MONITORING, 'no_spm', r.no_spm, patch);
+      auditLog(session, 'sp2d.koreksi', 'SP2D_MONITORING', String(r.no_spm),
+        { kategori: r.kategori, kegiatan: r.kegiatan, perlu_cek_manual: r.perlu_cek_manual },
+        patch);
+      dikoreksi++;
+    });
+    if (!dikoreksi) throw _fail_('Tidak ada baris SP2D yang cocok: ' + daftar.join(', '));
+    return { dikoreksi: dikoreksi, tak_ketemu: takKetemu };
+  });
+}
+
+/**
  * Rincian SP2D Dalam Kampus per kelompok (Prodi+Tingkat) untuk `bulan` — versi
  * "per baris" dari `dalam_kampus` di sp2dRekonsiliasi, dipakai halaman
  * Pembayaran (relasi 1 bulan PEMBAYARAN : N SP2D). KPPN menerbitkan SATU SP2D
