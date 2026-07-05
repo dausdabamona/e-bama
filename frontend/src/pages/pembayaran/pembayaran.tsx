@@ -1,5 +1,6 @@
 // /pembayaran — PPK: buat & kelola SPM/SP2D bertahap; Senat: konfirmasi; KPA: lihat.
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/auth-context';
 import { BulanPicker, bulanIni } from '../../components/bulan-picker';
 import { Badge } from '../../components/ui/badge';
@@ -163,6 +164,33 @@ export function HalamanPembayaran() {
               ))}
             </ol>
           </Card>
+
+          {session?.role === 'PPK' && (b.status === 'DIAJUKAN' || b.status === 'SP2D_TERBIT') && (
+            <Card className="flex flex-col gap-2 border-l-4 border-l-primary">
+              <p className="text-sm font-semibold text-gray-600">📄 Dokumen: Blokir &amp; Pendebetan Bank</p>
+              <p className="text-xs text-gray-500">
+                Sebelum menandai "Sudah Ditransfer", cetak &amp; kirimkan surat permohonan blokir
+                dan pendebetan massal rekening taruna ke rekening Senat — <strong>terpisah untuk
+                Bank BSI dan BNI</strong>.
+              </p>
+              <Link to={`/cetak/form-07/${bulan}`}>
+                <Button varian="garis" className="w-full">🖨️ Cetak Form 07 — Usulan Penahanan &amp; Pendebetan Bank</Button>
+              </Link>
+            </Card>
+          )}
+
+          {(session?.role === 'PPK' || session?.role === 'SENAT') && b.status === 'DITRANSFER' && (
+            <Card className="flex flex-col gap-2 border-l-4 border-l-primary">
+              <p className="text-sm font-semibold text-gray-600">📄 Dokumen: Pendebetan Senat → Penyedia</p>
+              <p className="text-xs text-gray-500">
+                Dana sudah masuk rekening Senat. Sebelum konfirmasi diterima penyedia, ajukan
+                pendebetan rekening Senat ke rekening penyedia — <strong>per bank (BSI &amp; BNI)</strong>.
+              </p>
+              <Link to={`/cetak/form-09/${bulan}`}>
+                <Button varian="garis" className="w-full">🖨️ Cetak Form 09 — Pendebetan Rekening Senat → Penyedia</Button>
+              </Link>
+            </Card>
+          )}
 
           {session?.role === 'PPK' && b.status === 'DIAJUKAN' && (
             <Card className="flex flex-col gap-3">
