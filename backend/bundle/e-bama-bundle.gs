@@ -6241,7 +6241,12 @@ function _skema_() {
       // di realisasi.create, TIDAK mengubah ttd Pembina/Senat/foto/geotag di atas.
       ['piket_nit','s'], ['piket_nama','s'], ['piket_menu_sesuai','b'],
       ['piket_porsi_cukup','b'], ['piket_kualitas', E.REALISASI_KUALITAS],
-      ['piket_gizi','s'], ['piket_catatan','s'], ['piket_at','dt']
+      ['piket_gizi','s'], ['piket_catatan','s'], ['piket_at','dt'],
+      // Penerimaan Barang Senat (append-only, idempotent) — string JSON
+      // {pagi:[{komponen,ada,jumlah}], siang:[...], malam:[...]}, diisi lewat
+      // realisasi.penerimaan (tahap berikutnya). Kosong di realisasi.create,
+      // TIDAK mengubah porsi_diterima/jml_taruna_makan/ttd/piket_* di atas.
+      ['penerimaan','s']
     ]],
     [SHEETS.PEMBAYARAN, [
       ['bayar_id','s'], ['bulan','s'], ['kontrak_id','s'], ['nilai_total','i'],

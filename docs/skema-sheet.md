@@ -204,6 +204,7 @@ Pendataan penyediaan makan harian (SOP no. 8–9).
 | piket_gizi | string | komponen gizi standar (`getKebijakanGizi()`, `00_config.gs`) yang piket centang benar-benar ada di piring, dipisah koma (mis. "Karbohidrat,Protein,Sayur") |
 | piket_catatan | string | opsional |
 | piket_at | datetime | waktu verifikasi piket dicatat |
+| penerimaan | string (JSON) | Penerimaan Barang Senat — `{pagi:[{komponen,ada,jumlah}], siang:[...], malam:[...]}`. `komponen` ∈ `getKebijakanKomponenMenu()` (`00_config.gs`), `ada` boolean, `jumlah` integer ≥ 0. Kosong = belum diisi. Diisi lewat `realisasi.penerimaan` (tahap berikutnya), TERPISAH dari checklist piket (beda momen: serah-terima vs makan). Di-append di AKHIR (migrasi idempotent) |
 
 Foto dokumentasi (terkompres ±200KB) → LAMPIRAN `ref_type=REALISASI`, `jenis=FOTO`.
 
@@ -215,6 +216,14 @@ akun/login taruna sendiri (prinsip "ringan", non-punitif — kolektif lewat
 Senat & Piket, bukan komplain individual bebas). Arah datanya menegakkan
 kontrak ke PENYEDIA (lihat `realisasi.rekap_kepatuhan`, tahap lanjutan),
 bukan menghukum taruna.
+
+**Penerimaan Barang Senat** (dikonfirmasi Firdaus): checklist kelengkapan +
+jumlah komponen menu NYATA (Nasi/Sayur/Ikan/dst, `getKebijakanKomponenMenu()`)
+per waktu makan, diisi Senat/Pembina/Admin di titik SERAH-TERIMA barang —
+BEDA momen & aktor dari checklist piket (`piket_*`, di titik MAKAN, kategori
+GIZI bukan item menu). Keduanya melengkapi `porsi_diterima`/`jml_taruna_makan`/
+ttd yang sudah ada, TIDAK menggantikan. Kompak sebagai satu kolom JSON (1
+REALISASI = 1 antaran = 3 waktu) — bukan sheet anak, supaya tidak menambah baris.
 
 ### 9. PEMBAYARAN
 
