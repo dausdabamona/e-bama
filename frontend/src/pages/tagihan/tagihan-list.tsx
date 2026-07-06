@@ -25,6 +25,27 @@ interface Ringkasan {
   total_outstanding: number;
 }
 
+// Tahap alur pembayaran (verifikasi ganda) — dipakai untuk kelompok +
+// warna kartu, biar sekilas kelihatan mana yang perlu tindakan siapa.
+type TahapBayar = 'BELUM_SETOR' | 'MENUNGGU_PEMBINA' | 'MENUNGGU_PPK' | 'SELESAI';
+
+function tahapBayar(t: Tagihan): TahapBayar {
+  if (t.status !== 'TERTAGIH') return 'SELESAI';
+  if (!t.tgl_setor) return 'BELUM_SETOR';
+  if (!t.verif_pembina_oleh) return 'MENUNGGU_PEMBINA';
+  return 'MENUNGGU_PPK';
+}
+
+// Urutan paling-butuh-tindakan dulu: siap diverifikasi PPK, lalu menunggu
+// Pembina, lalu belum disetor sama sekali, lalu yang sudah selesai/lain.
+const URUTAN_TAHAP: TahapBayar[] = ['MENUNGGU_PPK', 'MENUNGGU_PEMBINA', 'BELUM_SETOR', 'SELESAI'];
+const INFO_TAHAP: Record<TahapBayar, { label: string; kartu: string }> = {
+  MENUNGGU_PPK: { label: 'Menunggu Verifikasi PPK/Admin', kartu: 'border-l-4 border-blue-400' },
+  MENUNGGU_PEMBINA: { label: 'Menunggu Verifikasi Pembina', kartu: 'border-l-4 border-amber-400' },
+  BELUM_SETOR: { label: 'Belum Disetor', kartu: 'border-l-4 border-gray-300' },
+  SELESAI: { label: 'Selesai / Lainnya', kartu: '' }
+};
+
 export function HalamanTagihanList() {
   const { session } = useAuth();
   const { data, memuat, galat, refresh } = useListCache<{ tagihan: Tagihan[] }>('tagihan.list', {});
@@ -41,6 +62,13 @@ export function HalamanTagihanList() {
       .slice()
       .sort((a, b) => b.bulan.localeCompare(a.bulan));
   }, [data, cari, tarunaQ.data]);
+
+  const kelompok = useMemo(() => {
+    const map = new Map<TahapBayar, Tagihan[]>();
+    URUTAN_TAHAP.forEach((k) => map.set(k, []));
+    daftar.forEach((t) => map.get(tahapBayar(t))!.push(t));
+    return URUTAN_TAHAP.map((tahap) => ({ tahap, baris: map.get(tahap)! })).filter((g) => g.baris.length > 0);
+  }, [daftar]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -93,27 +121,34 @@ export function HalamanTagihanList() {
         <EmptyState pesan="Tidak ada tagihan yang cocok dengan pencarian." />
       )}
 
-      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-4 xl:grid-cols-3">
-        {daftar.map((t) => (
-            <Link key={t.tagihan_id} to={`/tagihan/${t.tagihan_id}`}>
-              <Card className="flex items-center justify-between active:bg-primary-light/30">
-                <div>
-                  <p className="font-semibold">{namaByNit.get(t.nit) ?? t.nit}</p>
-                  <p className="text-xs text-gray-400">{t.nit} · {t.bulan}</p>
-                  <p className="text-sm text-gray-500">{formatRupiah(t.nominal)}</p>
-                  <p className="text-xs text-gray-400">{t.sebab.replace(/_/g, ' ')}</p>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <Badge status={t.status} />
-                  {t.status === 'TERTAGIH' && t.level_aktif > 0 && (
-                    <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
-                      {labelLevel(t.level_aktif)}
-                    </span>
-                  )}
-                </div>
-              </Card>
-            </Link>
-          ))}
+      <div className="flex flex-col gap-4">
+        {kelompok.map((g) => (
+          <div key={g.tahap} className="flex flex-col gap-2">
+            <p className="text-xs font-semibold text-gray-500">{INFO_TAHAP[g.tahap].label} ({g.baris.length})</p>
+            <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-4 xl:grid-cols-3">
+              {g.baris.map((t) => (
+                <Link key={t.tagihan_id} to={`/tagihan/${t.tagihan_id}`}>
+                  <Card className={`flex items-center justify-between active:bg-primary-light/30 ${INFO_TAHAP[g.tahap].kartu}`}>
+                    <div>
+                      <p className="font-semibold">{namaByNit.get(t.nit) ?? t.nit}</p>
+                      <p className="text-xs text-gray-400">{t.nit} · {t.bulan}</p>
+                      <p className="text-sm text-gray-500">{formatRupiah(t.nominal)}</p>
+                      <p className="text-xs text-gray-400">{t.sebab.replace(/_/g, ' ')}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge status={t.status} />
+                      {t.status === 'TERTAGIH' && t.level_aktif > 0 && (
+                        <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
+                          {labelLevel(t.level_aktif)}
+                        </span>
+                      )}
+                    </div>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
