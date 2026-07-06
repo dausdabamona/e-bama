@@ -608,6 +608,7 @@ export function HalamanLaporan() {
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="border-b border-gray-200 text-left text-gray-500">
+                          <th className="py-1 pr-2">NIT</th>
                           <th className="py-1 pr-2">Nama</th><th className="py-1 pr-2">Prodi/Tingkat</th>
                           <th className="py-1 pr-2">No. SP2D</th>
                           <th className="py-1 pr-2 text-right">Sistem</th><th className="py-1 pr-2 text-right">SP2D</th>
@@ -617,6 +618,7 @@ export function HalamanLaporan() {
                       <tbody>
                         {rekonQ.data.dalam_kampus_per_taruna.map((r) => (
                           <tr key={r.nit} className={`border-b border-gray-100 ${r.cocok ? '' : 'bg-red-50'}`}>
+                            <td className="py-1 pr-2">{r.nit}</td>
                             <td className="py-1 pr-2">{r.nama || r.nit}</td>
                             <td className="py-1 pr-2">{r.prodi || '?'}/{r.tingkat || '?'}</td>
                             <td className="py-1 pr-2 text-gray-500">{r.no_sp2d && r.no_sp2d.length > 0 ? r.no_sp2d.join(', ') : '—'}</td>
