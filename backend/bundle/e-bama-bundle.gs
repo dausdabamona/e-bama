@@ -248,6 +248,37 @@ function setKebijakanSP(obj) {
   return getKebijakanSP();
 }
 
+// ── Kebijakan Verifikasi Pesanan by-Exception (DEFAULT) ──────────────────────
+// autoLolosRutin: pesanan RUTIN (sama dgn kemarin) auto-DISETUJUI→TERKIRIM,
+// tanpa antrian Pembina. ambangSelisih: toleransi |jml_taruna - kemarin| yang
+// masih dianggap RUTIN (default 0 = perubahan berapa pun dianggap anomali).
+var _CONFIG_VERIFIKASI_DEFAULT = { autoLolosRutin: true, ambangSelisih: 0 };
+
+/** getKebijakanVerifikasi() — SATU-SATUNYA cara 12_pesanan.gs membaca kebijakan ini. */
+function getKebijakanVerifikasi() {
+  var p = PropertiesService.getScriptProperties();
+  var v = { autoLolosRutin: _CONFIG_VERIFIKASI_DEFAULT.autoLolosRutin, ambangSelisih: _CONFIG_VERIFIKASI_DEFAULT.ambangSelisih };
+  var raw = p.getProperty('KEBIJAKAN_VERIFIKASI');
+  if (raw) {
+    var o = JSON.parse(raw);
+    if (o.autoLolosRutin !== undefined) v.autoLolosRutin = !!o.autoLolosRutin;
+    if (o.ambangSelisih !== undefined) v.ambangSelisih = Number(o.ambangSelisih) || 0;
+  }
+  return v;
+}
+
+/**
+ * setKebijakanVerifikasi({autoLolosRutin?, ambangSelisih?}) — ubah kebijakan
+ * dari editor GAS. Hanya kunci yang disertakan yang ditimpa.
+ */
+function setKebijakanVerifikasi(obj) {
+  var v = getKebijakanVerifikasi();
+  if (obj && obj.autoLolosRutin !== undefined) v.autoLolosRutin = !!obj.autoLolosRutin;
+  if (obj && obj.ambangSelisih !== undefined) v.ambangSelisih = Number(obj.ambangSelisih) || 0;
+  PropertiesService.getScriptProperties().setProperty('KEBIJAKAN_VERIFIKASI', JSON.stringify(v));
+  return v;
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // ▼▼▼ 01_router.gs ▼▼▼
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1469,6 +1500,65 @@ function _hitungJmlTaruna_(tanggal) {
   sheetRead(SHEETS.STATUS_HARIAN, function (r) { return _tglStr_(r.tanggal) === tanggal; })
     .forEach(function (r) { if (aktif[String(r.nit)]) tidakMakan[String(r.nit)] = true; });
   return Object.keys(aktif).length - Object.keys(tidakMakan).length;
+}
+
+/**
+ * _pesananAnomali_(p) — Fitur "Verifikasi by-Exception" (1a): bandingkan
+ * pesanan `p` dgn most-recent prior PESANAN non-DIKEMBALIKAN (tgl_makan lebih
+ * awal) utk menentukan RUTIN vs ANOMALI. Anomali bila SALAH SATU:
+ *  - |jml_taruna - jml_kemarin| > ambangSelisih (kebijakan; default 0);
+ *  - catatan terisi (jml_taruna di-override manual dari angka otomatis);
+ *  - STATUS_HARIAN tgl itu berubah sejak snapshot (recompute _hitungJmlTaruna_
+ *    sekarang ≠ p.jml_taruna, TANPA catatan yg menjelaskan bedanya).
+ * Tanpa pesanan pembanding sama sekali (pertama kali) → dianggap ANOMALI
+ * (butuh mata Pembina, bukan diloloskan diam-diam krn tak ada dasar bandingan).
+ * Murni baca — tidak mengubah data, aman dipanggil berkali-kali.
+ */
+function _pesananAnomali_(p) {
+  var tgl = _tglStr_(p.tgl_makan);
+  var jml = _int_(p.jml_taruna, 'jml_taruna');
+  var catatan = String(p.catatan || '').trim();
+  var kebijakan = getKebijakanVerifikasi();
+
+  var prior = sheetRead(SHEETS.PESANAN, function (r) {
+    return String(r.pesanan_id) !== String(p.pesanan_id) && r.status !== 'DIKEMBALIKAN' && _tglStr_(r.tgl_makan) < tgl;
+  }).sort(function (a, b) { return _tglStr_(b.tgl_makan).localeCompare(_tglStr_(a.tgl_makan)); })[0];
+  var jmlKemarin = prior ? _int_(prior.jml_taruna, 'jml_taruna') : null;
+  var selisih = (jmlKemarin === null) ? null : (jml - jmlKemarin);
+
+  var jmlAutoSaatIni = _hitungJmlTaruna_(tgl);
+  var statusBerubah = !catatan && jmlAutoSaatIni !== jml;
+
+  var alasan = [];
+  var label;
+  if (jmlKemarin === null) {
+    alasan.push('Tidak ada pesanan sebelumnya untuk dibandingkan');
+    label = 'TIDAK ADA PEMBANDING';
+  } else if (selisih === 0) {
+    label = 'SAMA';
+  } else {
+    label = (selisih > 0 ? 'NAIK +' : 'TURUN -') + Math.abs(selisih);
+    if (Math.abs(selisih) > kebijakan.ambangSelisih) {
+      alasan.push(label + ' dari kemarin (' + jmlKemarin + ')');
+    }
+  }
+  if (catatan) {
+    alasan.push('Override manual: ' + catatan);
+    label = 'OVERRIDE MANUAL';
+  }
+  if (statusBerubah) {
+    alasan.push('STATUS_HARIAN berubah sejak snapshot (hitung ulang=' + jmlAutoSaatIni + ', tercatat=' + jml + ')');
+    label = 'STATUS BERUBAH';
+  }
+
+  return {
+    anomali: jmlKemarin === null || alasan.length > 0,
+    label: label,
+    jml_kemarin: jmlKemarin,
+    selisih: selisih,
+    jml_auto_saat_ini: jmlAutoSaatIni,
+    alasan: alasan.join('; ')
+  };
 }
 
 /** Daftar pesanan, filter {bulan?}. */

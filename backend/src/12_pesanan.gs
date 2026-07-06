@@ -33,6 +33,65 @@ function _hitungJmlTaruna_(tanggal) {
   return Object.keys(aktif).length - Object.keys(tidakMakan).length;
 }
 
+/**
+ * _pesananAnomali_(p) — Fitur "Verifikasi by-Exception" (1a): bandingkan
+ * pesanan `p` dgn most-recent prior PESANAN non-DIKEMBALIKAN (tgl_makan lebih
+ * awal) utk menentukan RUTIN vs ANOMALI. Anomali bila SALAH SATU:
+ *  - |jml_taruna - jml_kemarin| > ambangSelisih (kebijakan; default 0);
+ *  - catatan terisi (jml_taruna di-override manual dari angka otomatis);
+ *  - STATUS_HARIAN tgl itu berubah sejak snapshot (recompute _hitungJmlTaruna_
+ *    sekarang ≠ p.jml_taruna, TANPA catatan yg menjelaskan bedanya).
+ * Tanpa pesanan pembanding sama sekali (pertama kali) → dianggap ANOMALI
+ * (butuh mata Pembina, bukan diloloskan diam-diam krn tak ada dasar bandingan).
+ * Murni baca — tidak mengubah data, aman dipanggil berkali-kali.
+ */
+function _pesananAnomali_(p) {
+  var tgl = _tglStr_(p.tgl_makan);
+  var jml = _int_(p.jml_taruna, 'jml_taruna');
+  var catatan = String(p.catatan || '').trim();
+  var kebijakan = getKebijakanVerifikasi();
+
+  var prior = sheetRead(SHEETS.PESANAN, function (r) {
+    return String(r.pesanan_id) !== String(p.pesanan_id) && r.status !== 'DIKEMBALIKAN' && _tglStr_(r.tgl_makan) < tgl;
+  }).sort(function (a, b) { return _tglStr_(b.tgl_makan).localeCompare(_tglStr_(a.tgl_makan)); })[0];
+  var jmlKemarin = prior ? _int_(prior.jml_taruna, 'jml_taruna') : null;
+  var selisih = (jmlKemarin === null) ? null : (jml - jmlKemarin);
+
+  var jmlAutoSaatIni = _hitungJmlTaruna_(tgl);
+  var statusBerubah = !catatan && jmlAutoSaatIni !== jml;
+
+  var alasan = [];
+  var label;
+  if (jmlKemarin === null) {
+    alasan.push('Tidak ada pesanan sebelumnya untuk dibandingkan');
+    label = 'TIDAK ADA PEMBANDING';
+  } else if (selisih === 0) {
+    label = 'SAMA';
+  } else {
+    label = (selisih > 0 ? 'NAIK +' : 'TURUN -') + Math.abs(selisih);
+    if (Math.abs(selisih) > kebijakan.ambangSelisih) {
+      alasan.push(label + ' dari kemarin (' + jmlKemarin + ')');
+    }
+  }
+  if (catatan) {
+    alasan.push('Override manual: ' + catatan);
+    label = 'OVERRIDE MANUAL';
+  }
+  if (statusBerubah) {
+    alasan.push('STATUS_HARIAN berubah sejak snapshot (hitung ulang=' + jmlAutoSaatIni + ', tercatat=' + jml + ')');
+    label = 'STATUS BERUBAH';
+  }
+
+  return {
+    anomali: jmlKemarin === null || alasan.length > 0,
+    label: label,
+    jml_kemarin: jmlKemarin,
+    selisih: selisih,
+    jml_auto_saat_ini: jmlAutoSaatIni,
+    alasan: alasan.join('; ')
+  };
+}
+
 /** Daftar pesanan, filter {bulan?}. */
 function pesananList(payload, session) {
   var bulan = payload && payload.bulan;

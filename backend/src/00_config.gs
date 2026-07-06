@@ -237,3 +237,34 @@ function setKebijakanSP(obj) {
   if (obj.JAM_TRIGGER   !== undefined) p.setProperty('SP_JAM_TRIGGER',   JSON.stringify(obj.JAM_TRIGGER));
   return getKebijakanSP();
 }
+
+// ── Kebijakan Verifikasi Pesanan by-Exception (DEFAULT) ──────────────────────
+// autoLolosRutin: pesanan RUTIN (sama dgn kemarin) auto-DISETUJUI→TERKIRIM,
+// tanpa antrian Pembina. ambangSelisih: toleransi |jml_taruna - kemarin| yang
+// masih dianggap RUTIN (default 0 = perubahan berapa pun dianggap anomali).
+var _CONFIG_VERIFIKASI_DEFAULT = { autoLolosRutin: true, ambangSelisih: 0 };
+
+/** getKebijakanVerifikasi() — SATU-SATUNYA cara 12_pesanan.gs membaca kebijakan ini. */
+function getKebijakanVerifikasi() {
+  var p = PropertiesService.getScriptProperties();
+  var v = { autoLolosRutin: _CONFIG_VERIFIKASI_DEFAULT.autoLolosRutin, ambangSelisih: _CONFIG_VERIFIKASI_DEFAULT.ambangSelisih };
+  var raw = p.getProperty('KEBIJAKAN_VERIFIKASI');
+  if (raw) {
+    var o = JSON.parse(raw);
+    if (o.autoLolosRutin !== undefined) v.autoLolosRutin = !!o.autoLolosRutin;
+    if (o.ambangSelisih !== undefined) v.ambangSelisih = Number(o.ambangSelisih) || 0;
+  }
+  return v;
+}
+
+/**
+ * setKebijakanVerifikasi({autoLolosRutin?, ambangSelisih?}) — ubah kebijakan
+ * dari editor GAS. Hanya kunci yang disertakan yang ditimpa.
+ */
+function setKebijakanVerifikasi(obj) {
+  var v = getKebijakanVerifikasi();
+  if (obj && obj.autoLolosRutin !== undefined) v.autoLolosRutin = !!obj.autoLolosRutin;
+  if (obj && obj.ambangSelisih !== undefined) v.ambangSelisih = Number(obj.ambangSelisih) || 0;
+  PropertiesService.getScriptProperties().setProperty('KEBIJAKAN_VERIFIKASI', JSON.stringify(v));
+  return v;
+}
