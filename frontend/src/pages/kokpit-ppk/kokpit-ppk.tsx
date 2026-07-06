@@ -82,6 +82,23 @@ export function HalamanKokpitPpk() {
               </div>
             ))}
           </Card>
+
+          {data.tindakan.length > 0 ? (
+            <Card className="flex flex-col gap-1 border-l-4 border-red-400">
+              <p className="mb-1 text-sm font-semibold text-red-700">⚠️ Butuh Tindakan PPK ({data.tindakan.length})</p>
+              {data.tindakan.map((tv, i) => (
+                <Link key={i} to={tv.link}
+                  className="flex flex-col gap-0.5 border-b border-gray-100 py-2 last:border-0 active:bg-red-50">
+                  <p className="text-sm font-medium text-gray-800">{tv.apa}</p>
+                  <p className="text-xs text-gray-500">{tv.kenapa}</p>
+                </Link>
+              ))}
+            </Card>
+          ) : (
+            <Card className="border-l-4 border-green-400">
+              <p className="text-sm text-green-700">✅ Tidak ada yang butuh tindakan segera.</p>
+            </Card>
+          )}
         </>
       )}
     </div>
