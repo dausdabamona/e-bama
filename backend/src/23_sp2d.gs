@@ -350,6 +350,16 @@ function sp2dRekonsiliasi(payload, session) {
       if (!noSp2dDalamNit[nit]) noSp2dDalamNit[nit] = [];
       if (noSp2dDalamNit[nit].indexOf(no) === -1) noSp2dDalamNit[nit].push(no);
     });
+    // Kumpulkan No. SPM per taruna — dipakai tombol "Koreksi" per baris (UI) untuk
+    // memindahkan baris SP2D_MONITORING taruna ini ke kategori lain via sp2d.koreksi
+    // TANPA perlu mencarinya dulu di panel Koreksi Baris SP2D generik di bawah.
+    var noSpmDalamNit = {};
+    sp2dPerTarunaDalam.forEach(function (r) {
+      var nit = String(r.nit), no = String(r.no_spm || '').trim();
+      if (!no) return;
+      if (!noSpmDalamNit[nit]) noSpmDalamNit[nit] = [];
+      if (noSpmDalamNit[nit].indexOf(no) === -1) noSpmDalamNit[nit].push(no);
+    });
     var kunciDalamNit = {};
     Object.keys(sistemDalamNit).forEach(function (k) { kunciDalamNit[k] = true; });
     Object.keys(sp2dDalamNit).forEach(function (k) { kunciDalamNit[k] = true; });
@@ -359,7 +369,8 @@ function sp2dRekonsiliasi(payload, session) {
       return {
         nit: nit, nama: t.nama || '', prodi: t.prodi || '', tingkat: t.tingkat || '',
         sistem: sistem, sp2d: sp2d, selisih: sistem - sp2d, cocok: sistem === sp2d,
-        no_sp2d: (noSp2dDalamNit[nit] || []).sort()
+        no_sp2d: (noSp2dDalamNit[nit] || []).sort(),
+        no_spm: (noSpmDalamNit[nit] || []).sort()
       };
     });
   }
@@ -376,6 +387,14 @@ function sp2dRekonsiliasi(payload, session) {
       sp2dPerTarunaLuar, function (r) { return String(r.nit) + '|' + r.kegiatan; },
       function (r) { return _int_(r.jumlah_pembayaran || 0, 'jumlah_pembayaran'); }
     );
+    // Kumpulkan No. SPM per (nit, kegiatan) — sama fungsinya seperti noSpmDalamNit di atas.
+    var noSpmLuarNit = {};
+    sp2dPerTarunaLuar.forEach(function (r) {
+      var k = String(r.nit) + '|' + r.kegiatan, no = String(r.no_spm || '').trim();
+      if (!no) return;
+      if (!noSpmLuarNit[k]) noSpmLuarNit[k] = [];
+      if (noSpmLuarNit[k].indexOf(no) === -1) noSpmLuarNit[k].push(no);
+    });
     var kunciLuarNit = {};
     Object.keys(sistemLuarNit).forEach(function (k) { kunciLuarNit[k] = true; });
     Object.keys(sp2dLuarNit).forEach(function (k) { kunciLuarNit[k] = true; });
@@ -385,7 +404,8 @@ function sp2dRekonsiliasi(payload, session) {
       var sistem = sistemLuarNit[k] || 0, sp2d = sp2dLuarNit[k] || 0;
       return {
         nit: nit, nama: t.nama || '', kegiatan: kegiatan, prodi: t.prodi || '', tingkat: t.tingkat || '',
-        sistem: sistem, sp2d: sp2d, selisih: sistem - sp2d, cocok: sistem === sp2d
+        sistem: sistem, sp2d: sp2d, selisih: sistem - sp2d, cocok: sistem === sp2d,
+        no_spm: (noSpmLuarNit[k] || []).sort()
       };
     });
   }

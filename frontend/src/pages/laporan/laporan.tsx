@@ -10,6 +10,7 @@ import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { ErrorMessage } from '../../components/ui/error-message';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
+import { Modal } from '../../components/ui/modal';
 import { useToast } from '../../components/ui/toast';
 import { api } from '../../lib/api';
 import { bacaFileTeks, deteksiPemisah, parseCsv } from '../../lib/csv';
@@ -28,7 +29,7 @@ interface Laporan {
 
 interface BarisRekon { prodi: string; tingkat: string; sistem: number; sp2d: number; selisih: number; cocok: boolean }
 interface BarisRekonLuar extends BarisRekon { kegiatan: string }
-interface BarisRekonPerTaruna { nit: string; nama: string; prodi: string; tingkat: string; sistem: number; sp2d: number; selisih: number; cocok: boolean; no_sp2d?: string[] }
+interface BarisRekonPerTaruna { nit: string; nama: string; prodi: string; tingkat: string; sistem: number; sp2d: number; selisih: number; cocok: boolean; no_sp2d?: string[]; no_spm?: string[] }
 interface BarisRekonLuarPerTaruna extends BarisRekonPerTaruna { kegiatan: string }
 interface CrossCheckSp2d {
   no_sp2d: string; kategori: string; prodi: string; tingkat: string; kegiatan: string;
@@ -280,6 +281,72 @@ function PanelKoreksiSp2d({ bulan, onKoreksi }: { bulan: string; onKoreksi: () =
   );
 }
 
+/**
+ * Modal "Koreksi" per baris taruna di tabel Dalam/Luar Kampus — per Taruna
+ * (SPANExt) — memindahkan no_spm baris itu (sudah tersedia dari
+ * sp2d.rekonsiliasi) ke kategori lain lewat sp2d.koreksi, tanpa perlu mencari
+ * barisnya dulu di panel Koreksi Baris SP2D generik.
+ */
+function ModalKoreksiPerTaruna({ judul, noSpm, kategoriAsal, onClose, onSukses }: {
+  judul: string; noSpm: string[]; kategoriAsal: 'DALAM_KAMPUS' | 'LUAR_KAMPUS';
+  onClose: () => void; onSukses: () => void;
+}) {
+  const { toast } = useToast();
+  const [kategori, setKategori] = useState<'DALAM_KAMPUS' | 'LUAR_KAMPUS'>(
+    kategoriAsal === 'DALAM_KAMPUS' ? 'LUAR_KAMPUS' : 'DALAM_KAMPUS'
+  );
+  const [kegiatan, setKegiatan] = useState(KEGIATAN_LUAR[0]);
+  const [proses, setProses] = useState(false);
+  const [galat, setGalat] = useState('');
+
+  async function simpan() {
+    setProses(true); setGalat('');
+    try {
+      const hasil = await api<{ dikoreksi: number }>('sp2d.koreksi', {
+        no_spm_list: noSpm, kategori, kegiatan: kategori === 'LUAR_KAMPUS' ? kegiatan : ''
+      });
+      toast(`${hasil.dikoreksi} baris SP2D dipindahkan ke ${kategori.replace('_', ' ')}${kategori === 'LUAR_KAMPUS' ? ` (${kegiatan})` : ''}.`, 'sukses');
+      onSukses();
+    } catch (e) {
+      setGalat(e instanceof Error ? e.message : 'Gagal.');
+    } finally {
+      setProses(false);
+    }
+  }
+
+  return (
+    <Modal judul={judul} onClose={onClose}>
+      <div className="flex flex-col gap-3">
+        <p className="text-xs text-gray-500">
+          Memindahkan {noSpm.length} baris SP2D ({noSpm.join(', ')}) ke kategori lain. Hanya
+          memperbaiki data monitoring SP2D; rekap &amp; pembayaran tidak terpengaruh. Tercatat di Log Audit.
+        </p>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-gray-600">Pindahkan ke</label>
+          <select value={kategori} onChange={(e) => setKategori(e.target.value as 'DALAM_KAMPUS' | 'LUAR_KAMPUS')}
+            className="min-h-tap w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
+            <option value="DALAM_KAMPUS">Dalam Kampus</option>
+            <option value="LUAR_KAMPUS">Luar Kampus</option>
+          </select>
+        </div>
+        {kategori === 'LUAR_KAMPUS' && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">Kegiatan</label>
+            <select value={kegiatan} onChange={(e) => setKegiatan(e.target.value)}
+              className="min-h-tap w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm">
+              {KEGIATAN_LUAR.map((k) => <option key={k} value={k}>{k.replace(/_/g, ' ')}</option>)}
+            </select>
+          </div>
+        )}
+        {galat && <p className="text-sm text-red-600">{galat}</p>}
+        <Button onClick={() => void simpan()} disabled={proses}>
+          {proses ? 'Memproses…' : 'Pindahkan'}
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
 export function HalamanLaporan() {
   const { session } = useAuth();
   const { toast } = useToast();
@@ -295,6 +362,9 @@ export function HalamanLaporan() {
   const [barisSp2d, setBarisSp2d] = useState<BarisPreviewSp2d[]>([]);
   const [barisPerTaruna, setBarisPerTaruna] = useState<BarisPreviewPerTaruna[]>([]);
   const [prosesImpor, setProsesImpor] = useState(false);
+  const [koreksiPerTaruna, setKoreksiPerTaruna] = useState<
+    { judul: string; noSpm: string[]; kategoriAsal: 'DALAM_KAMPUS' | 'LUAR_KAMPUS' } | null
+  >(null);
 
   function validasiBarisSp2d(kolomIdx: Record<string, number>, row: string[]): BarisPreviewSp2d {
     const ambil = (k: string) => (kolomIdx[k] !== undefined ? (row[kolomIdx[k]] ?? '').trim() : '');
@@ -612,11 +682,13 @@ export function HalamanLaporan() {
                           <th className="py-1 pr-2">Nama</th><th className="py-1 pr-2">Prodi/Tingkat</th>
                           <th className="py-1 pr-2">No. SP2D</th>
                           <th className="py-1 pr-2 text-right">Sistem</th><th className="py-1 pr-2 text-right">SP2D</th>
-                          <th className="py-1 pr-2 text-right">Selisih</th><th className="py-1">Status</th>
+                          <th className="py-1 pr-2 text-right">Selisih</th><th className="py-1">Status</th><th className="py-1"></th>
                         </tr>
                       </thead>
                       <tbody>
-                        {rekonQ.data.dalam_kampus_per_taruna.map((r) => (
+                        {rekonQ.data.dalam_kampus_per_taruna
+                          .filter((r) => !(r.sistem === 0 && r.sp2d === 0))
+                          .map((r) => (
                           <tr key={r.nit} className={`border-b border-gray-100 ${r.cocok ? '' : 'bg-red-50'}`}>
                             <td className="py-1 pr-2">{r.nit}</td>
                             <td className="py-1 pr-2">{r.nama || r.nit}</td>
@@ -626,6 +698,17 @@ export function HalamanLaporan() {
                             <td className="py-1 pr-2 text-right">{formatRupiah(r.sp2d)}</td>
                             <td className="py-1 pr-2 text-right">{formatRupiah(r.selisih)}</td>
                             <td className="py-1">{r.cocok ? <span className="text-green-700">Cocok</span> : <span className="text-red-600">Selisih</span>}</td>
+                            <td className="py-1">
+                              {!r.cocok && r.no_spm && r.no_spm.length > 0 && (
+                                <button className="text-primary underline"
+                                  onClick={() => setKoreksiPerTaruna({
+                                    judul: `Koreksi — ${r.nama || r.nit} (Dalam Kampus)`,
+                                    noSpm: r.no_spm!, kategoriAsal: 'DALAM_KAMPUS'
+                                  })}>
+                                  🔧 Koreksi
+                                </button>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -641,11 +724,13 @@ export function HalamanLaporan() {
                         <tr className="border-b border-gray-200 text-left text-gray-500">
                           <th className="py-1 pr-2">Nama</th><th className="py-1 pr-2">Kegiatan</th><th className="py-1 pr-2">Prodi/Tingkat</th>
                           <th className="py-1 pr-2 text-right">Sistem</th><th className="py-1 pr-2 text-right">SP2D</th>
-                          <th className="py-1 pr-2 text-right">Selisih</th><th className="py-1">Status</th>
+                          <th className="py-1 pr-2 text-right">Selisih</th><th className="py-1">Status</th><th className="py-1"></th>
                         </tr>
                       </thead>
                       <tbody>
-                        {rekonQ.data.luar_kampus_per_taruna.map((r, i) => (
+                        {rekonQ.data.luar_kampus_per_taruna
+                          .filter((r) => !(r.sistem === 0 && r.sp2d === 0))
+                          .map((r, i) => (
                           <tr key={`${r.nit}-${r.kegiatan}-${i}`} className={`border-b border-gray-100 ${r.cocok ? '' : 'bg-red-50'}`}>
                             <td className="py-1 pr-2">{r.nama || r.nit}</td>
                             <td className="py-1 pr-2">{r.kegiatan}</td>
@@ -654,6 +739,17 @@ export function HalamanLaporan() {
                             <td className="py-1 pr-2 text-right">{formatRupiah(r.sp2d)}</td>
                             <td className="py-1 pr-2 text-right">{formatRupiah(r.selisih)}</td>
                             <td className="py-1">{r.cocok ? <span className="text-green-700">Cocok</span> : <span className="text-red-600">Selisih</span>}</td>
+                            <td className="py-1">
+                              {!r.cocok && r.no_spm && r.no_spm.length > 0 && (
+                                <button className="text-primary underline"
+                                  onClick={() => setKoreksiPerTaruna({
+                                    judul: `Koreksi — ${r.nama || r.nit} (Luar Kampus · ${r.kegiatan})`,
+                                    noSpm: r.no_spm!, kategoriAsal: 'LUAR_KAMPUS'
+                                  })}>
+                                  🔧 Koreksi
+                                </button>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -724,6 +820,16 @@ export function HalamanLaporan() {
           </Card>
 
           {bisaImporSp2d && <PanelKoreksiSp2d bulan={bulan} onKoreksi={rekonQ.refresh} />}
+
+          {koreksiPerTaruna && (
+            <ModalKoreksiPerTaruna
+              judul={koreksiPerTaruna.judul}
+              noSpm={koreksiPerTaruna.noSpm}
+              kategoriAsal={koreksiPerTaruna.kategoriAsal}
+              onClose={() => setKoreksiPerTaruna(null)}
+              onSukses={() => { setKoreksiPerTaruna(null); rekonQ.refresh(); }}
+            />
+          )}
 
           {bisaImporSp2d && (
             <Card className="flex flex-col gap-2 print:hidden">
