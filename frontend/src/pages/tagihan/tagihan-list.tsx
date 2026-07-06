@@ -1,5 +1,6 @@
 // /tagihan — daftar tagihan aktif + badge level SP merah (semua role terkait).
 // PPK: kartu ringkasan piutang per level + tombol tandai gagal debet massal.
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/auth-context';
 import { Badge } from '../../components/ui/badge';
@@ -31,6 +32,15 @@ export function HalamanTagihanList() {
   const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', {});
   const namaByNit = new Map((tarunaQ.data?.taruna ?? []).map((t) => [t.nit, t.nama]));
   const tampilRingkasan = session?.role === 'PPK' || session?.role === 'KPA' || session?.role === 'WADIR3';
+
+  const [cari, setCari] = useState('');
+  const daftar = useMemo(() => {
+    const q = cari.trim().toLowerCase();
+    return (data?.tagihan ?? [])
+      .filter((t) => !q || (namaByNit.get(t.nit) ?? '').toLowerCase().includes(q) || t.nit.toLowerCase().includes(q))
+      .slice()
+      .sort((a, b) => b.bulan.localeCompare(a.bulan));
+  }, [data, cari, tarunaQ.data]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -70,11 +80,21 @@ export function HalamanTagihanList() {
       {galat && !data && <ErrorMessage pesan={galat} onRetry={refresh} />}
       {data && (data.tagihan ?? []).length === 0 && <EmptyState pesan="Tidak ada tagihan." />}
 
+      {data && (data.tagihan ?? []).length > 0 && (
+        <input
+          type="search"
+          placeholder="Cari nama atau NIT…"
+          value={cari}
+          onChange={(e) => setCari(e.target.value)}
+          className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light"
+        />
+      )}
+      {data && (data.tagihan ?? []).length > 0 && daftar.length === 0 && (
+        <EmptyState pesan="Tidak ada tagihan yang cocok dengan pencarian." />
+      )}
+
       <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-4 xl:grid-cols-3">
-        {(data?.tagihan ?? [])
-          .slice()
-          .sort((a, b) => b.bulan.localeCompare(a.bulan))
-          .map((t) => (
+        {daftar.map((t) => (
             <Link key={t.tagihan_id} to={`/tagihan/${t.tagihan_id}`}>
               <Card className="flex items-center justify-between active:bg-primary-light/30">
                 <div>
