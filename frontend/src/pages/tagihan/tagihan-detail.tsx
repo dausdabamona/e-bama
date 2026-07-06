@@ -56,7 +56,9 @@ export function HalamanTagihanDetail() {
   const namaTaruna = tarunaQ.data?.taruna?.find((x) => x.nit === t.nit)?.nama;
 
   async function pilihBerkas() {
-    const file = await ambilFotoInput();
+    // kameraSaja:false — bukti setor ADALAH screenshot transfer, wajib bisa
+    // dipilih dari galeri, bukan dipaksa buka kamera.
+    const file = await ambilFotoInput({ kameraSaja: false });
     if (!file) return;
     setFotoNama(file.name);
     setFotoBase64(await kompresFotoBase64(file));

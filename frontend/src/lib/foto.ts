@@ -1,14 +1,19 @@
-// Ambil foto DARI KAMERA (bukan galeri) & kompres via canvas ke maksimal ~200KB.
-// `capture='environment'` memaksa browser mobile membuka kamera langsung —
-// mencegah unggah foto lama/rekayasa dari galeri (kontrol pengganti Fitur D:
-// pesanan auto-terkirim melewati verifikasi Pembina-lain, jadi bukti foto
-// REALISASI harus benar-benar diambil saat itu juga).
-export function ambilFotoInput(): Promise<File | null> {
+/**
+ * Ambil file gambar. Default kamera-saja (`capture='environment'` memaksa
+ * browser mobile membuka kamera langsung, bukan galeri) — kontrol anti-
+ * rekayasa utk REALISASI (Fitur E: pesanan auto-terkirim melewati verifikasi
+ * Pembina-lain, jadi bukti foto harus benar-benar diambil saat itu juga).
+ * Set `kameraSaja:false` untuk kasus yang MEMANG berupa screenshot/dokumen
+ * scan (bukti transfer, surat, BA) — di situ galeri/File Manager wajib bisa
+ * dipilih, bukan cuma kamera.
+ */
+export function ambilFotoInput(opts: { kameraSaja?: boolean } = {}): Promise<File | null> {
+  const kameraSaja = opts.kameraSaja !== false;
   return new Promise((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    input.capture = 'environment';
+    if (kameraSaja) input.capture = 'environment';
     input.onchange = () => resolve(input.files?.[0] ?? null);
     input.click();
   });
