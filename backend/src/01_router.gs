@@ -74,6 +74,7 @@ var ACTION_MAP = {
   'realisasi.kebijakan_piket': { handler: realisasiKebijakanPiket, roles: [] },
   // Penerimaan Barang Senat — checklist per waktu makan × komponen, BUKAN Penyedia
   'realisasi.penerimaan': { handler: realisasiPenerimaan, roles: ['SENAT', 'PEMBINA', 'ADMIN'] },
+  'realisasi.kebijakan_penerimaan': { handler: realisasiKebijakanPenerimaan, roles: [] },
 
   // Rekap bulanan (TAHAP 3 + gerbang Wadir 3)
   // SENAT/PEMBINA baca saja (halaman /rekap-ringkas, tanpa nominal di frontend)

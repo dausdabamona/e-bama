@@ -95,6 +95,7 @@ Transisi ilegal → error eksplisit (mis. "Pesanan berstatus DRAFT, tidak bisa d
 | `realisasi.list` | semua login | |
 | `realisasi.kebijakan_piket` | semua login | `{}` → `{wajib, komponen_gizi}` — kebijakan piket (`getKebijakanPiket`) + standar gizi (`getKebijakanGizi`) efektif, dipakai form realisasi (checklist piket) & papan Menu Hari Ini (tahap lanjutan) |
 | `realisasi.penerimaan` | SENAT, PEMBINA, ADMIN | `{real_id? , pesanan_id?, penerimaan:{pagi,siang,malam:[{komponen,ada,jumlah}]}}` — checklist Penerimaan Barang Senat per waktu makan × komponen (`komponen` divalidasi ke `getKebijakanKomponenMenu().komponen`, `jumlah` integer ≥ 0, kunci waktu selain pagi/siang/malam ditolak). Realisasi TERKAIT harus SUDAH ADA (dicari via `real_id`, atau via `pesanan_id` bila `real_id` tak diberikan) — kalau belum ada, tolak dengan pesan "buat realisasi.create dulu". TERPISAH dari `realisasi.ttd` (decouple, boleh diisi kapan saja). MENAMBAH data, TIDAK mengubah `porsi_diterima`/`jml_taruna_makan`/ttd/`piket_*` yang sudah ada |
+| `realisasi.kebijakan_penerimaan` | semua login | `{}` → `{komponen}` — daftar item menu (`getKebijakanKomponenMenu`) dipakai form realisasi (blok Penerimaan Barang, Senat) |
 
 ### Rekap Bulanan (SOP no. 10)
 

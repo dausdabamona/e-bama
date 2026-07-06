@@ -18,9 +18,24 @@ export interface Realisasi {
   piket_gizi: string;
   piket_catatan: string;
   piket_at: string;
+  penerimaan: string;
 }
 
 export interface KebijakanPiket {
   wajib: boolean;
   komponen_gizi: string[];
+}
+
+export type WaktuMakan = 'pagi' | 'siang' | 'malam';
+
+export interface PenerimaanBaris {
+  komponen: string;
+  ada: boolean;
+  jumlah: number;
+}
+
+export type Penerimaan = Record<WaktuMakan, PenerimaanBaris[]>;
+
+export interface KebijakanPenerimaan {
+  komponen: string[];
 }

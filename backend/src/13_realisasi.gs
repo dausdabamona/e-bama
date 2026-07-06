@@ -5,7 +5,8 @@
  *         realisasi.create (Pembina, Senat),
  *         realisasi.ttd (Pembina, Senat — konfirmasi PIN),
  *         realisasi.kebijakan_piket (semua login — baca kebijakan piket & standar gizi),
- *         realisasi.penerimaan (Senat, Pembina, Admin — checklist Penerimaan Barang Senat)
+ *         realisasi.penerimaan (Senat, Pembina, Admin — checklist Penerimaan Barang Senat),
+ *         realisasi.kebijakan_penerimaan (semua login — baca daftar komponen menu)
  *
  * Pesanan wajib TERKIRIM. Foto → LAMPIRAN ref_type=REALISASI jenis=FOTO.
  * Kedua ttd terisi → otomatis rekapUpdate(tanggal).
@@ -38,6 +39,14 @@ function _realisasi_(id) {
  */
 function realisasiKebijakanPiket(payload, session) {
   return { wajib: getKebijakanPiket().wajib, komponen_gizi: getKebijakanGizi().komponen };
+}
+
+/**
+ * Standar komponen menu efektif — dipakai blok "Penerimaan Barang" di form
+ * realisasi (checklist per waktu makan × komponen, Tahap 4).
+ */
+function realisasiKebijakanPenerimaan(payload, session) {
+  return { komponen: getKebijakanKomponenMenu().komponen };
 }
 
 var _WAKTU_MAKAN_ = ['pagi', 'siang', 'malam'];

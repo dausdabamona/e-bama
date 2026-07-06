@@ -481,6 +481,7 @@ var ACTION_MAP = {
   'realisasi.kebijakan_piket': { handler: realisasiKebijakanPiket, roles: [] },
   // Penerimaan Barang Senat — checklist per waktu makan × komponen, BUKAN Penyedia
   'realisasi.penerimaan': { handler: realisasiPenerimaan, roles: ['SENAT', 'PEMBINA', 'ADMIN'] },
+  'realisasi.kebijakan_penerimaan': { handler: realisasiKebijakanPenerimaan, roles: [] },
 
   // Rekap bulanan (TAHAP 3 + gerbang Wadir 3)
   // SENAT/PEMBINA baca saja (halaman /rekap-ringkas, tanpa nominal di frontend)
@@ -2078,7 +2079,8 @@ function pesananRevisi(payload, session) {
  *         realisasi.create (Pembina, Senat),
  *         realisasi.ttd (Pembina, Senat — konfirmasi PIN),
  *         realisasi.kebijakan_piket (semua login — baca kebijakan piket & standar gizi),
- *         realisasi.penerimaan (Senat, Pembina, Admin — checklist Penerimaan Barang Senat)
+ *         realisasi.penerimaan (Senat, Pembina, Admin — checklist Penerimaan Barang Senat),
+ *         realisasi.kebijakan_penerimaan (semua login — baca daftar komponen menu)
  *
  * Pesanan wajib TERKIRIM. Foto → LAMPIRAN ref_type=REALISASI jenis=FOTO.
  * Kedua ttd terisi → otomatis rekapUpdate(tanggal).
@@ -2111,6 +2113,14 @@ function _realisasi_(id) {
  */
 function realisasiKebijakanPiket(payload, session) {
   return { wajib: getKebijakanPiket().wajib, komponen_gizi: getKebijakanGizi().komponen };
+}
+
+/**
+ * Standar komponen menu efektif — dipakai blok "Penerimaan Barang" di form
+ * realisasi (checklist per waktu makan × komponen, Tahap 4).
+ */
+function realisasiKebijakanPenerimaan(payload, session) {
+  return { komponen: getKebijakanKomponenMenu().komponen };
 }
 
 var _WAKTU_MAKAN_ = ['pagi', 'siang', 'malam'];
