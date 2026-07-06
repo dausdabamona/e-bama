@@ -162,6 +162,36 @@ function setRekeningInstansi(obj) {
   return cur;
 }
 
+// ── Saklar libur pesanan otomatis (Fitur D, 20_trigger.gs) ──────────────────
+// Rentang tanggal [mulai, akhir] (inklusif) di mana trigger 21:00 TIDAK boleh
+// membuat pesanan otomatis (libur semester/hari libur) — tanpa ini, salin-
+// persis + auto-kirim akan mengirim pesanan "hantu" penuh selama libur.
+// Disimpan Script Properties (bukan sheet, tanpa perubahan skema).
+
+/** getLiburAutoPesanan() → array {mulai:'YYYY-MM-DD', akhir:'YYYY-MM-DD'}. */
+function getLiburAutoPesanan() {
+  var raw = PropertiesService.getScriptProperties().getProperty('LIBUR_AUTO_PESANAN');
+  return raw ? JSON.parse(raw) : [];
+}
+
+/**
+ * setLiburAutoPesanan([{mulai:'2026-06-15',akhir:'2026-07-15'}, ...]) — GANTI
+ * seluruh daftar (bukan merge — daftar libur biasanya diatur ulang per
+ * semester). Panggil dari editor GAS. Contoh mengosongkan: setLiburAutoPesanan([]).
+ */
+function setLiburAutoPesanan(rentang) {
+  var bersih = (rentang || []).map(function (r) {
+    return { mulai: String(r.mulai || ''), akhir: String(r.akhir || '') };
+  });
+  PropertiesService.getScriptProperties().setProperty('LIBUR_AUTO_PESANAN', JSON.stringify(bersih));
+  return bersih;
+}
+
+/** true bila tgl ('YYYY-MM-DD') masuk salah satu rentang libur aktif. */
+function _tanggalLiburAutoPesanan_(tgl) {
+  return getLiburAutoPesanan().some(function (r) { return r.mulai <= tgl && tgl <= r.akhir; });
+}
+
 // ── Kebijakan SP (DEFAULT — jangan dibaca langsung; pakai getKebijakanSP) ────
 var _CONFIG_SP_DEFAULT = {
   TENGGAT_HARI:  { '1': 7, '2': 7, '3': 3 }, // hari kalender per level SP

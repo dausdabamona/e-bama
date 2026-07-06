@@ -35,6 +35,9 @@
 | 3.2 | Jalankan `pasangTriggerBackup()` dari editor GAS (backup mingguan, Minggu 02.00) | ☐ | | |
 | 3.3 | **Besok paginya**, cek tab **Triggers** (jam ⏰ di editor GAS) → Execution log → `eskalasiTagihan` benar-benar berjalan otomatis | ☐ | | |
 | 3.4 | Setelah backup mingguan pertama berjalan, cek folder Drive `e-BAMA/BACKUP` berisi 1 salinan spreadsheet | ☐ | | |
+| 3.5 | Jalankan `pasangTriggerPesananOtomatis()` dari editor GAS (pesanan otomatis 21.00 WIT, Fitur D — lihat `20_trigger.gs`) | ☐ | | |
+| 3.6 | **Sebelum mengaktifkan**, isi jadwal libur semester lewat `setLiburAutoPesanan([{mulai:'YYYY-MM-DD',akhir:'YYYY-MM-DD'}, ...])` dari editor GAS — kosongkan (`[]`) kalau belum ada rentang libur diketahui | ☐ | | |
+| 3.7 | **Besoknya**, cek Execution log `pesananOtomatis21` benar-benar berjalan; bila belum ada pesanan H-1 manual, cek 1 baris `PESANAN` baru muncul berstatus `TERKIRIM`, `created_by`/`verif_by` = `SISTEM` | ☐ | | |
 
 ## 4. Uji di lapangan
 
