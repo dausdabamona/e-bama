@@ -190,10 +190,23 @@ export function HalamanTagihanDetail() {
           <p className="text-sm font-semibold text-gray-600">
             Verifikasi Pelunasan {t.verif_1_oleh ? '(2/2 — memicu LUNAS)' : '(1/2)'}
           </p>
+          {t.bukti_setor_drive_file_id && (
+            <div className="flex flex-col gap-1">
+              <img
+                src={`https://drive.google.com/thumbnail?id=${t.bukti_setor_drive_file_id}&sz=w1000`}
+                alt="Bukti Setor"
+                className="max-h-96 w-full rounded-xl border border-gray-200 object-contain"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+              />
+              <a href={urlDrive(t.bukti_setor_drive_file_id)} target="_blank" rel="noreferrer" className="text-sm text-primary underline">
+                🔍 Buka ukuran penuh
+              </a>
+            </div>
+          )}
           <p className="text-xs text-gray-500">
-            Lihat bukti setor di atas, lalu masukkan nominal yang benar-benar masuk ke
-            rekening Senat — inilah tanda sudah diverifikasi. Wajib oleh 2 orang berbeda
-            (peran boleh sama).
+            Cocokkan bukti di atas dengan mutasi rekening Senat, lalu masukkan nominal
+            yang benar-benar masuk — inilah tanda sudah diverifikasi. Wajib oleh 2 orang
+            berbeda (peran boleh sama).
           </p>
           {t.verif_1_oleh && t.verif_1_oleh === session?.user_id ? (
             <p className="text-sm text-amber-700">
