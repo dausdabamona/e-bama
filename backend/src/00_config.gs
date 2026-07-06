@@ -358,3 +358,36 @@ function setKebijakanPiket(obj) {
   PropertiesService.getScriptProperties().setProperty('KEBIJAKAN_PIKET', JSON.stringify(v));
   return v;
 }
+
+// ── Komponen Menu — Penerimaan Barang Senat ──────────────────────────────────
+// SATU sumber daftar item menu nyata (Nasi/Sayur/Ikan/Lauk/Buah) yang dicentang
+// Senat saat serah-terima per waktu makan (Pagi/Siang/Malam) — BEDA dari
+// getKebijakanGizi() yang berisi KATEGORI gizi (Karbohidrat/Protein/dst) dipakai
+// checklist piket di titik MAKAN. Penerimaan Senat mengecek kelengkapan & jumlah
+// ITEM di titik SERAH-TERIMA — momen & aktor beda, boleh disamakan satker nanti
+// bila dikehendaki, untuk sekarang terpisah (dikonfirmasi Firdaus).
+var _CONFIG_KOMPONEN_MENU_DEFAULT = { komponen: ['Nasi', 'Sayur', 'Ikan', 'Lauk', 'Buah'] };
+
+/** getKebijakanKomponenMenu() — SATU-SATUNYA cara 13_realisasi.gs membaca daftar ini. */
+function getKebijakanKomponenMenu() {
+  var raw = PropertiesService.getScriptProperties().getProperty('KEBIJAKAN_KOMPONEN_MENU');
+  if (raw) {
+    var o = JSON.parse(raw);
+    if (o && Array.isArray(o.komponen) && o.komponen.length) {
+      return { komponen: o.komponen.map(String) };
+    }
+  }
+  return { komponen: _CONFIG_KOMPONEN_MENU_DEFAULT.komponen.slice() };
+}
+
+/**
+ * setKebijakanKomponenMenu({komponen}) — ubah daftar komponen menu dari editor
+ * GAS. GANTI seluruh daftar (bukan merge — biasanya diatur ulang sekaligus).
+ * Contoh: setKebijakanKomponenMenu({komponen:['Nasi','Sayur','Ikan','Lauk','Buah','Kerupuk']})
+ */
+function setKebijakanKomponenMenu(obj) {
+  var komponen = (obj && Array.isArray(obj.komponen) && obj.komponen.length)
+    ? obj.komponen.map(String) : _CONFIG_KOMPONEN_MENU_DEFAULT.komponen.slice();
+  PropertiesService.getScriptProperties().setProperty('KEBIJAKAN_KOMPONEN_MENU', JSON.stringify({ komponen: komponen }));
+  return { komponen: komponen };
+}
