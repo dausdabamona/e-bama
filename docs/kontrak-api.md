@@ -150,6 +150,7 @@ diisi ulang sejak migrasi harga per-porsi → per-hari, dikonfirmasi Firdaus).
 | `tagihan.create` | SENAT, PPK | batch `{bulan, nit[], sebab}`; nominal snapshot dari REKAP FINAL; tolak duplikat bulan+nit; **langsung terbitkan SP-1** |
 | `tagihan.list` | semua login | sertakan `level_aktif` (MAX level SP) + `tenggat_aktif`; cache 60 detik, invalidate saat tulis |
 | `tagihan.summary` | PPK, KPA, WADIR3 | `{per_level: {0..3: {jumlah, nominal}}, total_outstanding}` — dashboard piutang |
+| `tagihan.status_debet` | PPK, SENAT, KPA, WADIR3 (baca saja) | `{bulan}` → `{bulan, baris:[{nit,nama,prodi,tingkat,nominal,status_debet:'BERHASIL'\|'GAGAL',tagihan_id,sebab,status_tagihan}], total_taruna, jml_berhasil, jml_gagal}` — laporan status debet taruna→Senat per taruna. Bandingkan REKAP_BULANAN nominal>0 vs TAGIHAN bulan itu; `BERHASIL` = **inferensi** (tidak ada baris TAGIHAN, bukan konfirmasi aktif dari bank); `GAGAL` = ada baris TAGIHAN apa pun status penyelesaiannya (TERTAGIH/LUNAS/DIHAPUSKAN/ESKALASI_MANUAL tetap dihitung gagal debet awal) |
 | `tagihan.setor` | SENAT | bukti setor (`jenis=BUKTI_SETOR`) + tgl_setor; status tetap TERTAGIH |
 | `tagihan.verify` | PPK | syarat bukti setor ada → `LUNAS` |
 | `tagihan.waive` | PPK | `catatan_hapus` WAJIB → `DIHAPUSKAN` |

@@ -169,6 +169,59 @@ function tagihanVerify(payload, session) {
   return { tagihan_id: t.tagihan_id, status: 'LUNAS' };
 }
 
+/**
+ * tagihan.status_debet {bulan} — laporan status debet taruna→Senat PER
+ * TARUNA, READ-ONLY. Membandingkan seluruh taruna ber-REKAP nominal>0
+ * bulan itu (dasar permohonan debet, sama seperti cetakForm07) dengan
+ * baris TAGIHAN bulan yang sama.
+ *
+ * Taruna TANPA baris TAGIHAN → `BERHASIL` — ini INFERENSI (absennya
+ * kegagalan tercatat), BUKAN konfirmasi positif dari bank; sistem memang
+ * tidak punya integrasi bank utk mengonfirmasi sukses secara aktif (lihat
+ * catatan modul). Taruna BER-TAGIHAN → `GAGAL`, apa pun status
+ * penyelesaiannya (`status_tagihan`: TERTAGIH/LUNAS/DIHAPUSKAN/
+ * ESKALASI_MANUAL tetap dihitung "gagal debet awal" — penyelesaiannya
+ * ditampilkan terpisah, tidak mengubah status_debet jadi BERHASIL lagi).
+ */
+function tagihanStatusDebet(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+
+  var rekap = sheetRead(SHEETS.REKAP_BULANAN, function (r) {
+    return _bulanStr_(r.bulan) === bulan && _int_(r.nominal || 0, 'nominal') > 0;
+  });
+  if (!rekap.length) throw _fail_('Belum ada rekap bernominal untuk bulan ' + bulan + '.');
+
+  var tarunaByNit = {};
+  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+
+  var tagihanByNit = {};
+  _tagihanJoin_().filter(function (t) { return t.bulan === bulan; })
+    .forEach(function (t) { tagihanByNit[String(t.nit)] = t; });
+
+  var baris = rekap.map(function (r) {
+    var nit = String(r.nit);
+    var t = tarunaByNit[nit] || {};
+    var tg = tagihanByNit[nit];
+    return {
+      nit: nit, nama: t.nama || '', prodi: t.prodi || '', tingkat: t.tingkat || '',
+      nominal: _int_(r.nominal, 'nominal'),
+      status_debet: tg ? 'GAGAL' : 'BERHASIL',
+      tagihan_id: tg ? tg.tagihan_id : '',
+      sebab: tg ? tg.sebab : '',
+      status_tagihan: tg ? tg.status : ''
+    };
+  }).sort(function (a, b) {
+    return (a.prodi || '').localeCompare(b.prodi || '') || (a.tingkat || '').localeCompare(b.tingkat || '') ||
+      (a.nama || '').localeCompare(b.nama || '');
+  });
+
+  var jmlGagal = baris.filter(function (b) { return b.status_debet === 'GAGAL'; }).length;
+  return {
+    bulan: bulan, baris: baris,
+    total_taruna: baris.length, jml_berhasil: baris.length - jmlGagal, jml_gagal: jmlGagal
+  };
+}
+
 /** PPK hapus tagihan: catatan_hapus WAJIB → DIHAPUSKAN. */
 function tagihanWaive(payload, session) {
   var t = _tagihan_(payload && payload.tagihan_id);

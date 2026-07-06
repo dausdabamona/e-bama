@@ -102,6 +102,9 @@ var ACTION_MAP = {
   'tagihan.create':   { handler: tagihanCreate,  roles: ['SENAT', 'PPK'] },
   'tagihan.list':     { handler: tagihanList,    roles: [] },
   'tagihan.summary':  { handler: tagihanSummary, roles: ['PPK', 'KPA', 'WADIR3'] },
+  // Laporan status debet taruna→Senat per taruna (berhasil/gagal) — baca saja,
+  // tanpa rekening lengkap, akses sama seperti tagihan.summary + SENAT.
+  'tagihan.status_debet': { handler: tagihanStatusDebet, roles: ['PPK', 'SENAT', 'KPA', 'WADIR3'] },
   'tagihan.setor':    { handler: tagihanSetor,   roles: ['SENAT'] },
   'tagihan.verify':   { handler: tagihanVerify,  roles: ['PPK'] },
   'tagihan.waive':    { handler: tagihanWaive,   roles: ['PPK'] },

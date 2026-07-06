@@ -33,9 +33,12 @@ export function HalamanTagihanList() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-primary-dark">Tagihan</h1>
-        {session?.role === 'PPK' && (
-          <Link to="/tagihan/gagal-debet"><Button>+ Gagal Debet</Button></Link>
-        )}
+        <div className="flex gap-2">
+          <Link to="/tagihan/status-debet"><Button varian="garis">📊 Status Debet</Button></Link>
+          {session?.role === 'PPK' && (
+            <Link to="/tagihan/gagal-debet"><Button>+ Gagal Debet</Button></Link>
+          )}
+        </div>
       </div>
 
       {tampilRingkasan && ringkasanQ.data && (
