@@ -57,7 +57,7 @@ export function HalamanRealisasiBuat() {
     setKetidaksesuaian('');
     setTindakLanjut('');
     setUbahManual(false);
-    document.getElementById('realisasi-foto')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('realisasi-lanjut')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   async function ambilLokasi() {
@@ -69,8 +69,14 @@ export function HalamanRealisasiBuat() {
     }
   }
 
-  const lat = geo?.lat ?? Number(geoManualLat);
-  const lng = geo?.lng ?? Number(geoManualLng);
+  // Number('') === 0 di JavaScript (bukan NaN) — tanpa cek trim() kosong,
+  // field lat/lng manual yang DIBIARKAN KOSONG lolos sebagai "0,0" valid,
+  // membuat geoSiap true padahal geotag belum diisi sama sekali (bug lama,
+  // ditemukan saat verifikasi Realisasi Satu-Ketuk).
+  const manualLat = geoManualLat.trim() === '' ? NaN : Number(geoManualLat);
+  const manualLng = geoManualLng.trim() === '' ? NaN : Number(geoManualLng);
+  const lat = geo?.lat ?? manualLat;
+  const lng = geo?.lng ?? manualLng;
   const geoSiap = isFinite(lat) && isFinite(lng);
 
   /**
