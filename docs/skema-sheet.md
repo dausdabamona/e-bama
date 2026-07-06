@@ -201,15 +201,19 @@ Foto dokumentasi (terkompres ±200KB) → LAMPIRAN `ref_type=REALISASI`, `jenis=
 
 ### 9. PEMBAYARAN
 
-LS via KPPN (SOP no. 11–17).
-**Mesin status disederhanakan (dikonfirmasi Firdaus): `DIAJUKAN → SELESAI`.**
-No. SP2D terisi = dana SUDAH cair ke rekening taruna (mekanisme LS) →
-pembayaran otomatis `SELESAI`, TANPA konfirmasi Senat/tutup manual terpisah.
-Pendebetan 2 tahap (taruna→Senat→Penyedia) tetap berjalan lewat dokumen cetak
-terpisah (Form-07 lalu Form-09) yang TIDAK mengunci status ini — lihat § Cetak
-Form Manual SOP di `docs/kontrak-api.md`. `bayar.close` tersisa sebagai
-fallback manual untuk baris historis berstatus lama (`SP2D_TERBIT`/
-`DITRANSFER`/`DIKONFIRMASI`) dari sebelum penyederhanaan.
+LS via KPPN (SOP no. 11–17), **khusus Dalam Kampus** — Luar Kampus tidak
+melewati sheet ini sama sekali (lihat §18 SPM, kategori `LUAR_KAMPUS` berdiri
+sendiri tanpa `bayar_id`). Satu baris = satu bulan; rincian per kelompok
+Prodi+Tingkat+Suplier disimpan sebagai baris `SPM` anaknya (§18), BUKAN di
+sheet ini — perubahan dari desain lama (lihat catatan migrasi di bawah).
+
+**Mesin status: `DIAJUKAN` → `SELESAI`.** `SELESAI` OTOMATIS begitu SEMUA
+`SPM` anak (kategori `DALAM_KAMPUS`, bulan yang sama) berstatus `SP2D_TERBIT`
+— dicek tiap kali `spm.set_sp2d` mencairkan satu SPM. Pendebetan 2 tahap
+(taruna→Senat→Penyedia) tetap berjalan lewat dokumen cetak terpisah (Form-07
+lalu Form-09) yang TIDAK mengunci status ini — lihat § Cetak Form Manual SOP
+di `docs/kontrak-api.md`. `bayar.close` tersisa sebagai fallback manual untuk
+baris historis berstatus lama (`SP2D_TERBIT`/`DITRANSFER`/`DIKONFIRMASI`).
 
 | Kolom | Tipe | Keterangan |
 |---|---|---|
@@ -217,22 +221,22 @@ fallback manual untuk baris historis berstatus lama (`SP2D_TERBIT`/
 | bulan | string | `YYYY-MM`; unik per kontrak |
 | kontrak_id | FK → KONTRAK | |
 | nilai_total 📸 | integer | snapshot SUM(nominal) REKAP_BULANAN FINAL bulan tsb |
-| no_spm | string | "wakil" manual PPK (fallback) — lihat catatan 1:N di bawah |
-| tgl_spm | date | |
-| no_sp2d | string | "wakil" manual PPK (fallback); terisi → status langsung `SELESAI` |
-| tgl_sp2d | date | |
-| konfirmasi_senat_at | datetime | **legacy** — tidak lagi diisi (dulu: invoice diterima penyedia, SOP 15–16); dipertahankan hanya untuk baris historis |
 | status | enum | `DIAJUKAN` / `SELESAI` (nilai lama `SP2D_TERBIT`/`DITRANSFER`/`DIKONFIRMASI` hanya mungkin muncul di baris historis) |
 
-> **Relasi 1 PEMBAYARAN : N SP2D.** Satu baris (per bulan) mewakili BANYAK SP2D
-> nyata — KPPN menerbitkan satu SP2D per kelompok **Prodi+Tingkat** (mis. Januari
-> 2026 = 10 SP2D). `no_spm`/`no_sp2d` di sheet ini hanya "wakil" untuk input
-> manual/fallback; rincian SP2D sebenarnya **tidak disimpan di sini** — diturunkan
-> LIVE dari `SP2D_MONITORING` (§17) via `_rincianSp2dDalamKampus_` (`23_sp2d.gs`)
-> dan ditempel di `bayar.list`/`bayar.get` sebagai `sp2d_rincian`/`sp2d_lengkap`.
-> Status `SELESAI` otomatis begitu semua kelompok cocok (`sp2d.import` auto atau
-> `bayar.sync` manual). Tidak ada perubahan kolom untuk fitur ini (rincian selalu
-> live, tidak disalin).
+**Kolom LEGACY** (dipertahankan fisik di sheet — `setupDatabase()` idempotent
+tulis-ulang header, menghapus kolom di tengah akan menggeser data lama;
+TIDAK diisi lagi untuk baris baru sejak SPM §18 aktif): `no_spm`, `tgl_spm`,
+`no_sp2d`, `tgl_sp2d`, `konfirmasi_senat_at`. Sisa desain lama di mana kolom
+ini jadi "wakil" tunggal per bulan (berbohong soal kardinalitas — realitanya
+1 bulan = banyak SP2D per kelompok Prodi+Tingkat).
+
+> **Migrasi (dikonfirmasi Firdaus):** baris **Januari–Maret 2026** sudah ada
+> di produksi sebelum SPM §18 dibuat, sudah berstatus `SELESAI` dengan
+> `no_spm`/`no_sp2d` "wakil" lama terisi — rincian per kelompok Prodi+Tingkat+
+> Suplier bulan-bulan itu TIDAK PERNAH tercatat, jadi TIDAK dimigrasi/di-
+> generate-kan SPM secara retroaktif. Ketiganya tetap dibaca apa adanya lewat
+> kolom legacy di atas (status & nilai tidak berubah). SPM (§18) hanya
+> berlaku untuk pembayaran yang dibuat SETELAH fitur ini aktif.
 
 Surat blokir, bukti debet bank, invoice penyedia → LAMPIRAN `ref_type=PEMBAYARAN`.
 
@@ -535,18 +539,98 @@ SAJA, `prodi`/`tingkat` hasil join TARUNA saat itu), **cross-check per SP2D**
 `cross_check_sp2d` mengecek lapis 2 vs 3 (internal SP2D); perbandingan per
 kelompok/per taruna mengecek lapis 1 vs (2/3).
 
-**Relasi ke PEMBAYARAN (1 : N).** Satu baris `PEMBAYARAN` (per bulan) memayungi
-BANYAK baris SP2D_MONITORING — KPPN menerbitkan satu SP2D per kelompok
-Prodi+Tingkat, jadi satu bulan pembayaran Dalam Kampus = beberapa SP2D (contoh
-nyata Januari 2026 = **10 SP2D**: TPI/I, MP/I, MP/II ×2, TBP/II ×2, MP/III,
-TBP/III, TBP/I, TPI/II). Halaman Pembayaran menurunkan rincian ini **LIVE** lewat
-`_rincianSp2dDalamKampus_(bulan)` (`23_sp2d.gs`) — mengelompokkan baris agregat
-(`kategori='DALAM_KAMPUS'`, `nit` kosong, `perlu_cek_manual≠'YA'`) per
-Prodi+Tingkat, SUM `jumlah_pembayaran`-nya, dan membandingkan dengan
-`_sistemDalamKampusPerKelompok_` (SUM REKAP_BULANAN). Bila SETIAP kelompok
-bersistem >0 sudah cocok (`lengkap`), status PEMBAYARAN otomatis `SELESAI`
-(dijalankan dari `sp2d.import` auto-sync atau `bayar.sync` manual). Rincian TIDAK
-disalin ke sheet PEMBAYARAN — selalu diturunkan on-read, tanpa kolom baru.
+**Relasi ke PEMBAYARAN — lewat SPM (§18), bukan langsung.** Satu baris
+`PEMBAYARAN` (per bulan) memayungi BANYAK baris `SPM` (kategori
+`DALAM_KAMPUS`) — KPPN menerbitkan satu SP2D per kelompok Prodi+Tingkat,
+jadi satu bulan pembayaran Dalam Kampus = beberapa SPM/SP2D (contoh nyata
+Januari 2026 = **10 SP2D**: TPI/I, MP/I, MP/II ×2, TBP/II ×2, MP/III,
+TBP/III, TBP/I, TPI/II). `sp2d.import` mencocokkan baris agregat
+(`kategori='DALAM_KAMPUS'`, `nit` kosong, `perlu_cek_manual≠'YA'`) ke baris
+`SPM` lewat (prodi, tingkat, bulan) dan mengisi `no_sp2d`/`tgl_sp2d` di SPM
+itu (lihat §18) — begitu SEMUA SPM bulan itu `SP2D_TERBIT`, `PEMBAYARAN.status`
+otomatis `SELESAI`. **Legacy (bulan sebelum SPM aktif, lihat §9):** relasi
+lama langsung SP2D_MONITORING→PEMBAYARAN lewat `_rincianSp2dDalamKampus_`
+(`23_sp2d.gs`, live-derive tanpa SPM) tetap dipakai HANYA untuk membaca
+bulan-bulan legacy itu, tidak untuk bulan baru.
+
+### 18. SPM — pengajuan SPM ke KPPN (authored, header kelompok)
+
+Satu sheet, dua kategori (`kategori`) — `DALAM_KAMPUS` dan `LUAR_KAMPUS`
+SIMETRIS, satu pola: satu baris = **satu SPM** = satu kelompok. Beda dari
+SP2D_MONITORING (§17, **imported** — cermin OM-SPAN untuk rekonsiliasi): SPM
+ini **authored** oleh satker (PPK) SEBELUM SP2D terbit, lalu diisi hasilnya
+begitu SP2D terbit (dikonfirmasi Firdaus: **1 SPM selalu = 1 SP2D**, jadi
+field hasil SP2D menempel langsung di baris SPM yang sama, tidak perlu tabel
+terpisah). Keanggotaan taruna TIDAK disalin ke sini — SPM = header kelompok +
+data yang tak bisa dihitung ulang (nomor, tanggal, status, hasil SP2D),
+BUKAN salinan baris taruna; selalu diturunkan dari `REKAP_BULANAN` (Dalam
+Kampus) atau `BANTUAN_LUAR_KAMPUS` (Luar Kampus) saat dibutuhkan.
+
+**Pengelompokan (kunci gabungan unik, beda per kategori):**
+- **`DALAM_KAMPUS`**: `(bulan, prodi, tingkat, penyedia_id)`. Dikonfirmasi
+  Firdaus: satu suplier SELALU melayani satu kelompok prodi+tingkat utuh
+  (tidak pernah campur) — jadi kelompok ini otomatis = satu SP2D KPPN (§17:
+  "1 No. SP2D = 1 kelompok Prodi+Tingkat"), menjaga 1:1. `bayarCreate`
+  (`15_pembayaran.gs`) MENOLAK pembuatan bila ada taruna ber-REKAP bulan itu
+  yang `TARUNA_REKENING.penyedia_id`-nya kosong/tidak valid (split per suplier
+  tidak boleh menghasilkan grup "suplier kosong").
+- **`LUAR_KAMPUS`**: `(bulan, prodi, tingkat, kegiatan, pembayaran_ke)`.
+  Dikonfirmasi Firdaus: Luar Kampus kerap dibayar BERTAHAP per kegiatan
+  (awal/selama/akhir kegiatan) — setiap tahap dipicu satu laporan + satu
+  surat pengajuan Prodi/Ketua Jurusan = satu SPM tersendiri. Tanpa suplier
+  (transfer tunai langsung ke taruna, tidak lewat kontrak penyedia).
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| spm_id | string | kunci; `SPM-000001` |
+| kategori | enum | `DALAM_KAMPUS` / `LUAR_KAMPUS` |
+| bayar_id | FK → PEMBAYARAN (opsional) | HANYA diisi utk `DALAM_KAMPUS` (induk bulan, §9); kosong utk `LUAR_KAMPUS` — Luar Kampus tidak punya sheet amplop |
+| bulan | string | `YYYY-MM`, kedua kategori |
+| prodi | string | bagian kunci kelompok, kedua kategori |
+| tingkat | string | bagian kunci kelompok, kedua kategori |
+| penyedia_id | FK → PENYEDIA (opsional) | HANYA `DALAM_KAMPUS`; kosong utk `LUAR_KAMPUS` |
+| kegiatan | string | HANYA `LUAR_KAMPUS` (`KPA`/`PKL2`/`PKL3`/`PTB`, dari BANTUAN_LUAR_KAMPUS); kosong utk `DALAM_KAMPUS` |
+| pembayaran_ke | integer | HANYA `LUAR_KAMPUS` — bagian kunci kelompok (tahap 1/2/3/dst.); kosong utk `DALAM_KAMPUS` |
+| periode | string | HANYA `LUAR_KAMPUS` (opsional) — salinan teks periode dari `BANTUAN_LUAR_KAMPUS`, pembeda antar-tahap saat memasangkan SP2D manual |
+| nominal 📸 | integer | snapshot SUM nominal kelompok (`REKAP_BULANAN` / `BANTUAN_LUAR_KAMPUS`) saat SPM dibuat; BEKU begitu status `DIAJUKAN` — boleh re-derive selama `DRAFT` |
+| no_spm | string | nomor SPM riil (SAKTI); kosong saat `DRAFT`. Boleh diedit ulang PPK SELAMA status ≠ `SP2D_TERBIT` — menangani SPM ditolak/dikembalikan KPPN (tidak ada status `DITOLAK` terpisah, dikonfirmasi Firdaus) |
+| tgl_spm | date | idem no_spm — boleh diedit ulang selama status ≠ `SP2D_TERBIT` |
+| no_sp2d | string | diisi saat SP2D terbit (1:1 dengan SPM) |
+| tgl_sp2d | date | |
+| status | enum | `DRAFT` → `DIAJUKAN` → `SP2D_TERBIT` (cair). **Tidak ada `DITOLAK`** — PPK edit ulang no_spm/tgl_spm di tempat kalau SPM dikembalikan KPPN |
+
+**Alur:** `bayar.create` (Dalam Kampus, §9) langsung generate N baris SPM
+`DRAFT` — satu per (prodi, tingkat, penyedia_id) dari REKAP FINAL bulan itu.
+`spm.generate_luar_kampus` (dipicu manual PPK) generate SPM `DRAFT` dari
+`BANTUAN_LUAR_KAMPUS` bulan itu, grup per (prodi, tingkat, kegiatan,
+pembayaran_ke) — soft-gate: tandai grup yang belum seluruhnya
+`DISETUJUI_KAJUR` (pola sama seperti Form-08, tidak menghentikan generate).
+`spm.update` isi `no_spm`/`tgl_spm` & ajukan (`DRAFT`→`DIAJUKAN`, nominal &
+kunci kelompok beku). `spm.set_sp2d` isi hasil SP2D → `SP2D_TERBIT`; untuk
+`DALAM_KAMPUS`, begitu SEMUA SPM bulan itu `SP2D_TERBIT`, `PEMBAYARAN.status`
+otomatis `SELESAI` (+ audit). `spm.regenerate` re-derive dari sumber, hanya
+boleh selama SEMUA SPM grup itu masih `DRAFT`.
+
+**Auto-isi dari impor SP2D (`sp2d.import`, §17):** `DALAM_KAMPUS` dicocokkan
+lewat (prodi, tingkat, bulan) — selalu tak ambigu (satu kelompok = satu SPM,
+lihat di atas). `LUAR_KAMPUS` dicocokkan lewat (prodi, tingkat, kegiatan,
+bulan) TAPI hanya bila grup itu punya PERSIS SATU baris SPM — kalau ada
+beberapa `pembayaran_ke` untuk kombinasi yang sama (SP2D_MONITORING tidak
+mem-parse tahap pembayaran dari teks Uraian), auto-isi DILEWATI dan PPK
+memasangkan manual lewat `spm.set_sp2d` (pakai `periode`/nominal sebagai
+pembeda). Rekonsiliasi tingkat-grup tetap sah walau tanpa auto-isi per SPM:
+SUM seluruh tahap SPM grup itu harus = SUM SP2D grup itu.
+
+**Provenance terpisah dari SP2D_MONITORING (§17):** `SPM` = authored (dibuat
+satker SEBELUM SP2D terbit); `SP2D_MONITORING` = imported (cermin OM-SPAN,
+read-only, rekonsiliasi/bukti). Keduanya TIDAK PERNAH dicampur jadi satu
+sumber — SPM tidak ditulis ke SP2D_MONITORING, dan sebaliknya.
+
+**Tidak berlaku untuk 3 bulan legacy (Jan–Mar 2026):** lihat catatan §9 —
+pembayaran bulan-bulan itu memakai desain lama (satu "wakil" no_spm/no_sp2d
+per bulan di sheet PEMBAYARAN) dan TIDAK dimigrasi/di-generate-kan SPM
+secara retroaktif (rincian per kelompok bulan-bulan itu memang tidak pernah
+tercatat).
 
 ---
 
@@ -556,7 +640,9 @@ disalin ke sheet PEMBAYARAN — selalu diturunkan on-read, tanpa kolom baru.
 PENYEDIA ─< KONTRAK ─< PESANAN ─< REALISASI ──▶ REKAP_BULANAN(📸 view)
               └─< MENU_KONTRAK (referensi menu mingguan, bukan snapshot)
 TARUNA ──< STATUS_HARIAN                              │
-TARUNA ──< TAGIHAN ─< SURAT_PERINGATAN                ├─▶ PEMBAYARAN
-TARUNA ──< TARUNA_REKENING (akses ADMIN/PPK saja)     └─▶ TAGIHAN.nominal
+TARUNA ──< TAGIHAN ─< SURAT_PERINGATAN                ├─▶ PEMBAYARAN ─< SPM (kategori DALAM_KAMPUS)
+TARUNA ──< TARUNA_REKENING (akses ADMIN/PPK saja)     └─▶ TAGIHAN.nominal        ▲
+BANTUAN_LUAR_KAMPUS ───────────────────────────────────────────▶ SPM (kategori LUAR_KAMPUS, tanpa bayar_id)
+SP2D_MONITORING (imported OM-SPAN) ─────── auto-isi no_sp2d/tgl_sp2d ──┘
 LAMPIRAN (polymorphic) + AUDIT_LOG ── melintang semua tabel
 ```
