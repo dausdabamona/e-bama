@@ -310,6 +310,38 @@ function setKebijakanTagihan(obj) {
   return v;
 }
 
+// ── Standar Gizi (Ownership Taruna — Fitur 1 Piket & Fitur 2 Transparansi) ───
+// SATU sumber daftar komponen gizi standar per menu — dipakai BERSAMA oleh
+// checklist verifikasi piket (REALISASI.piket_gizi, tahap berikutnya) dan
+// halaman papan "Menu Hari Ini" (read-only), supaya keduanya selalu konsisten
+// (tidak didefinisikan dua kali di dua tempat berbeda).
+var _CONFIG_GIZI_DEFAULT = { komponen: ['Karbohidrat', 'Protein', 'Sayur', 'Buah'] };
+
+/** getKebijakanGizi() — SATU-SATUNYA cara modul lain membaca standar gizi ini. */
+function getKebijakanGizi() {
+  var raw = PropertiesService.getScriptProperties().getProperty('KEBIJAKAN_GIZI');
+  if (raw) {
+    var o = JSON.parse(raw);
+    if (o && Array.isArray(o.komponen) && o.komponen.length) {
+      return { komponen: o.komponen.map(String) };
+    }
+  }
+  return { komponen: _CONFIG_GIZI_DEFAULT.komponen.slice() };
+}
+
+/**
+ * setKebijakanGizi({komponen}) — ubah daftar komponen gizi dari editor GAS.
+ * GANTI seluruh daftar (bukan merge per-kunci — daftar komponen biasanya
+ * diatur ulang sekaligus, bukan ditambal satu-satu). Contoh:
+ *   setKebijakanGizi({komponen:['Karbohidrat','Protein','Sayur','Buah','Susu']})
+ */
+function setKebijakanGizi(obj) {
+  var komponen = (obj && Array.isArray(obj.komponen) && obj.komponen.length)
+    ? obj.komponen.map(String) : _CONFIG_GIZI_DEFAULT.komponen.slice();
+  PropertiesService.getScriptProperties().setProperty('KEBIJAKAN_GIZI', JSON.stringify({ komponen: komponen }));
+  return { komponen: komponen };
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // ▼▼▼ 01_router.gs ▼▼▼
 // ═════════════════════════════════════════════════════════════════════════════
