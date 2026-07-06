@@ -154,6 +154,9 @@ var ACTION_MAP = {
   'sp2d.cek_dobel':     { handler: sp2dCekDobel,      roles: ['PPK', 'ADMIN'] },
   'sp2d.hapus_dobel':   { handler: sp2dHapusDobel,    roles: ['PPK', 'ADMIN'] },
 
+  // Kokpit PPK — agregasi baca murni, tidak menulis apa pun
+  'ppk.kokpit':         { handler: ppkKokpit,         roles: ['PPK', 'KPA', 'WADIR3'] },
+
   // Portal Penyedia (rekanan eksternal) — akses SANGAT terbatas, lihat PENYEDIA_ACTIONS
   'penyedia.portal':    { handler: penyediaPortal,    roles: ['PENYEDIA'] }
 };
