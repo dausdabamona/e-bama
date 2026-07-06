@@ -62,7 +62,7 @@ export default function App() {
             <Route element={<WajibLogin><Layout /></WajibLogin>}>
               <Route path="/" element={<Beranda />} />
               {/* Senat */}
-              <Route path="/pesanan" element={<WajibLogin roles={['SENAT']}><HalamanPesananList /></WajibLogin>} />
+              <Route path="/pesanan" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanPesananList /></WajibLogin>} />
               <Route path="/pesanan/baru" element={<WajibLogin roles={['SENAT']}><HalamanPesananBuat /></WajibLogin>} />
               <Route path="/pesanan/:id" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanPesananDetail /></WajibLogin>} />
               {/* Senat + Pembina */}
@@ -89,7 +89,7 @@ export default function App() {
               {/* Wadir 3 */}
               <Route path="/persetujuan-wadir3" element={<WajibLogin roles={['WADIR3']}><HalamanPersetujuanWadir3 /></WajibLogin>} />
               {/* Admin */}
-              <Route path="/taruna" element={<WajibLogin roles={['ADMIN', 'BAAK']}><HalamanTarunaList /></WajibLogin>} />
+              <Route path="/taruna" element={<WajibLogin roles={['ADMIN', 'BAAK', 'PEMBINA']}><HalamanTarunaList /></WajibLogin>} />
               <Route path="/taruna/impor" element={<WajibLogin roles={['ADMIN', 'BAAK']}><HalamanTarunaImpor /></WajibLogin>} />
               <Route path="/taruna/impor-rekening" element={<WajibLogin roles={['ADMIN']}><HalamanTarunaImporRekening /></WajibLogin>} />
               <Route path="/pengguna" element={<WajibLogin roles={['ADMIN']}><HalamanPengguna /></WajibLogin>} />

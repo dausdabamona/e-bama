@@ -1,6 +1,7 @@
 // /pesanan — daftar per bulan + badge status; tombol buat pesanan baru (Senat).
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../auth/auth-context';
 import { BulanPicker, bulanIni } from '../../components/bulan-picker';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
@@ -12,6 +13,7 @@ import { useListCache } from '../../lib/use-list-cache';
 import type { Pesanan } from './tipe';
 
 export function HalamanPesananList() {
+  const { session } = useAuth();
   const [bulan, setBulan] = useState(bulanIni());
   const { data, memuat, galat, refresh } = useListCache<{ pesanan: Pesanan[] }>('pesanan.list', { bulan });
 
@@ -19,9 +21,11 @@ export function HalamanPesananList() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-primary-dark">Pesanan</h1>
-        <Link to="/pesanan/baru">
-          <Button>+ Buat</Button>
-        </Link>
+        {session?.role === 'SENAT' && (
+          <Link to="/pesanan/baru">
+            <Button>+ Buat</Button>
+          </Link>
+        )}
       </div>
 
       <BulanPicker bulan={bulan} onChange={setBulan} />

@@ -32,6 +32,8 @@ export function HalamanTarunaList() {
   const [filterTingkat, setFilterTingkat] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
+  const bisaUbah = session?.role !== 'PEMBINA';
+
   const semua = data?.taruna;
   const prodiOpsi = useMemo(() => Array.from(new Set((semua ?? []).map((t) => t.prodi).filter(Boolean))).sort(), [semua]);
   const tingkatOpsi = useMemo(() => Array.from(new Set((semua ?? []).map((t) => t.tingkat).filter(Boolean))).sort(), [semua]);
@@ -60,11 +62,11 @@ export function HalamanTarunaList() {
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-xl font-bold text-primary-dark">Data Taruna</h1>
           <div className="flex gap-2">
-            <Link to="/taruna/impor"><Button varian="garis">Impor CSV</Button></Link>
+            {bisaUbah && <Link to="/taruna/impor"><Button varian="garis">Impor CSV</Button></Link>}
             {session?.role === 'ADMIN' && (
               <Link to="/taruna/impor-rekening"><Button varian="garis">🔒 Impor Rekening</Button></Link>
             )}
-            <Button onClick={() => setModal('baru')}>+ Tambah</Button>
+            {bisaUbah && <Button onClick={() => setModal('baru')}>+ Tambah</Button>}
           </div>
         </div>
 
@@ -113,7 +115,7 @@ export function HalamanTarunaList() {
       <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-4 xl:grid-cols-3">
         {hasil.map((t) => (
             <Card key={t.nit} className="flex items-center justify-between gap-2">
-              <div className="min-w-0 flex-1 active:bg-primary-light/30" onClick={() => setModal(t)}>
+              <div className={`min-w-0 flex-1 ${bisaUbah ? 'active:bg-primary-light/30' : ''}`} onClick={bisaUbah ? () => setModal(t) : undefined}>
                 <p className="font-semibold">{t.nama}</p>
                 <p className="text-sm text-gray-500">{t.nit} · {t.prodi} · Tk.{t.tingkat} · {t.kelas}</p>
               </div>

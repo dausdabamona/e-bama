@@ -90,6 +90,8 @@ export function HalamanPesananDetail() {
         )}
       </Card>
 
+      <DaftarPenerima tglMakan={p.tgl_makan} />
+
       {/* Timeline status */}
       <Card>
         <p className="mb-3 text-sm font-semibold text-gray-600">Riwayat Status</p>
@@ -144,6 +146,61 @@ export function HalamanPesananDetail() {
         />
       )}
     </div>
+  );
+}
+
+interface TarunaRingkas { nit: string; nama: string; prodi: string; tingkat: string }
+interface StatusRingkas { nit: string; status: string }
+
+/**
+ * Daftar nama taruna penerima makan hari itu — turunan real-time dari Taruna
+ * AKTIF dikurangi yang punya STATUS_HARIAN tanggal ini (logika identik
+ * _hitungJmlTaruna_ di backend 12_pesanan.gs), bukan data/snapshot baru.
+ */
+function DaftarPenerima({ tglMakan }: { tglMakan: string }) {
+  const [tampil, setTampil] = useState(false);
+  const tarunaQ = useListCache<{ taruna: TarunaRingkas[] }>('taruna.list', { status: 'AKTIF' });
+  const statusQ = useListCache<{ status: StatusRingkas[] }>('status.list', { dari: tglMakan, sampai: tglMakan });
+
+  const tarunaAktif = tarunaQ.data?.taruna ?? [];
+  const statusByNit = new Map((statusQ.data?.status ?? []).map((s) => [s.nit, s.status]));
+  const penerima = tarunaAktif.filter((t) => !statusByNit.has(t.nit));
+  const tidakMenerima = tarunaAktif.filter((t) => statusByNit.has(t.nit));
+  const memuat = tarunaQ.memuat || statusQ.memuat;
+
+  return (
+    <Card>
+      <button className="flex w-full items-center justify-between text-sm font-semibold text-gray-600"
+        onClick={() => setTampil((v) => !v)}>
+        <span>Daftar Penerima{!memuat && ` (${penerima.length})`}</span>
+        <span aria-hidden>{tampil ? '▲' : '▼'}</span>
+      </button>
+      {tampil && (
+        memuat ? <LoadingSpinner label="Memuat daftar penerima…" /> : (
+          <div className="mt-2 flex flex-col gap-2">
+            <div className="max-h-72 overflow-y-auto rounded-xl border border-gray-100">
+              {penerima.length === 0 && <p className="p-2 text-sm text-gray-400">Tidak ada penerima.</p>}
+              {penerima.map((t) => (
+                <div key={t.nit} className="border-b border-gray-50 px-3 py-2 text-sm last:border-0">
+                  <p>{t.nama}</p>
+                  <p className="text-xs text-gray-400">{t.nit} · {t.prodi} · Tk.{t.tingkat}</p>
+                </div>
+              ))}
+            </div>
+            {tidakMenerima.length > 0 && (
+              <details className="text-xs text-gray-500">
+                <summary className="cursor-pointer">{tidakMenerima.length} taruna tidak menerima (status)</summary>
+                <div className="mt-1 flex flex-col gap-1">
+                  {tidakMenerima.map((t) => (
+                    <p key={t.nit}>{t.nama} — {(statusByNit.get(t.nit) ?? '').replace(/_/g, ' ')}</p>
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
+        )
+      )}
+    </Card>
   );
 }
 
