@@ -58,6 +58,9 @@ var ACTION_MAP = {
   'pesanan.return':   { handler: pesananReturn,  roles: ['PEMBINA'] },
   'pesanan.kirim':    { handler: pesananKirim,   roles: ['SENAT'] },
   'pesanan.revisi':   { handler: pesananRevisi,  roles: ['SENAT'] },
+  // Fitur F: Pembina buat & ajukan sendiri tanpa Senat (satu langkah,
+  // langsung TERKIRIM) — lihat catatan lengkap di 12_pesanan.gs.
+  'pesanan.pembina_kirim': { handler: pesananPembinaKirim, roles: ['PEMBINA'] },
 
   // Realisasi (TAHAP 3)
   'realisasi.list':   { handler: realisasiList,  roles: [] },

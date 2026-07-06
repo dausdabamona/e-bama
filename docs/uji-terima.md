@@ -85,6 +85,24 @@
 | F.3 | Nyalakan jaringan → antrian tersinkron otomatis, badge hilang | ☐ | | |
 | F.4 | Buka di lebar layar 320px (HP kecil) → tidak ada overflow horizontal | ☐ | | |
 
+## G. Pengesampingan Alur Verifikasi — Pembina Buat Pesanan Sendiri
+
+> Sejak Fitur F: Pembina boleh membuat & langsung mengirim pesanan **tanpa**
+> pengajuan Senat (`pesanan.pembina_kirim`, `12_pesanan.gs`) — melewati
+> gerbang normal (Senat ajukan → Pembina verifikasi, 2 pihak). Dipakai kalau
+> Senat belum/tidak sempat membuat pesanan H-1. Kontrol pengganti: REALISASI
+> tetap wajib TTD Pembina **dan** Senat (dua pihak di hilir, lihat A.7–A.9).
+
+| # | Langkah | Hasil | Tanggal | Paraf |
+|---|---|---|---|---|
+| G.1 | Login `pembina01` → **Pesanan → + Buat** → isi menu, biarkan jumlah otomatis → **Buat & Kirim Langsung ke Penyedia** | ☐ | | |
+| G.2 | Cek: pesanan langsung berstatus `TERKIRIM` (BUKAN `DRAFT`/`DIAJUKAN`); `catatan` = "Dibuat & diajukan Pembina tanpa usulan Senat" | ☐ | | |
+| G.3 | `AUDIT_LOG`: baris `pesanan.pembina_kirim` — `created_by` dan `verif_by` SAMA (Pembina), tercatat jelas untuk audit Itjen | ☐ | | |
+| G.4 | Login Senat → **Pesanan** (bulan yang sama) → kartu pesanan itu menampilkan penanda **"⚠️ Dibuat & dikirim Pembina tanpa usulan Anda"** | ☐ | | |
+| G.5 | Ulangi G.1 pada tanggal yang SUDAH punya pesanan Senat berstatus `DRAFT` → hasil: baris yang sama TER-EDIT (bukan baris baru/dobel) | ☐ | | |
+| G.6 | Ulangi G.1 pada tanggal yang pesanannya SUDAH `TERKIRIM` (lewat alur normal) → **ditolak**, pesan menyebut Pembina tidak perlu/boleh menimpa | ☐ | | |
+| G.7 | Lanjutkan alur Realisasi (A.7–A.9) untuk pesanan hasil G.1 → TTD Pembina **dan** Senat tetap wajib keduanya (tidak ada jalan pintas di realisasi) | ☐ | | |
+
 ---
 
 **Kesimpulan UAT:** semua baris ✓ → sistem siap lanjut ke `docs/go-live.md`.

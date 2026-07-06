@@ -281,6 +281,9 @@ var ACTION_MAP = {
   'pesanan.return':   { handler: pesananReturn,  roles: ['PEMBINA'] },
   'pesanan.kirim':    { handler: pesananKirim,   roles: ['SENAT'] },
   'pesanan.revisi':   { handler: pesananRevisi,  roles: ['SENAT'] },
+  // Fitur F: Pembina buat & ajukan sendiri tanpa Senat (satu langkah,
+  // langsung TERKIRIM) — lihat catatan lengkap di 12_pesanan.gs.
+  'pesanan.pembina_kirim': { handler: pesananPembinaKirim, roles: ['PEMBINA'] },
 
   // Realisasi (TAHAP 3)
   'realisasi.list':   { handler: realisasiList,  roles: [] },
@@ -1552,6 +1555,77 @@ function pesananCreate(payload, session) {
   };
   sheetAppend(SHEETS.PESANAN, obj);
   auditLog(session, 'pesanan.create', 'PESANAN', obj.pesanan_id, null,
+    { tgl_makan: tgl, jml_taruna: jml, jml_otomatis: jmlAuto, kontrak_id: kontrak.kontrak_id });
+  return { pesanan: obj, jml_otomatis: jmlAuto };
+}
+
+/**
+ * pesanan.pembina_kirim {tgl_makan, menu, jml_taruna?} — Pembina membuat &
+ * langsung mengajukan pesanan TANPA usulan Senat (dikonfirmasi Firdaus:
+ * dipakai kalau Senat belum/tidak membuat pesanan). BEDA dari alur normal
+ * (create→submit→verify→kirim, 4 langkah lintas 2 peran) — di sini SATU
+ * langkah: created_by = verif_by = Pembina yang sama (maker-checker melebur,
+ * terekam jelas di AUDIT_LOG untuk ditelusuri Itjen), status LANGSUNG
+ * TERKIRIM. `catatan` WAJIB memuat frasa tetap di bawah — dipakai frontend
+ * (pesanan-list.tsx) untuk menandai/"menotifikasi" Senat baris mana yang
+ * dibuat tanpa sepengetahuan mereka (tanpa infrastruktur notifikasi
+ * terpisah — aplikasi ini belum punya push/email).
+ *
+ * Kontrol pengganti (karena verifikasi Pembina-lain dilewati): REALISASI
+ * tetap WAJIB ttd Pembina DAN Senat (dua pihak di hilir tidak berubah).
+ *
+ * Idempoten/precedence: PESANAN unik per tgl_makan. Bila SUDAH ada baris
+ * (dari Senat/Pembina/Sistem) berstatus DRAFT/DIAJUKAN → EDIT baris itu
+ * (bukan duplikat). Bila sudah DISETUJUI/TERKIRIM (alur normal sudah
+ * berjalan) → TOLAK, Pembina tidak perlu/boleh menimpanya.
+ */
+var _CATATAN_PEMBINA_KIRIM_ = 'Dibuat & diajukan Pembina tanpa usulan Senat';
+
+function pesananPembinaKirim(payload, session) {
+  var tgl = _wajibTgl_(payload && payload.tgl_makan, 'tgl_makan');
+  var menu = String((payload && payload.menu) || '').trim();
+  if (!menu) throw _fail_('menu wajib diisi.');
+
+  var existing = sheetRead(SHEETS.PESANAN, function (r) {
+    return _tglStr_(r.tgl_makan) === tgl && r.status !== 'DIKEMBALIKAN';
+  })[0];
+  if (existing && (existing.status === 'DISETUJUI' || existing.status === 'TERKIRIM')) {
+    throw _fail_('Pesanan ' + tgl + ' sudah berstatus ' + existing.status +
+      ' (alur normal sudah berjalan) — tidak perlu/boleh dibuat ulang oleh Pembina.');
+  }
+
+  var jmlAuto = _hitungJmlTaruna_(tgl);
+  var jml = jmlAuto;
+  if (payload.jml_taruna !== undefined && payload.jml_taruna !== null && payload.jml_taruna !== '') {
+    jml = _int_(payload.jml_taruna, 'jml_taruna');
+  }
+
+  if (existing) {
+    var patch = {
+      menu: menu, jml_taruna: jml, catatan: _CATATAN_PEMBINA_KIRIM_,
+      status: 'TERKIRIM', created_by: session.user_id,
+      verif_by: session.user_id, verif_at: new Date()
+    };
+    sheetUpdate(SHEETS.PESANAN, 'pesanan_id', existing.pesanan_id, patch);
+    auditLog(session, 'pesanan.pembina_kirim', 'PESANAN', existing.pesanan_id,
+      { status: existing.status, created_by: existing.created_by }, patch);
+    return { pesanan_id: existing.pesanan_id, status: 'TERKIRIM', jml_otomatis: jmlAuto };
+  }
+
+  var kontrak = _kontrakAktifPada_(tgl);
+  var obj = {
+    pesanan_id: nextId('PSN'),
+    tgl_makan: tgl,
+    kontrak_id: kontrak.kontrak_id,
+    jml_taruna: jml,
+    menu: menu,
+    catatan: _CATATAN_PEMBINA_KIRIM_,
+    status: 'TERKIRIM',
+    created_by: session.user_id,
+    verif_by: session.user_id, verif_at: new Date(), revisi_dari: ''
+  };
+  sheetAppend(SHEETS.PESANAN, obj);
+  auditLog(session, 'pesanan.pembina_kirim', 'PESANAN', obj.pesanan_id, null,
     { tgl_makan: tgl, jml_taruna: jml, jml_otomatis: jmlAuto, kontrak_id: kontrak.kontrak_id });
   return { pesanan: obj, jml_otomatis: jmlAuto };
 }

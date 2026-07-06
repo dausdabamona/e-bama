@@ -5,6 +5,7 @@
 // (kontrak aktif DISETUJUI_PPK) — tetap bisa diubah Senat per hari (ad hoc).
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../auth/auth-context';
 import { api } from '../../lib/api';
 import { aksiTulis } from '../../lib/sync';
 import { Button } from '../../components/ui/button';
@@ -66,6 +67,11 @@ function komposisiPesanan(hariMalam: string, menuMalam: MenuHari | undefined,
 export function HalamanPesananBuat() {
   const nav = useNavigate();
   const { toast } = useToast();
+  const { session } = useAuth();
+  // Fitur F (dikonfirmasi Firdaus): Pembina boleh buat & ajukan pesanan SENDIRI
+  // tanpa usulan Senat — satu langkah, langsung TERKIRIM (pesanan.pembina_kirim),
+  // beda dari alur Senat normal (create→submit, masih DRAFT/DIAJUKAN).
+  const isPembina = session?.role === 'PEMBINA';
   const [tglMakan, setTglMakan] = useState(besok());
   const [menu, setMenu] = useState('');
   const [jmlOtomatis, setJmlOtomatis] = useState<number | null>(null);
@@ -145,6 +151,28 @@ export function HalamanPesananBuat() {
 
   const berbeda = jmlKoreksi !== '' && jmlOtomatis !== null && Number(jmlKoreksi) !== jmlOtomatis;
 
+  async function kirimPembina() {
+    if (!menu.trim()) { setGalat('Menu wajib diisi.'); return; }
+    setProses(true);
+    setGalat('');
+    try {
+      const payload: Record<string, unknown> = { tgl_makan: tglMakan, menu: menu.trim() };
+      if (jmlKoreksi !== '') payload.jml_taruna = Number(jmlKoreksi);
+      const hasil = await aksiTulis<{ pesanan_id: string }>('pesanan.pembina_kirim', payload);
+      if (hasil.antri) {
+        toast('Koneksi tidak stabil. Disimpan lokal, akan dikirim otomatis.', 'info');
+        nav('/pesanan');
+        return;
+      }
+      toast('Pesanan dibuat & langsung terkirim ke penyedia.', 'sukses');
+      nav(`/pesanan/${hasil.data!.pesanan_id}`);
+    } catch (e) {
+      setGalat(e instanceof Error ? e.message : 'Gagal menyimpan.');
+    } finally {
+      setProses(false);
+    }
+  }
+
   async function simpan(ajukanLangsung: boolean) {
     if (!menu.trim()) { setGalat('Menu wajib diisi.'); return; }
     if (berbeda && !catatan.trim()) { setGalat('Catatan wajib diisi karena jumlah berbeda dari hitungan otomatis.'); return; }
@@ -175,7 +203,16 @@ export function HalamanPesananBuat() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-bold text-primary-dark">Buat Pesanan</h1>
+      <h1 className="text-xl font-bold text-primary-dark">
+        {isPembina ? 'Buat & Kirim Pesanan (Pembina)' : 'Buat Pesanan'}
+      </h1>
+      {isPembina && (
+        <Card className="bg-amber-50 text-xs text-amber-800">
+          ⚠️ Dibuat langsung oleh Pembina tanpa usulan Senat — begitu dikirim,
+          status langsung <strong>TERKIRIM</strong> ke penyedia (melewati alur
+          persetujuan biasa). Senat akan melihat penanda ini di daftar pesanan.
+        </Card>
+      )}
       <Card className="flex flex-col gap-3">
         <Input
           label="Tanggal Makan"
@@ -234,12 +271,20 @@ export function HalamanPesananBuat() {
         {galat && <p className="text-sm text-red-600">{galat}</p>}
 
         <div className="flex gap-2 pt-2">
-          <Button varian="garis" className="flex-1" onClick={() => void simpan(false)} disabled={proses}>
-            Simpan Draf
-          </Button>
-          <Button className="flex-1" onClick={() => void simpan(true)} disabled={proses}>
-            {proses ? 'Menyimpan…' : 'Simpan & Ajukan'}
-          </Button>
+          {isPembina ? (
+            <Button className="flex-1" onClick={() => void kirimPembina()} disabled={proses}>
+              {proses ? 'Mengirim…' : 'Buat & Kirim Langsung ke Penyedia'}
+            </Button>
+          ) : (
+            <>
+              <Button varian="garis" className="flex-1" onClick={() => void simpan(false)} disabled={proses}>
+                Simpan Draf
+              </Button>
+              <Button className="flex-1" onClick={() => void simpan(true)} disabled={proses}>
+                {proses ? 'Menyimpan…' : 'Simpan & Ajukan'}
+              </Button>
+            </>
+          )}
         </div>
       </Card>
     </div>

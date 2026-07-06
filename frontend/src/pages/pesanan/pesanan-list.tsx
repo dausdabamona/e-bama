@@ -12,6 +12,12 @@ import { LoadingSpinner } from '../../components/ui/loading-spinner';
 import { useListCache } from '../../lib/use-list-cache';
 import type { Pesanan } from './tipe';
 
+// Fitur F: pesanan yang dibuat Pembina sendiri (tanpa Senat) ditandai lewat
+// catatan tetap ini (12_pesanan.gs, pesanan.pembina_kirim) — tidak ada
+// infrastruktur notifikasi push/email di aplikasi ini, jadi "notifikasi ke
+// Senat" diwujudkan sebagai penanda tampilan yang langsung terlihat di sini.
+const CATATAN_PEMBINA_KIRIM = 'Dibuat & diajukan Pembina tanpa usulan Senat';
+
 export function HalamanPesananList() {
   const { session } = useAuth();
   const [bulan, setBulan] = useState(bulanIni());
@@ -21,7 +27,7 @@ export function HalamanPesananList() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-primary-dark">Pesanan</h1>
-        {session?.role === 'SENAT' && (
+        {(session?.role === 'SENAT' || session?.role === 'PEMBINA') && (
           <Link to="/pesanan/baru">
             <Button>+ Buat</Button>
           </Link>
@@ -44,6 +50,11 @@ export function HalamanPesananList() {
                 <p className="font-semibold">{p.tgl_makan}</p>
                 <p className="text-sm text-gray-500">{p.menu}</p>
                 <p className="text-xs text-gray-400">{p.jml_taruna} taruna</p>
+                {p.catatan === CATATAN_PEMBINA_KIRIM && (
+                  <p className="mt-1 text-xs font-semibold text-amber-700">
+                    ⚠️ Dibuat &amp; dikirim Pembina tanpa usulan Anda
+                  </p>
+                )}
               </div>
               <Badge status={p.status} />
             </Card>

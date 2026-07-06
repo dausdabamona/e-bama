@@ -66,7 +66,7 @@ export default function App() {
               <Route path="/" element={<Beranda />} />
               {/* Senat */}
               <Route path="/pesanan" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanPesananList /></WajibLogin>} />
-              <Route path="/pesanan/baru" element={<WajibLogin roles={['SENAT']}><HalamanPesananBuat /></WajibLogin>} />
+              <Route path="/pesanan/baru" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanPesananBuat /></WajibLogin>} />
               <Route path="/pesanan/:id" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanPesananDetail /></WajibLogin>} />
               {/* Senat + Pembina */}
               <Route path="/realisasi" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanRealisasiList /></WajibLogin>} />
