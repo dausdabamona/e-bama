@@ -253,6 +253,11 @@ function ModalKontrak({ awal, penyedia, onClose, onSukses }: {
           </select>
         </div>
         <Input label="Harga per Hari (Rp/taruna/hari)" type="number" value={hargaPerHari} onChange={(e) => setHargaPerHari(e.target.value)} />
+        <p className="-mt-2 text-xs text-gray-400">
+          Satu angka total per taruna per hari — SUDAH mencakup semua waktu makan
+          (mis. pagi/siang/malam), bukan harga satuan per porsi. Tidak dibagi
+          dengan Porsi per Hari di bawah (murni info, bukan pembagi harga).
+        </p>
         <Input label="Porsi per Hari (info — brp kali makan sehari)" type="number" value={porsi} onChange={(e) => setPorsi(e.target.value)} />
         <div className="flex gap-2">
           <Input label="Tgl Mulai" type="date" value={tglMulai} onChange={(e) => setTglMulai(e.target.value)} />
