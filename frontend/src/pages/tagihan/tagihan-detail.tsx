@@ -22,6 +22,12 @@ function hariIni(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/** Format angka mentah → string berpemisah ribuan id-ID (mis. "1740000" → "1.740.000"). */
+function formatRibuan(v: string): string {
+  const digits = v.replace(/\D/g, '');
+  return digits ? Number(digits).toLocaleString('id-ID') : '';
+}
+
 export function HalamanTagihanDetail() {
   const { id } = useParams<{ id: string }>();
   const { session } = useAuth();
@@ -217,9 +223,10 @@ export function HalamanTagihanDetail() {
             <>
               <Input
                 label="Nilai Transferan (Rp)"
-                type="number"
-                value={nilaiTransfer !== '' ? nilaiTransfer : String(t.nominal)}
-                onChange={(e) => setNilaiTransfer(e.target.value)}
+                type="text"
+                inputMode="numeric"
+                value={formatRibuan(nilaiTransfer !== '' ? nilaiTransfer : String(t.nominal))}
+                onChange={(e) => setNilaiTransfer(e.target.value.replace(/\D/g, ''))}
               />
               {galat && <p className="text-sm text-red-600">{galat}</p>}
               <Button onClick={() => void kirimVerifikasi()} disabled={proses}>
