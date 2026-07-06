@@ -271,6 +271,10 @@ var ACTION_MAP = {
   // Pesanan (TAHAP 3)
   'pesanan.list':     { handler: pesananList,    roles: [] },
   'pesanan.get':      { handler: pesananGet,     roles: [] },
+  // Surat Pesanan Makan ke Penyedia (cetak) — internal login mana pun; TANPA
+  // rupiah (lihat 12_pesanan.gs), TIDAK di PENYEDIA_ACTIONS (portal penyedia
+  // tidak boleh menarik data pesanan bebas lewat action ini).
+  'pesanan.surat_penyedia': { handler: pesananSuratPenyedia, roles: [] },
   'pesanan.create':   { handler: pesananCreate,  roles: ['SENAT'] },
   'pesanan.submit':   { handler: pesananSubmit,  roles: ['SENAT'] },
   'pesanan.verify':   { handler: pesananVerify,  roles: ['PEMBINA'] },
@@ -290,6 +294,10 @@ var ACTION_MAP = {
   'rekap.final':      { handler: rekapFinal,     roles: ['PPK'] },
   'rekap.approve_wadir3': { handler: rekapApproveWadir3, roles: ['WADIR3'] },
   'rekap.input_historis': { handler: rekapInputHistoris, roles: ['PPK', 'ADMIN'] },
+  // rekap.harian: rekonsiliasi 3 titik HARIAN per Prodi+Tingkat, read-only —
+  // internal login mana pun (pola sama seperti taruna.list), TIDAK di
+  // PENYEDIA_ACTIONS/KETUA_JURUSAN_ACTIONS jadi otomatis dikecualikan.
+  'rekap.harian':     { handler: rekapHarian,    roles: [] },
 
   // Pembayaran (TAHAP 4A)
   'bayar.list':       { handler: bayarList,      roles: ['PPK', 'KPA', 'SENAT', 'WADIR3'] },
@@ -932,6 +940,31 @@ function _bulanStr_(v) { return _tglStr_(v).slice(0, 7); }
 /** Tanggal hari ini 'yyyy-MM-dd' (zona waktu skrip = Asia/Jayapura). */
 function _todayStr_() { return _tglStr_(new Date()); }
 
+// Nama hari (indeks getDay(): 0=Minggu..6=Sabtu) — SAMA PERSIS dengan
+// NAMA_HARI di frontend (pesanan-buat.tsx) supaya komposisi pengantaran
+// (Malam hari-D + Pagi/Siang hari D+1) konsisten di kedua sisi.
+var _NAMA_HARI_ = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
+
+/**
+ * Nama hari (SENIN..MINGGU) dari 'YYYY-MM-DD' — parse komponen y/m/d LOKAL
+ * (bukan `new Date(string)`, yang ditafsir UTC dan bisa tergeser sehari
+ * tergantung timezone eksekusi) lalu `new Date(y, m-1, d)` murni kalender,
+ * tidak terpengaruh timezone. Kembalikan '' bila format tidak valid.
+ */
+function _hariDalamMinggu_(tgl) {
+  var p = String(tgl || '').split('-').map(function (s) { return parseInt(s, 10); });
+  if (p.length !== 3 || !p[0] || !p[1] || !p[2]) return '';
+  return _NAMA_HARI_[new Date(p[0], p[1] - 1, p[2]).getDay()];
+}
+
+/** Tanggal 'YYYY-MM-DD' digeser n hari — komponen lokal, lihat _hariDalamMinggu_. */
+function _tambahHari_(tgl, n) {
+  var p = String(tgl || '').split('-').map(function (s) { return parseInt(s, 10); });
+  if (p.length !== 3 || !p[0] || !p[1] || !p[2]) return tgl;
+  var d = new Date(p[0], p[1] - 1, p[2] + n);
+  return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+}
+
 /** Validasi & konversi integer ≥0 (uang/jumlah). Tolak pecahan — aturan uang integer. */
 function _int_(v, nama) {
   var n = Number(v);
@@ -1416,6 +1449,71 @@ function pesananGet(payload, session) {
   var p = _pesanan_(payload && payload.pesanan_id);
   p.tgl_makan = _tglStr_(p.tgl_makan);
   return { pesanan: p, lampiran: lampiranList('PESANAN', p.pesanan_id) };
+}
+
+/**
+ * pesanan.surat_penyedia {pesanan_id | tgl_makan} — bahan cetak "Surat Pesanan
+ * Makan" untuk PENYEDIA/katering, READ-ONLY, TANPA rupiah apa pun (beda dari
+ * Form-01 yang untuk internal & memuat harga — lihat catatan modul cetak).
+ *
+ * Komposisi pengantaran & rakitan menu SAMA PERSIS dengan logika frontend saat
+ * pesanan.create (komposisiPesanan, pesanan-buat.tsx): Malam hari-D + Pagi &
+ * Siang hari D+1, dari MENU_KONTRAK kontrak_id pesanan itu.
+ *
+ * Jumlah porsi per kelompok DITURUNKAN ulang dari TARUNA(AKTIF) − STATUS_HARIAN
+ * tanggal itu (subset sama seperti _hitungJmlTaruna_) — TAPI angka yang
+ * MENGIKAT tetap `PESANAN.jml_taruna` (snapshot 📸, bisa dikoreksi manual PPK/
+ * Senat dgn catatan). Bila derivasi ≠ snapshot, `selisih_derivasi` diisi
+ * (BUKAN didiamkan) supaya penyedia & pencetak sama-sama tahu ada koreksi
+ * manual, tapi baris TOTAL yang dicetak tetap angka mengikat.
+ */
+function pesananSuratPenyedia(payload, session) {
+  var p = (payload && payload.pesanan_id)
+    ? _pesanan_(payload.pesanan_id)
+    : sheetRead(SHEETS.PESANAN, function (r) {
+        return _tglStr_(r.tgl_makan) === _wajibTgl_(payload && payload.tgl_makan, 'tgl_makan');
+      })[0];
+  if (!p) throw _fail_('Pesanan tidak ditemukan.');
+  var tgl = _tglStr_(p.tgl_makan);
+
+  var hariMalam = _hariDalamMinggu_(tgl);
+  var hariPagiSiang = _hariDalamMinggu_(_tambahHari_(tgl, 1));
+  var menuHari = sheetRead(SHEETS.MENU_KONTRAK, function (r) { return String(r.kontrak_id) === String(p.kontrak_id); });
+  var menuMalamRow = menuHari.filter(function (r) { return r.hari === hariMalam; })[0];
+  var menuPagiSiangRow = menuHari.filter(function (r) { return r.hari === hariPagiSiang; })[0];
+
+  var tidakMakan = {};
+  sheetRead(SHEETS.STATUS_HARIAN, function (r) { return _tglStr_(r.tanggal) === tgl; })
+    .forEach(function (r) { tidakMakan[String(r.nit)] = true; });
+
+  var kelompok = {};
+  sheetRead(SHEETS.TARUNA, function (r) { return r.status === 'AKTIF' && !tidakMakan[String(r.nit)]; })
+    .forEach(function (t) {
+      var kunci = (t.prodi || '') + '|' + (t.tingkat || '');
+      if (!kelompok[kunci]) kelompok[kunci] = { prodi: t.prodi || '', tingkat: t.tingkat || '', jml: 0 };
+      kelompok[kunci].jml++;
+    });
+  var porsiPerKelompok = Object.keys(kelompok).map(function (k) { return kelompok[k]; })
+    .sort(function (a, b) { return a.prodi.localeCompare(b.prodi) || a.tingkat.localeCompare(b.tingkat); });
+  var totalDerivasi = porsiPerKelompok.reduce(function (s, k) { return s + k.jml; }, 0);
+  var totalMengikat = _int_(p.jml_taruna, 'jml_taruna');
+
+  return {
+    pesanan_id: p.pesanan_id, tgl_makan: tgl,
+    komposisi: {
+      malam: { hari: hariMalam }, pagi: { hari: hariPagiSiang }, siang: { hari: hariPagiSiang }
+    },
+    menu: {
+      malam: menuMalamRow ? String(menuMalamRow.menu_malam || '') : '',
+      pagi: menuPagiSiangRow ? String(menuPagiSiangRow.menu_pagi || '') : '',
+      siang: menuPagiSiangRow ? String(menuPagiSiangRow.menu_siang || '') : ''
+    },
+    porsi_per_kelompok: porsiPerKelompok,
+    total: totalMengikat,
+    total_derivasi: totalDerivasi,
+    selisih_derivasi: totalMengikat - totalDerivasi,
+    catatan: String(p.catatan || '')
+  };
 }
 
 /** Buat pesanan DRAFT. Payload {tgl_makan, menu, jml_taruna?, catatan?}. */
@@ -1915,6 +2013,68 @@ function rekapInputHistoris(payload, session) {
     });
     return { bulan: bulan, baris: n };
   });
+}
+
+/**
+ * rekap.harian {tanggal} — rekonsiliasi 3 titik HARIAN per Prodi+Tingkat,
+ * READ-ONLY (tanpa withLock, tanpa efek samping). Beda dari REKAP_BULANAN
+ * (materialized view bulanan): dihitung LIVE dari TARUNA+STATUS_HARIAN untuk
+ * SATU tanggal, dikelompokkan Prodi+Tingkat supaya langsung terbaca per kelas
+ * — pelengkap tampilan modul Taruna + dasar cetak "Rekapitulasi Harian Taruna".
+ *
+ * "Tidak makan" = STATUS_HARIAN ∈ {PESIAR, CUTI, SAKIT_RUMAH, PENUNDAAN_STUDI}.
+ * "Luar kampus" = STATUS_HARIAN ∈ STATUS_LUAR_KAMPUS (00_config.gs, berhak
+ * BANTUAN_LUAR_KAMPUS, bukan makan di kampus). "Makan" = aktif − keduanya —
+ * subset yang sama seperti _hitungJmlTaruna_ (12_pesanan.gs)/cetakForm02.
+ *
+ * `realisasi` (opsional) = rekonsiliasi ke PESANAN.jml_taruna vs
+ * REALISASI.jml_taruna_makan tanggal itu — null bila belum ada salah satunya.
+ */
+function rekapHarian(payload, session) {
+  var tgl = _wajibTgl_(payload && payload.tanggal, 'tanggal');
+
+  var tarunaAktif = sheetRead(SHEETS.TARUNA, function (r) { return r.status === 'AKTIF'; });
+  var statusHari = {};
+  sheetRead(SHEETS.STATUS_HARIAN, function (r) { return _tglStr_(r.tanggal) === tgl; })
+    .forEach(function (r) { statusHari[String(r.nit)] = String(r.status); });
+
+  var kelompok = {};
+  function _grupHarian_(prodi, tingkat) {
+    var kunci = (prodi || '') + '|' + (tingkat || '');
+    if (!kelompok[kunci]) {
+      kelompok[kunci] = { prodi: prodi || '', tingkat: tingkat || '', aktif: 0, tidak_makan: 0, luar_kampus: 0, makan: 0 };
+    }
+    return kelompok[kunci];
+  }
+
+  tarunaAktif.forEach(function (t) {
+    var g = _grupHarian_(t.prodi, t.tingkat);
+    g.aktif++;
+    var st = statusHari[String(t.nit)];
+    if (!st) { g.makan++; }
+    else if (STATUS_LUAR_KAMPUS.indexOf(st) >= 0) { g.luar_kampus++; }
+    else { g.tidak_makan++; }
+  });
+
+  var perKelompok = Object.keys(kelompok).map(function (k) { return kelompok[k]; })
+    .sort(function (a, b) { return a.prodi.localeCompare(b.prodi) || a.tingkat.localeCompare(b.tingkat); });
+
+  var total = { aktif: 0, tidak_makan: 0, luar_kampus: 0, makan: 0 };
+  perKelompok.forEach(function (g) {
+    total.aktif += g.aktif; total.tidak_makan += g.tidak_makan;
+    total.luar_kampus += g.luar_kampus; total.makan += g.makan;
+  });
+
+  var pesanan = sheetRead(SHEETS.PESANAN, function (r) { return _tglStr_(r.tgl_makan) === tgl; })[0];
+  var realisasi = sheetRead(SHEETS.REALISASI, function (r) { return _tglStr_(r.tanggal) === tgl; })[0];
+  var rekonsiliasiHarian = null;
+  if (pesanan && realisasi) {
+    var dipesan = _int_(pesanan.jml_taruna, 'jml_taruna');
+    var dimakan = _int_(realisasi.jml_taruna_makan, 'jml_taruna_makan');
+    rekonsiliasiHarian = { dipesan: dipesan, dimakan: dimakan, selisih: dipesan - dimakan };
+  }
+
+  return { tanggal: tgl, per_kelompok: perKelompok, total: total, realisasi: rekonsiliasiHarian };
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

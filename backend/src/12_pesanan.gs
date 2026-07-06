@@ -50,6 +50,71 @@ function pesananGet(payload, session) {
   return { pesanan: p, lampiran: lampiranList('PESANAN', p.pesanan_id) };
 }
 
+/**
+ * pesanan.surat_penyedia {pesanan_id | tgl_makan} — bahan cetak "Surat Pesanan
+ * Makan" untuk PENYEDIA/katering, READ-ONLY, TANPA rupiah apa pun (beda dari
+ * Form-01 yang untuk internal & memuat harga — lihat catatan modul cetak).
+ *
+ * Komposisi pengantaran & rakitan menu SAMA PERSIS dengan logika frontend saat
+ * pesanan.create (komposisiPesanan, pesanan-buat.tsx): Malam hari-D + Pagi &
+ * Siang hari D+1, dari MENU_KONTRAK kontrak_id pesanan itu.
+ *
+ * Jumlah porsi per kelompok DITURUNKAN ulang dari TARUNA(AKTIF) − STATUS_HARIAN
+ * tanggal itu (subset sama seperti _hitungJmlTaruna_) — TAPI angka yang
+ * MENGIKAT tetap `PESANAN.jml_taruna` (snapshot 📸, bisa dikoreksi manual PPK/
+ * Senat dgn catatan). Bila derivasi ≠ snapshot, `selisih_derivasi` diisi
+ * (BUKAN didiamkan) supaya penyedia & pencetak sama-sama tahu ada koreksi
+ * manual, tapi baris TOTAL yang dicetak tetap angka mengikat.
+ */
+function pesananSuratPenyedia(payload, session) {
+  var p = (payload && payload.pesanan_id)
+    ? _pesanan_(payload.pesanan_id)
+    : sheetRead(SHEETS.PESANAN, function (r) {
+        return _tglStr_(r.tgl_makan) === _wajibTgl_(payload && payload.tgl_makan, 'tgl_makan');
+      })[0];
+  if (!p) throw _fail_('Pesanan tidak ditemukan.');
+  var tgl = _tglStr_(p.tgl_makan);
+
+  var hariMalam = _hariDalamMinggu_(tgl);
+  var hariPagiSiang = _hariDalamMinggu_(_tambahHari_(tgl, 1));
+  var menuHari = sheetRead(SHEETS.MENU_KONTRAK, function (r) { return String(r.kontrak_id) === String(p.kontrak_id); });
+  var menuMalamRow = menuHari.filter(function (r) { return r.hari === hariMalam; })[0];
+  var menuPagiSiangRow = menuHari.filter(function (r) { return r.hari === hariPagiSiang; })[0];
+
+  var tidakMakan = {};
+  sheetRead(SHEETS.STATUS_HARIAN, function (r) { return _tglStr_(r.tanggal) === tgl; })
+    .forEach(function (r) { tidakMakan[String(r.nit)] = true; });
+
+  var kelompok = {};
+  sheetRead(SHEETS.TARUNA, function (r) { return r.status === 'AKTIF' && !tidakMakan[String(r.nit)]; })
+    .forEach(function (t) {
+      var kunci = (t.prodi || '') + '|' + (t.tingkat || '');
+      if (!kelompok[kunci]) kelompok[kunci] = { prodi: t.prodi || '', tingkat: t.tingkat || '', jml: 0 };
+      kelompok[kunci].jml++;
+    });
+  var porsiPerKelompok = Object.keys(kelompok).map(function (k) { return kelompok[k]; })
+    .sort(function (a, b) { return a.prodi.localeCompare(b.prodi) || a.tingkat.localeCompare(b.tingkat); });
+  var totalDerivasi = porsiPerKelompok.reduce(function (s, k) { return s + k.jml; }, 0);
+  var totalMengikat = _int_(p.jml_taruna, 'jml_taruna');
+
+  return {
+    pesanan_id: p.pesanan_id, tgl_makan: tgl,
+    komposisi: {
+      malam: { hari: hariMalam }, pagi: { hari: hariPagiSiang }, siang: { hari: hariPagiSiang }
+    },
+    menu: {
+      malam: menuMalamRow ? String(menuMalamRow.menu_malam || '') : '',
+      pagi: menuPagiSiangRow ? String(menuPagiSiangRow.menu_pagi || '') : '',
+      siang: menuPagiSiangRow ? String(menuPagiSiangRow.menu_siang || '') : ''
+    },
+    porsi_per_kelompok: porsiPerKelompok,
+    total: totalMengikat,
+    total_derivasi: totalDerivasi,
+    selisih_derivasi: totalMengikat - totalDerivasi,
+    catatan: String(p.catatan || '')
+  };
+}
+
 /** Buat pesanan DRAFT. Payload {tgl_makan, menu, jml_taruna?, catatan?}. */
 function pesananCreate(payload, session) {
   var tgl = _wajibTgl_(payload && payload.tgl_makan, 'tgl_makan');

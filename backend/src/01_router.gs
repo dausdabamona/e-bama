@@ -48,6 +48,10 @@ var ACTION_MAP = {
   // Pesanan (TAHAP 3)
   'pesanan.list':     { handler: pesananList,    roles: [] },
   'pesanan.get':      { handler: pesananGet,     roles: [] },
+  // Surat Pesanan Makan ke Penyedia (cetak) — internal login mana pun; TANPA
+  // rupiah (lihat 12_pesanan.gs), TIDAK di PENYEDIA_ACTIONS (portal penyedia
+  // tidak boleh menarik data pesanan bebas lewat action ini).
+  'pesanan.surat_penyedia': { handler: pesananSuratPenyedia, roles: [] },
   'pesanan.create':   { handler: pesananCreate,  roles: ['SENAT'] },
   'pesanan.submit':   { handler: pesananSubmit,  roles: ['SENAT'] },
   'pesanan.verify':   { handler: pesananVerify,  roles: ['PEMBINA'] },
@@ -67,6 +71,10 @@ var ACTION_MAP = {
   'rekap.final':      { handler: rekapFinal,     roles: ['PPK'] },
   'rekap.approve_wadir3': { handler: rekapApproveWadir3, roles: ['WADIR3'] },
   'rekap.input_historis': { handler: rekapInputHistoris, roles: ['PPK', 'ADMIN'] },
+  // rekap.harian: rekonsiliasi 3 titik HARIAN per Prodi+Tingkat, read-only —
+  // internal login mana pun (pola sama seperti taruna.list), TIDAK di
+  // PENYEDIA_ACTIONS/KETUA_JURUSAN_ACTIONS jadi otomatis dikecualikan.
+  'rekap.harian':     { handler: rekapHarian,    roles: [] },
 
   // Pembayaran (TAHAP 4A)
   'bayar.list':       { handler: bayarList,      roles: ['PPK', 'KPA', 'SENAT', 'WADIR3'] },

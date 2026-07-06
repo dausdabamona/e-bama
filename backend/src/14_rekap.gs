@@ -245,3 +245,65 @@ function rekapInputHistoris(payload, session) {
     return { bulan: bulan, baris: n };
   });
 }
+
+/**
+ * rekap.harian {tanggal} — rekonsiliasi 3 titik HARIAN per Prodi+Tingkat,
+ * READ-ONLY (tanpa withLock, tanpa efek samping). Beda dari REKAP_BULANAN
+ * (materialized view bulanan): dihitung LIVE dari TARUNA+STATUS_HARIAN untuk
+ * SATU tanggal, dikelompokkan Prodi+Tingkat supaya langsung terbaca per kelas
+ * — pelengkap tampilan modul Taruna + dasar cetak "Rekapitulasi Harian Taruna".
+ *
+ * "Tidak makan" = STATUS_HARIAN ∈ {PESIAR, CUTI, SAKIT_RUMAH, PENUNDAAN_STUDI}.
+ * "Luar kampus" = STATUS_HARIAN ∈ STATUS_LUAR_KAMPUS (00_config.gs, berhak
+ * BANTUAN_LUAR_KAMPUS, bukan makan di kampus). "Makan" = aktif − keduanya —
+ * subset yang sama seperti _hitungJmlTaruna_ (12_pesanan.gs)/cetakForm02.
+ *
+ * `realisasi` (opsional) = rekonsiliasi ke PESANAN.jml_taruna vs
+ * REALISASI.jml_taruna_makan tanggal itu — null bila belum ada salah satunya.
+ */
+function rekapHarian(payload, session) {
+  var tgl = _wajibTgl_(payload && payload.tanggal, 'tanggal');
+
+  var tarunaAktif = sheetRead(SHEETS.TARUNA, function (r) { return r.status === 'AKTIF'; });
+  var statusHari = {};
+  sheetRead(SHEETS.STATUS_HARIAN, function (r) { return _tglStr_(r.tanggal) === tgl; })
+    .forEach(function (r) { statusHari[String(r.nit)] = String(r.status); });
+
+  var kelompok = {};
+  function _grupHarian_(prodi, tingkat) {
+    var kunci = (prodi || '') + '|' + (tingkat || '');
+    if (!kelompok[kunci]) {
+      kelompok[kunci] = { prodi: prodi || '', tingkat: tingkat || '', aktif: 0, tidak_makan: 0, luar_kampus: 0, makan: 0 };
+    }
+    return kelompok[kunci];
+  }
+
+  tarunaAktif.forEach(function (t) {
+    var g = _grupHarian_(t.prodi, t.tingkat);
+    g.aktif++;
+    var st = statusHari[String(t.nit)];
+    if (!st) { g.makan++; }
+    else if (STATUS_LUAR_KAMPUS.indexOf(st) >= 0) { g.luar_kampus++; }
+    else { g.tidak_makan++; }
+  });
+
+  var perKelompok = Object.keys(kelompok).map(function (k) { return kelompok[k]; })
+    .sort(function (a, b) { return a.prodi.localeCompare(b.prodi) || a.tingkat.localeCompare(b.tingkat); });
+
+  var total = { aktif: 0, tidak_makan: 0, luar_kampus: 0, makan: 0 };
+  perKelompok.forEach(function (g) {
+    total.aktif += g.aktif; total.tidak_makan += g.tidak_makan;
+    total.luar_kampus += g.luar_kampus; total.makan += g.makan;
+  });
+
+  var pesanan = sheetRead(SHEETS.PESANAN, function (r) { return _tglStr_(r.tgl_makan) === tgl; })[0];
+  var realisasi = sheetRead(SHEETS.REALISASI, function (r) { return _tglStr_(r.tanggal) === tgl; })[0];
+  var rekonsiliasiHarian = null;
+  if (pesanan && realisasi) {
+    var dipesan = _int_(pesanan.jml_taruna, 'jml_taruna');
+    var dimakan = _int_(realisasi.jml_taruna_makan, 'jml_taruna_makan');
+    rekonsiliasiHarian = { dipesan: dipesan, dimakan: dimakan, selisih: dipesan - dimakan };
+  }
+
+  return { tanggal: tgl, per_kelompok: perKelompok, total: total, realisasi: rekonsiliasiHarian };
+}

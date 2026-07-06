@@ -127,6 +127,9 @@ export function HalamanPesananDetail() {
         <Link to={`/cetak/form-01/${p.tgl_makan}`}>
           <Button varian="garis" className="w-full">🖨️ Cetak Form 01</Button>
         </Link>
+        <Link to={`/cetak/surat-pesanan/${p.pesanan_id}`}>
+          <Button varian="garis" className="w-full">🖨️ Cetak Surat Pesanan (ke Penyedia)</Button>
+        </Link>
         {bisaSubmit && (
           <Button onClick={() => void submit()} disabled={proses}>Ajukan ke Pembina</Button>
         )}

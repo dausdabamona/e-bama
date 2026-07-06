@@ -9,6 +9,7 @@ import { HalamanAudit } from './pages/audit/audit';
 import { HalamanBantuanLuarKampus } from './pages/blk/blk';
 import { HalamanCetakIndex } from './pages/cetak/cetak-index';
 import { HalamanCetakForm01 } from './pages/cetak/form-01';
+import { HalamanCetakSuratPesanan } from './pages/cetak/surat-pesanan';
 import { HalamanCetakForm02 } from './pages/cetak/form-02';
 import { HalamanCetakForm03 } from './pages/cetak/form-03';
 import { HalamanCetakForm04 } from './pages/cetak/form-04';
@@ -43,6 +44,7 @@ import { HalamanTagihanDetail } from './pages/tagihan/tagihan-detail';
 import { HalamanTagihanGagalDebet } from './pages/tagihan/tagihan-gagal-debet';
 import { HalamanTarunaList } from './pages/taruna/taruna-list';
 import { HalamanTarunaImpor } from './pages/taruna/taruna-import';
+import { HalamanRekapHarianTaruna } from './pages/taruna/rekap-harian';
 import { HalamanTarunaImporRekening } from './pages/taruna/taruna-impor-rekening';
 import { HalamanVerifikasi } from './pages/verifikasi';
 
@@ -95,6 +97,7 @@ export default function App() {
               <Route path="/taruna" element={<WajibLogin roles={['ADMIN', 'BAAK', 'PEMBINA']}><HalamanTarunaList /></WajibLogin>} />
               <Route path="/taruna/impor" element={<WajibLogin roles={['ADMIN', 'BAAK']}><HalamanTarunaImpor /></WajibLogin>} />
               <Route path="/taruna/impor-rekening" element={<WajibLogin roles={['ADMIN']}><HalamanTarunaImporRekening /></WajibLogin>} />
+              <Route path="/taruna/rekap-harian" element={<WajibLogin roles={['ADMIN', 'BAAK', 'PEMBINA', 'PPK']}><HalamanRekapHarianTaruna /></WajibLogin>} />
               <Route path="/pengguna" element={<WajibLogin roles={['ADMIN']}><HalamanPengguna /></WajibLogin>} />
               {/* Penyedia (rekanan eksternal) — portal terbatas */}
               <Route path="/penyedia-portal" element={<WajibLogin roles={['PENYEDIA']}><HalamanPenyediaPortal /></WajibLogin>} />
@@ -108,6 +111,7 @@ export default function App() {
               <Route path="/cetak" element={<HalamanCetakIndex />} />
               <Route path="/cetak/form-01" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm01 /></WajibLogin>} />
               <Route path="/cetak/form-01/:tgl" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm01 /></WajibLogin>} />
+              <Route path="/cetak/surat-pesanan/:id" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakSuratPesanan /></WajibLogin>} />
               <Route path="/cetak/form-02" element={<WajibLogin roles={['PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm02 /></WajibLogin>} />
               <Route path="/cetak/form-02/:tgl" element={<WajibLogin roles={['PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm02 /></WajibLogin>} />
               <Route path="/cetak/form-03" element={<WajibLogin roles={['PPK', 'ADMIN', 'PEMBINA']}><HalamanCetakForm03 /></WajibLogin>} />

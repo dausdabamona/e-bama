@@ -25,6 +25,31 @@ function _bulanStr_(v) { return _tglStr_(v).slice(0, 7); }
 /** Tanggal hari ini 'yyyy-MM-dd' (zona waktu skrip = Asia/Jayapura). */
 function _todayStr_() { return _tglStr_(new Date()); }
 
+// Nama hari (indeks getDay(): 0=Minggu..6=Sabtu) — SAMA PERSIS dengan
+// NAMA_HARI di frontend (pesanan-buat.tsx) supaya komposisi pengantaran
+// (Malam hari-D + Pagi/Siang hari D+1) konsisten di kedua sisi.
+var _NAMA_HARI_ = ['MINGGU', 'SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU'];
+
+/**
+ * Nama hari (SENIN..MINGGU) dari 'YYYY-MM-DD' — parse komponen y/m/d LOKAL
+ * (bukan `new Date(string)`, yang ditafsir UTC dan bisa tergeser sehari
+ * tergantung timezone eksekusi) lalu `new Date(y, m-1, d)` murni kalender,
+ * tidak terpengaruh timezone. Kembalikan '' bila format tidak valid.
+ */
+function _hariDalamMinggu_(tgl) {
+  var p = String(tgl || '').split('-').map(function (s) { return parseInt(s, 10); });
+  if (p.length !== 3 || !p[0] || !p[1] || !p[2]) return '';
+  return _NAMA_HARI_[new Date(p[0], p[1] - 1, p[2]).getDay()];
+}
+
+/** Tanggal 'YYYY-MM-DD' digeser n hari — komponen lokal, lihat _hariDalamMinggu_. */
+function _tambahHari_(tgl, n) {
+  var p = String(tgl || '').split('-').map(function (s) { return parseInt(s, 10); });
+  if (p.length !== 3 || !p[0] || !p[1] || !p[2]) return tgl;
+  var d = new Date(p[0], p[1] - 1, p[2] + n);
+  return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+}
+
 /** Validasi & konversi integer ≥0 (uang/jumlah). Tolak pecahan — aturan uang integer. */
 function _int_(v, nama) {
   var n = Number(v);

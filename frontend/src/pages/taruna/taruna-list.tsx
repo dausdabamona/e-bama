@@ -62,6 +62,7 @@ export function HalamanTarunaList() {
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-xl font-bold text-primary-dark">Data Taruna</h1>
           <div className="flex gap-2">
+            <Link to="/taruna/rekap-harian"><Button varian="garis">📋 Rekap Harian</Button></Link>
             {bisaUbah && <Link to="/taruna/impor"><Button varian="garis">Impor CSV</Button></Link>}
             {session?.role === 'ADMIN' && (
               <Link to="/taruna/impor-rekening"><Button varian="garis">🔒 Impor Rekening</Button></Link>
