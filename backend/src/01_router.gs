@@ -72,6 +72,8 @@ var ACTION_MAP = {
   'realisasi.ttd':    { handler: realisasiTtd,   roles: ['PEMBINA', 'SENAT'] },
   // Ownership Taruna Fitur 1b/2b — baca kebijakan piket + standar gizi
   'realisasi.kebijakan_piket': { handler: realisasiKebijakanPiket, roles: [] },
+  // Penerimaan Barang Senat — checklist per waktu makan × komponen, BUKAN Penyedia
+  'realisasi.penerimaan': { handler: realisasiPenerimaan, roles: ['SENAT', 'PEMBINA', 'ADMIN'] },
 
   // Rekap bulanan (TAHAP 3 + gerbang Wadir 3)
   // SENAT/PEMBINA baca saja (halaman /rekap-ringkas, tanpa nominal di frontend)

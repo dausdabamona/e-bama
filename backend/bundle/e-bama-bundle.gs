@@ -479,6 +479,8 @@ var ACTION_MAP = {
   'realisasi.ttd':    { handler: realisasiTtd,   roles: ['PEMBINA', 'SENAT'] },
   // Ownership Taruna Fitur 1b/2b — baca kebijakan piket + standar gizi
   'realisasi.kebijakan_piket': { handler: realisasiKebijakanPiket, roles: [] },
+  // Penerimaan Barang Senat — checklist per waktu makan × komponen, BUKAN Penyedia
+  'realisasi.penerimaan': { handler: realisasiPenerimaan, roles: ['SENAT', 'PEMBINA', 'ADMIN'] },
 
   // Rekap bulanan (TAHAP 3 + gerbang Wadir 3)
   // SENAT/PEMBINA baca saja (halaman /rekap-ringkas, tanpa nominal di frontend)
@@ -2075,7 +2077,8 @@ function pesananRevisi(payload, session) {
  * ACTION: realisasi.list (semua login),
  *         realisasi.create (Pembina, Senat),
  *         realisasi.ttd (Pembina, Senat — konfirmasi PIN),
- *         realisasi.kebijakan_piket (semua login — baca kebijakan piket & standar gizi)
+ *         realisasi.kebijakan_piket (semua login — baca kebijakan piket & standar gizi),
+ *         realisasi.penerimaan (Senat, Pembina, Admin — checklist Penerimaan Barang Senat)
  *
  * Pesanan wajib TERKIRIM. Foto → LAMPIRAN ref_type=REALISASI jenis=FOTO.
  * Kedua ttd terisi → otomatis rekapUpdate(tanggal).
@@ -2086,6 +2089,12 @@ function pesananRevisi(payload, session) {
  * sisi taruna piket, TIDAK mengubah ttd Pembina/Senat/foto/geotag di atas.
  * Piket diisi lewat perangkat bersama Pembina/Senat, TANPA akun/login taruna
  * sendiri — NIT divalidasi ke roster TARUNA (dikonfirmasi Firdaus).
+ *
+ * Penerimaan Barang Senat: realisasi.penerimaan menyimpan checklist
+ * kelengkapan+jumlah komponen menu NYATA per waktu makan (kolom `penerimaan`,
+ * JSON) — TERPISAH dari checklist piket (beda momen: serah-terima vs makan;
+ * beda konsep: item menu vs kategori gizi). Decouple dari realisasi.ttd —
+ * bisa diisi kapan saja setelah baris REALISASI ada, tidak menunggu ttd.
  */
 
 /** Ambil realisasi by id atau error. */
@@ -2102,6 +2111,59 @@ function _realisasi_(id) {
  */
 function realisasiKebijakanPiket(payload, session) {
   return { wajib: getKebijakanPiket().wajib, komponen_gizi: getKebijakanGizi().komponen };
+}
+
+var _WAKTU_MAKAN_ = ['pagi', 'siang', 'malam'];
+
+/**
+ * Validasi & normalisasi struktur `penerimaan` → {pagi,siang,malam:
+ * [{komponen,ada,jumlah}]}. `komponen` WAJIB ada di getKebijakanKomponenMenu()
+ * (00_config.gs); `jumlah` bilangan bulat ≥ 0; kunci waktu di luar
+ * pagi/siang/malam ditolak (cegah typo diam-diam kehilangan data).
+ */
+function _validasiPenerimaan_(input) {
+  if (!input || typeof input !== 'object') throw _fail_('penerimaan wajib berupa objek {pagi, siang, malam}.');
+  Object.keys(input).forEach(function (k) {
+    if (_WAKTU_MAKAN_.indexOf(k) < 0) throw _fail_('Waktu makan tidak dikenal: ' + k + ' (harus pagi/siang/malam).');
+  });
+
+  var komponenValid = getKebijakanKomponenMenu().komponen;
+  var hasil = {};
+  _WAKTU_MAKAN_.forEach(function (waktu) {
+    var baris = Array.isArray(input[waktu]) ? input[waktu] : [];
+    hasil[waktu] = baris.map(function (b) {
+      var komponen = String((b && b.komponen) || '');
+      if (komponenValid.indexOf(komponen) < 0) throw _fail_('Komponen tidak dikenal (' + waktu + '): ' + komponen);
+      var jumlah = _int_((b && b.jumlah) || 0, 'jumlah (' + waktu + ' ' + komponen + ')');
+      return { komponen: komponen, ada: Boolean(b && b.ada), jumlah: jumlah };
+    });
+  });
+  return hasil;
+}
+
+/**
+ * Simpan checklist Penerimaan Barang Senat. Payload {real_id? , pesanan_id?,
+ * penerimaan}. Realisasi TERKAIT harus SUDAH ADA (dibuat via realisasi.create)
+ * — dicari via real_id bila diberikan, kalau tidak via pesanan_id. TERPISAH
+ * dari realisasi.ttd (decouple — boleh diisi Senat kapan saja setelah baris
+ * REALISASI ada, sebelum ATAU sesudah ttd, tanpa menunggu jml_taruna_makan
+ * "final"). Role SENAT (utama)/PEMBINA/ADMIN.
+ */
+function realisasiPenerimaan(payload, session) {
+  var r;
+  if (payload && payload.real_id) {
+    r = _realisasi_(payload.real_id);
+  } else if (payload && payload.pesanan_id) {
+    r = sheetRead(SHEETS.REALISASI, function (x) { return String(x.pesanan_id) === String(payload.pesanan_id); })[0];
+    if (!r) throw _fail_('Realisasi untuk pesanan ini belum dibuat — buat realisasi.create dulu.');
+  } else {
+    throw _fail_('real_id atau pesanan_id wajib diisi.');
+  }
+
+  var penerimaan = _validasiPenerimaan_(payload && payload.penerimaan);
+  sheetUpdate(SHEETS.REALISASI, 'real_id', r.real_id, { penerimaan: JSON.stringify(penerimaan) });
+  auditLog(session, 'realisasi.penerimaan', 'REALISASI', r.real_id, null, { penerimaan: penerimaan });
+  return { real_id: r.real_id, penerimaan: penerimaan };
 }
 
 /** Daftar realisasi, filter {bulan?}. */
