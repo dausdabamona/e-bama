@@ -1,4 +1,8 @@
-// Ambil foto dari kamera & kompres via canvas ke maksimal ~200KB.
+// Ambil foto DARI KAMERA (bukan galeri) & kompres via canvas ke maksimal ~200KB.
+// `capture='environment'` memaksa browser mobile membuka kamera langsung —
+// mencegah unggah foto lama/rekayasa dari galeri (kontrol pengganti Fitur D:
+// pesanan auto-terkirim melewati verifikasi Pembina-lain, jadi bukti foto
+// REALISASI harus benar-benar diambil saat itu juga).
 export function ambilFotoInput(): Promise<File | null> {
   return new Promise((resolve) => {
     const input = document.createElement('input');
@@ -10,8 +14,33 @@ export function ambilFotoInput(): Promise<File | null> {
   });
 }
 
-/** Kompres file gambar ke base64 JPEG, target ukuran ≤ maksKB (default 200KB). */
-export async function kompresFotoBase64(file: File, maksKB = 200): Promise<string> {
+/**
+ * Bakar watermark (baris teks) ke pojok kiri-bawah kanvas — pita gelap
+ * semi-transparan + teks putih, ukuran font mengikuti lebar gambar supaya
+ * tetap terbaca di berbagai resolusi kamera.
+ */
+function bakarWatermark(ctx: CanvasRenderingContext2D, lebar: number, tinggi: number, baris: string[]): void {
+  if (!baris.length) return;
+  const ukuranFont = Math.max(14, Math.round(lebar / 32));
+  ctx.font = `${ukuranFont}px sans-serif`;
+  ctx.textBaseline = 'bottom';
+  const tinggiBaris = ukuranFont * 1.35;
+  const tinggiBlok = tinggiBaris * baris.length + 10;
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(0, tinggi - tinggiBlok, lebar, tinggiBlok);
+  ctx.fillStyle = '#ffffff';
+  baris.forEach((teks, i) => {
+    ctx.fillText(teks, 10, tinggi - 8 - (baris.length - 1 - i) * tinggiBaris);
+  });
+}
+
+/**
+ * Kompres file gambar ke base64 JPEG, target ukuran ≤ maksKB (default 200KB).
+ * `watermarkLines` (opsional) dibakar ke gambar SEBELUM kompresi — dipakai
+ * untuk tag tanggal-jam + koordinat (realisasi-form.tsx) supaya melekat
+ * permanen di file, bukan metadata terpisah yang gampang lepas/dihapus.
+ */
+export async function kompresFotoBase64(file: File, maksKB = 200, watermarkLines: string[] = []): Promise<string> {
   const bitmap = await createImageBitmap(file);
   let lebar = bitmap.width;
   let tinggi = bitmap.height;
@@ -27,6 +56,7 @@ export async function kompresFotoBase64(file: File, maksKB = 200): Promise<strin
   canvas.height = tinggi;
   const ctx = canvas.getContext('2d')!;
   ctx.drawImage(bitmap, 0, 0, lebar, tinggi);
+  bakarWatermark(ctx, lebar, tinggi, watermarkLines);
 
   let kualitas = 0.85;
   let dataUrl = canvas.toDataURL('image/jpeg', kualitas);

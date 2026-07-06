@@ -25,6 +25,8 @@ export function HalamanRealisasiBuat() {
   const [galatGeo, setGalatGeo] = useState('');
   const [fotoNama, setFotoNama] = useState('');
   const [fotoBase64, setFotoBase64] = useState('');
+  const [fotoWideNama, setFotoWideNama] = useState('');
+  const [fotoWideBase64, setFotoWideBase64] = useState('');
   const [proses, setProses] = useState(false);
   const [galat, setGalat] = useState('');
 
@@ -37,18 +39,33 @@ export function HalamanRealisasiBuat() {
     }
   }
 
-  async function pilihFoto() {
+  const lat = geo?.lat ?? Number(geoManualLat);
+  const lng = geo?.lng ?? Number(geoManualLng);
+  const geoSiap = isFinite(lat) && isFinite(lng);
+
+  /**
+   * Baris watermark (tanggal-jam + koordinat) dibakar ke foto SEBELUM
+   * kompresi (Fitur E) — melekat permanen di file, bukan metadata terpisah
+   * yang gampang lepas. Butuh geotag lebih dulu supaya koordinat akurat.
+   */
+  function barisWatermark(): string[] {
+    const kini = new Date();
+    const tgl = kini.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+    const jam = kini.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    return [`${tgl} ${jam} WIT`, `${lat.toFixed(6)}, ${lng.toFixed(6)}`];
+  }
+
+  async function pilihFoto(jenis: 'closeup' | 'wide') {
     const file = await ambilFotoInput();
     if (!file) return;
-    setFotoNama(file.name);
-    setFotoBase64(await kompresFotoBase64(file));
+    const base64 = await kompresFotoBase64(file, 200, barisWatermark());
+    if (jenis === 'closeup') { setFotoNama(file.name); setFotoBase64(base64); }
+    else { setFotoWideNama(file.name); setFotoWideBase64(base64); }
   }
 
   async function simpan() {
-    const lat = geo?.lat ?? Number(geoManualLat);
-    const lng = geo?.lng ?? Number(geoManualLng);
     if (!porsi || !jmlMakan) { setGalat('Porsi diterima dan jumlah taruna makan wajib diisi.'); return; }
-    if (!isFinite(lat) || !isFinite(lng)) { setGalat('Geotag wajib diisi (otomatis atau manual).'); return; }
+    if (!geoSiap) { setGalat('Geotag wajib diisi (otomatis atau manual).'); return; }
 
     setProses(true);
     setGalat('');
@@ -60,7 +77,8 @@ export function HalamanRealisasiBuat() {
         ketidaksesuaian, tindak_lanjut: tindakLanjut,
         geotag_lat: lat, geotag_lng: lng
       };
-      if (fotoBase64) payload.berkas = { base64: fotoBase64, nama_file: fotoNama || 'realisasi.jpg' };
+      if (fotoBase64) payload.berkas = { base64: fotoBase64, nama_file: fotoNama || 'realisasi-closeup.jpg' };
+      if (fotoWideBase64) payload.berkas_wide = { base64: fotoWideBase64, nama_file: fotoWideNama || 'realisasi-wide.jpg' };
 
       const r = await aksiTulis<{ realisasi: Realisasi }>('realisasi.create', payload);
       if (r.antri) {
@@ -106,9 +124,21 @@ export function HalamanRealisasiBuat() {
           )}
         </div>
 
-        <Button varian="garis" onClick={() => void pilihFoto()}>
-          {fotoNama ? `📎 ${fotoNama}` : '📷 Ambil Foto Dokumentasi'}
-        </Button>
+        {/* Dua foto (Fitur E): close-up (kualitas makanan) + wide-shot (kuantitas
+            porsi). Watermark tanggal-jam+koordinat dibakar ke keduanya — butuh
+            geotag lebih dulu supaya koordinat yang tertera akurat. Kamera-only
+            (bukan galeri) via ambilFotoInput — cegah unggah foto lama/rekayasa. */}
+        <div className="flex flex-col gap-2">
+          <Button varian="garis" onClick={() => void pilihFoto('closeup')} disabled={!geoSiap}>
+            {fotoNama ? `📎 Close-up: ${fotoNama}` : '📷 Ambil Foto Close-up (kualitas)'}
+          </Button>
+          <Button varian="garis" onClick={() => void pilihFoto('wide')} disabled={!geoSiap}>
+            {fotoWideNama ? `📎 Wide-shot: ${fotoWideNama}` : '📷 Ambil Foto Wide-shot (kuantitas porsi)'}
+          </Button>
+          {!geoSiap && (
+            <p className="text-xs text-gray-400">Ambil/isi lokasi (geotag) dulu sebelum memotret — watermark butuh koordinat.</p>
+          )}
+        </div>
 
         {galat && <p className="text-sm text-red-600">{galat}</p>}
         <Button onClick={() => void simpan()} disabled={proses}>

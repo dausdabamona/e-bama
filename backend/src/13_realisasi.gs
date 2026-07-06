@@ -60,9 +60,17 @@ function realisasiCreate(payload, session) {
   };
   sheetAppend(SHEETS.REALISASI, obj);
 
+  // Foto close-up (kualitas) — dipertahankan sebagai `berkas` demi kompatibel
+  // dengan payload lama. Foto wide-shot (kuantitas porsi, Fitur E) opsional
+  // di `berkas_wide` — baris LAMPIRAN kedua, TIDAK perlu kolom/skema baru
+  // (LAMPIRAN memang sudah mendukung banyak baris per ref_id).
   if (payload.berkas && payload.berkas.base64) {
     lampiranSave(session, 'REALISASI', obj.real_id, 'FOTO',
-      payload.berkas.base64, payload.berkas.nama_file || (obj.real_id + '.jpg'));
+      payload.berkas.base64, payload.berkas.nama_file || (obj.real_id + '-closeup.jpg'));
+  }
+  if (payload.berkas_wide && payload.berkas_wide.base64) {
+    lampiranSave(session, 'REALISASI', obj.real_id, 'FOTO',
+      payload.berkas_wide.base64, payload.berkas_wide.nama_file || (obj.real_id + '-wide.jpg'));
   }
   auditLog(session, 'realisasi.create', 'REALISASI', obj.real_id, null, {
     pesanan_id: p.pesanan_id, tanggal: obj.tanggal,
