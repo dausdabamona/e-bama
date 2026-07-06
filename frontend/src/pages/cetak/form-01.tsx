@@ -39,7 +39,7 @@ export function HalamanCetakForm01() {
   const { data, memuat, galat, refresh } = useListCache<Form01Data>('cetak.form01', { tgl_makan: tgl });
 
   const kontrak = data?.kontrak ?? null;
-  const totalBiaya = data && kontrak ? data.pesanan.jml_taruna * kontrak.harga_per_hari_efektif : 0;
+  const totalBiaya = data && kontrak ? data.pesanan.jml_taruna * (kontrak.harga_per_hari_efektif ?? 0) : 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -93,7 +93,7 @@ export function HalamanCetakForm01() {
                 <SelCetak>Total Porsi Harian</SelCetak>
                 <SelCetak>{data.pesanan.jml_taruna}</SelCetak>
                 <SelCetak>{kontrak ? kontrak.porsi_per_hari : '-'}</SelCetak>
-                <SelCetak>{kontrak ? formatRupiah(kontrak.harga_per_hari_efektif) : '-'}</SelCetak>
+                <SelCetak>{kontrak ? formatRupiah(kontrak.harga_per_hari_efektif ?? 0) : '-'}</SelCetak>
                 <SelCetak>{formatRupiah(totalBiaya)}</SelCetak>
               </BarisCetak>
             </TabelCetak>

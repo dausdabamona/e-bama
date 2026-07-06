@@ -67,7 +67,7 @@ export function HalamanKontrak() {
               <div>
                 <p className="font-semibold">{namaPenyedia.get(k.penyedia_id) ?? k.penyedia_id}</p>
                 <p className="text-sm text-gray-500">
-                  {formatRupiah(k.harga_per_hari_efektif ?? k.harga_per_hari)}/hari · {k.porsi_per_hari}× sehari
+                  {formatRupiah(k.harga_per_hari_efektif ?? k.harga_per_hari ?? 0)}/hari · {k.porsi_per_hari}× sehari
                 </p>
                 <p className="text-xs text-gray-400">{k.tgl_mulai} s.d. {k.tgl_akhir}</p>
                 {k.no_kontrak && (

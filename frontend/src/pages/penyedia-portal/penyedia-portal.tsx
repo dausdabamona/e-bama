@@ -87,7 +87,7 @@ export function HalamanPenyediaPortal() {
               <div className="flex gap-4 text-sm">
                 <div>
                   <p className="text-xs text-gray-400">Harga/hari</p>
-                  <p className="font-semibold">{formatRupiah(k.harga_per_hari_efektif)}</p>
+                  <p className="font-semibold">{formatRupiah(k.harga_per_hari_efektif ?? 0)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-400">Porsi/hari</p>

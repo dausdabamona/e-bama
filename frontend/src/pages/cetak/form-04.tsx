@@ -58,7 +58,7 @@ export function HalamanCetakForm04() {
             {data.kontrak_ringkas.map((k) => (
               <div key={k.kontrak_id} className="flex justify-between border-b border-gray-100 py-1 text-xs">
                 <span className="text-gray-500 print:text-black">Kontrak {k.kontrak_id} — {k.penyedia_nama || '-'}</span>
-                <span className="font-medium">{formatRupiah(k.harga_per_hari_efektif)}/hari</span>
+                <span className="font-medium">{formatRupiah(k.harga_per_hari_efektif ?? 0)}/hari</span>
               </div>
             ))}
           </Card>

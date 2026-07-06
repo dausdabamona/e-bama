@@ -87,7 +87,7 @@ export function HalamanLaporanResmi() {
   const kontrak = data?.kontrak ?? null;
   const rencanaBiaya = rencanaBiayaOrangHari
     ? Number(rencanaBiayaOrangHari)
-    : (kontrak ? kontrak.harga_per_hari_efektif : 0);
+    : (kontrak ? (kontrak.harga_per_hari_efektif ?? 0) : 0);
   const totalRencana = rencanaHariEfektif && rencanaPenerima
     ? Math.round(Number(rencanaHariEfektif) * Number(rencanaPenerima) * rencanaBiaya) : 0;
 
@@ -154,8 +154,8 @@ export function HalamanLaporanResmi() {
               onChange={setRencanaPenerima} placeholder={String(data.jml_taruna_aktif)} keterangan={`Auto: ${data.jml_taruna_aktif} taruna AKTIF`} />
             <TabelManual label="Rencana Hari Efektif Pemberian Makan" value={rencanaHariEfektif} onChange={setRencanaHariEfektif} />
             <TabelManual label="Rencana Biaya per Orang per Hari (Rp)" value={rencanaBiayaOrangHari} onChange={setRencanaBiayaOrangHari}
-              placeholder={kontrak ? String(kontrak.harga_per_hari_efektif) : ''}
-              keterangan={kontrak ? `Auto dari kontrak: ${formatRupiah(kontrak.harga_per_hari_efektif)}/hari` : 'Belum ada kontrak aktif'} />
+              placeholder={kontrak ? String(kontrak.harga_per_hari_efektif ?? 0) : ''}
+              keterangan={kontrak ? `Auto dari kontrak: ${formatRupiah(kontrak.harga_per_hari_efektif ?? 0)}/hari` : 'Belum ada kontrak aktif'} />
             <div className="flex justify-between border-b border-gray-100 py-1 text-xs">
               <span className="text-gray-500 print:text-black">Total Rencana Kebutuhan Bulanan</span>
               <span className="font-semibold">{totalRencana ? formatRupiah(totalRencana) : '…'}</span>
@@ -234,7 +234,7 @@ export function HalamanLaporanResmi() {
                 </tr>
                 <tr className="border-b border-gray-100">
                   <td className="py-1 pr-2">Standar Biaya per Hari</td>
-                  <td className="py-1 pr-2 text-right">{kontrak ? formatRupiah(kontrak.harga_per_hari_efektif) : '-'}</td>
+                  <td className="py-1 pr-2 text-right">{kontrak ? formatRupiah(kontrak.harga_per_hari_efektif ?? 0) : '-'}</td>
                   <td className="py-1 text-right">…</td>
                 </tr>
                 <tr className="font-bold">
@@ -268,7 +268,7 @@ export function HalamanLaporanResmi() {
             <p className="mb-1 mt-3 text-xs font-semibold text-gray-500 print:text-black">C.1 Penggunaan Bantuan di Dalam Kampus (otomatis)</p>
             <TabelAuto label="Jumlah taruna yang didebit" nilai={`${data.penerima.length} Orang`} />
             <TabelAuto label="Jumlah hari pendebetan" nilai={`${data.jml_hari_efektif} Hari`} />
-            <TabelAuto label="Besaran pendebetan per hari" nilai={kontrak ? formatRupiah(kontrak.harga_per_hari_efektif) : '-'} />
+            <TabelAuto label="Besaran pendebetan per hari" nilai={kontrak ? formatRupiah(kontrak.harga_per_hari_efektif ?? 0) : '-'} />
             <TabelAuto label="Total dana masuk ke rekening Senat Taruna" nilai={formatRupiah(data.total_nominal)} />
             <TabelAuto label="Jumlah porsi makan yang dipesan" nilai={`${data.porsi_dipesan} Porsi`} />
             <TabelAuto label="Jumlah porsi makan yang terealisasi" nilai={`${data.porsi_terealisasi} Porsi`} />

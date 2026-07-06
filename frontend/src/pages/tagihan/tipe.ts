@@ -25,5 +25,5 @@ export interface SuratPeringatan {
 }
 
 export function formatRupiah(n: number): string {
-  return 'Rp' + n.toLocaleString('id-ID');
+  return 'Rp' + (Number.isFinite(n) ? n : 0).toLocaleString('id-ID');
 }
