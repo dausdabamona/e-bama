@@ -501,6 +501,23 @@ SPANExt per-taruna, terdeteksi otomatis dari header di frontend). Impor
 yang sudah ada TIDAK diproses ulang (dikonfirmasi Firdaus: cek bulanan
 cukup untuk penambahan, bukan mengulang proses seluruh riwayat).
 
+**Dedup ganda (kunci `no_spm` + kunci `nit`+`no_sp2d`):** untuk format
+per-taruna (SPANExt), `no_spm` disintesis dari teks referensi/nama
+penerima — dua ekspor dari transaksi SP2D yang SAMA bisa menghasilkan
+`no_spm` yang sedikit berbeda (variasi ejaan/spasi nama), lolos dari cek
+`no_spm` dan menggandakan baris. Sejak diperkeras, impor JUGA menolak
+baris baru bila kombinasi `nit`+`no_sp2d` sudah ada (dicek pula dalam satu
+batch impor yang sama), tanpa mengubah kunci utama `no_spm`.
+
+**Bersih-bersih data dobel yang sudah terlanjur masuk** (`sp2d.cek_dobel`
+baca-saja lalu `sp2d.hapus_dobel`, role PPK/ADMIN, `23_sp2d.gs`): mencari
+kelompok baris ber-`nit`+`no_sp2d` sama (≥2 baris), menyisakan baris
+pertama, menghapus sisanya lewat `sheetDeleteRows` (`03_helpers.gs`) —
+**satu-satunya penghapusan baris data di seluruh backend**, dipakai
+HATI-HATI. Tiap baris yang dihapus tetap dicatat penuh di `AUDIT_LOG`
+(`data_lama` = snapshot baris, `data_baru` = null) sebagai jejak forensik
+meski barisnya sudah tidak ada di sheet.
+
 **Rekonsiliasi (`sp2d.rekonsiliasi`, role PPK/KPA/WADIR3/ADMIN, baca saja):**
 digabung ke halaman Laporan Bulanan yang sudah ada — payload `{bulan}`,
 mengembalikan perbandingan per kelompok (`dalam_kampus`/`luar_kampus`,

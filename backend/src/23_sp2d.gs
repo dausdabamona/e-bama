@@ -150,11 +150,30 @@ function _kunciNoSpm_(s) {
 }
 
 /**
+ * Kunci dedup tambahan per (nit, no_sp2d) — lebih tahan dobel daripada `no_spm`
+ * saja. `no_spm` baris SPANExt sering disintesis dari nama penerima (lihat
+ * `validasiBarisPerTaruna` frontend) yang bisa berbeda ejaan/spasi antar
+ * ekspor OM-SPAN untuk TRANSAKSI YANG SAMA — lolos dari deteksi `no_spm` dan
+ * masuk sebagai baris dobel (nominal taruna itu ikut terhitung dua kali di
+ * rekonsiliasi). Kunci ini HANYA berlaku bila `nit` & `no_sp2d` sama-sama
+ * terisi (baris agregat tanpa nit, atau SP2D belum terbit, tak diperiksa —
+ * tak ada dasar deteksi dobel yang aman untuk itu).
+ */
+function _kunciNitSp2d_(nit, noSp2d) {
+  var n = String(nit || '').trim(), s = String(noSp2d || '').trim();
+  return (n && s) ? (n + '|' + s) : '';
+}
+
+/**
  * sp2d.import {kategori, baris:[{no_spm, nit?, tgl_spm?, no_sp2d?, tgl_sp2d?,
  * jumlah_pembayaran, status_sp2d?, uraian_asli}]} — HANYA MENAMBAH baris
  * dengan no_spm yang belum pernah ada (dikonfirmasi Firdaus: cek impor bulanan
  * hanya untuk penambahan, bukan mengulang proses semua riwayat). `nit` opsional
  * — terisi untuk format per-taruna (SPANExt), kosong untuk format agregat lama.
+ * Dedup GANDA: `no_spm` (kunci utama) DAN `(nit, no_sp2d)` (kunci tambahan,
+ * lihat `_kunciNitSp2d_`) — mencegah taruna yang sama & SP2D yang sama masuk
+ * dua kali walau `no_spm` hasil sintesis kebetulan berbeda (impor ulang file
+ * yang sama/mirip). Diperiksa juga ANTAR baris dalam satu batch impor.
  */
 function sp2dImport(payload, session) {
   var kategori = payload && payload.kategori;
@@ -164,7 +183,12 @@ function sp2dImport(payload, session) {
 
   return withLock(function () {
     var adaNoSpm = {};
-    sheetRead(SHEETS.SP2D_MONITORING).forEach(function (r) { adaNoSpm[_kunciNoSpm_(r.no_spm)] = true; });
+    var adaNitSp2d = {};
+    sheetRead(SHEETS.SP2D_MONITORING).forEach(function (r) {
+      adaNoSpm[_kunciNoSpm_(r.no_spm)] = true;
+      var kNit = _kunciNitSp2d_(r.nit, r.no_sp2d);
+      if (kNit) adaNitSp2d[kNit] = true;
+    });
     var tarunaValid = {};
     sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaValid[String(t.nit)] = true; });
 
@@ -173,9 +197,13 @@ function sp2dImport(payload, session) {
     baris.forEach(function (b) {
       var noSpm = String((b && b.no_spm) || '').trim();
       if (!noSpm) throw _fail_('no_spm wajib diisi pada setiap baris.');
-      if (adaNoSpm[_kunciNoSpm_(noSpm)]) { dilewati++; return; } // sudah pernah masuk — lewati (hanya penambahan)
-
       var nit = (b && b.nit) ? String(b.nit).trim() : '';
+      var noSp2dMentah = (b.no_sp2d && b.no_sp2d !== '-') ? String(b.no_sp2d) : '';
+      var kunciNit = _kunciNitSp2d_(nit, noSp2dMentah);
+      if (adaNoSpm[_kunciNoSpm_(noSpm)] || (kunciNit && adaNitSp2d[kunciNit])) {
+        dilewati++; return; // sudah pernah masuk (no_spm ATAU nit+no_sp2d sama) — lewati
+      }
+
       var uraian = String((b && b.uraian_asli) || '');
       var hasil = nit
         ? _parseBarisPerTaruna_(nit, uraian, kategori, tarunaValid)
@@ -190,13 +218,14 @@ function sp2dImport(payload, session) {
         jumlah_orang: hasil.jumlah_orang !== null ? hasil.jumlah_orang : '',
         jumlah_pembayaran: _int_(b.jumlah_pembayaran, 'jumlah_pembayaran'),
         tgl_spm: (b.tgl_spm && b.tgl_spm !== '-') ? b.tgl_spm : '',
-        no_sp2d: (b.no_sp2d && b.no_sp2d !== '-') ? String(b.no_sp2d) : '',
+        no_sp2d: noSp2dMentah,
         tgl_sp2d: (b.tgl_sp2d && b.tgl_sp2d !== '-') ? b.tgl_sp2d : '',
         status_sp2d: (b.status_sp2d && b.status_sp2d !== '-') ? String(b.status_sp2d) : '',
         uraian_asli: uraian,
         perlu_cek_manual: (hasil.gagal || salahKategori) ? 'YA' : ''
       });
       adaNoSpm[_kunciNoSpm_(noSpm)] = true;
+      if (kunciNit) adaNitSp2d[kunciNit] = true;
       ditambah++;
       if (kategori === 'DALAM_KAMPUS' && !hasil.gagal && !salahKategori && hasil.bulan) bulanDalamKampusTersentuh[hasil.bulan] = true;
     });
@@ -525,6 +554,89 @@ function sp2dKoreksi(payload, session) {
     if (!dikoreksi) throw _fail_('Tidak ada baris SP2D yang cocok: ' + daftar.join(', '));
     return { dikoreksi: dikoreksi, tak_ketemu: takKetemu };
   });
+}
+
+/**
+ * Kelompokkan baris SP2D_MONITORING bulan tsb yang dobel: nit & no_sp2d SAMA
+ * muncul >1 kali (baris `no_spm` disintesis beda ejaan nama saat impor ulang
+ * — lihat catatan `sp2dImport` — lolos dari dedup lama & masuk dua kali,
+ * menggandakan nominal taruna itu di rekonsiliasi). Baris agregat (tanpa nit)
+ * atau SP2D belum terbit (tanpa no_sp2d) TIDAK diperiksa — tak ada dasar
+ * deteksi dobel yang aman untuk itu. Baris PERTAMA (urutan sheet) jadi acuan
+ * yang dipertahankan; sisanya masuk daftar untuk dihapus.
+ */
+function _kelompokDobelSp2d_(bulan) {
+  var tarunaByNit = {};
+  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  var rows = sheetRead(SHEETS.SP2D_MONITORING, function (r) {
+    return _bulanStr_(r.bulan) === bulan && r.nit && r.no_sp2d;
+  });
+  var kelompok = {};
+  rows.forEach(function (r) {
+    var k = String(r.nit) + '|' + String(r.no_sp2d).trim();
+    if (!kelompok[k]) kelompok[k] = [];
+    kelompok[k].push(r);
+  });
+  var hasil = [];
+  Object.keys(kelompok).sort().forEach(function (k) {
+    var list = kelompok[k];
+    if (list.length < 2) return;
+    var t = tarunaByNit[String(list[0].nit)] || {};
+    hasil.push({
+      nit: String(list[0].nit), nama: t.nama || '', no_sp2d: String(list[0].no_sp2d),
+      baris: list.map(function (r) {
+        return {
+          no_spm: String(r.no_spm), jumlah_pembayaran: _int_(r.jumlah_pembayaran || 0, 'jumlah_pembayaran'),
+          uraian_asli: String(r.uraian_asli || ''), perlu_cek_manual: String(r.perlu_cek_manual || '')
+        };
+      }),
+      no_spm_dipertahankan: String(list[0].no_spm),
+      no_spm_dihapus: list.slice(1).map(function (r) { return String(r.no_spm); })
+    });
+  });
+  return hasil;
+}
+
+/**
+ * sp2d.cek_dobel {bulan} — deteksi baris SP2D_MONITORING dobel bulan itu
+ * (nit + no_sp2d sama, lihat `_kelompokDobelSp2d_`). READ-ONLY, tanpa
+ * mengubah data — dipakai UI untuk pratinjau sebelum `sp2d.hapus_dobel`.
+ * Role PPK/ADMIN.
+ */
+function sp2dCekDobel(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  var kelompok = _kelompokDobelSp2d_(bulan);
+  var jmlBarisDihapus = 0;
+  kelompok.forEach(function (k) { jmlBarisDihapus += k.no_spm_dihapus.length; });
+  return { bulan: bulan, kelompok: kelompok, jml_kelompok: kelompok.length, jml_baris_dihapus: jmlBarisDihapus };
+}
+
+/**
+ * sp2d.hapus_dobel {bulan} — hapus baris SP2D_MONITORING dobel bulan itu
+ * (kelompok sama seperti `sp2d.cek_dobel`, dihitung ULANG di sini — bukan
+ * percaya daftar dari frontend — supaya konsisten & aman dari race condition).
+ * Baris PERTAMA per kelompok (nit+no_sp2d) dipertahankan, sisanya DIHAPUS
+ * (satu-satunya penghapusan baris data di codebase ini, lihat `sheetDeleteRows`
+ * 03_helpers.gs). 1 AUDIT_LOG per baris dihapus (data_lama = seluruh isi baris,
+ * data_baru = null). TIDAK menyentuh REKAP_BULANAN/PEMBAYARAN — rekonsiliasi
+ * otomatis menyesuaikan (nominal taruna itu turun) saat dibaca ulang. Role
+ * PPK/ADMIN.
+ */
+function sp2dHapusDobel(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  var kelompok = _kelompokDobelSp2d_(bulan);
+  var noSpmHapus = [];
+  kelompok.forEach(function (k) { noSpmHapus = noSpmHapus.concat(k.no_spm_dihapus); });
+  if (!noSpmHapus.length) return { dihapus: 0, kelompok_dobel: [] };
+
+  var dihapus = sheetDeleteRows(SHEETS.SP2D_MONITORING, 'no_spm', noSpmHapus);
+  dihapus.forEach(function (r) {
+    auditLog(session, 'sp2d.hapus_dobel', 'SP2D_MONITORING', String(r.no_spm), r, null);
+  });
+  var ringkasan = kelompok.map(function (k) {
+    return { nit: k.nit, nama: k.nama, no_sp2d: k.no_sp2d, jumlah_dihapus: k.no_spm_dihapus.length };
+  });
+  return { dihapus: dihapus.length, kelompok_dobel: ringkasan };
 }
 
 /**

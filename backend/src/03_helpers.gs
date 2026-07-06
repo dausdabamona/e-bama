@@ -99,6 +99,40 @@ function sheetUpdate(name, keyCol, keyVal, patch) {
   });
 }
 
+/**
+ * Hapus baris-baris yang nilai keyCol-nya termasuk dalam keyVals (dibungkus
+ * withLock). Kembalikan array objek baris yang DIHAPUS (untuk AUDIT_LOG
+ * pemanggil — sheetDeleteRows sendiri TIDAK mencatat audit, supaya pemanggil
+ * bebas menentukan detail aksi/ref_id per baris). Satu-satunya penghapusan
+ * baris data di codebase ini (semua "koreksi" lain hanya sheetUpdate in-place)
+ * — dipakai HATI-HATI, hanya untuk kasus dobel yang benar-benar keliru
+ * (lihat sp2dHapusDobel, 23_sp2d.gs). Hapus dari baris TERBAWAH ke ATAS supaya
+ * indeks baris yang belum diproses tidak bergeser.
+ */
+function sheetDeleteRows(name, keyCol, keyVals) {
+  var set = {};
+  (keyVals || []).forEach(function (v) { set[String(v)] = true; });
+  return withLock(function () {
+    var sh = _sheet_(name);
+    var last = sh.getLastRow();
+    var lastCol = sh.getLastColumn();
+    var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    var keyIdx = headers.indexOf(keyCol);
+    if (keyIdx < 0) throw _fail_('Kolom kunci tidak ada: ' + keyCol);
+    if (last < 2) return [];
+    var data = sh.getRange(2, 1, last - 1, lastCol).getValues();
+    var dihapus = [];
+    for (var i = data.length - 1; i >= 0; i--) {
+      if (!set[String(data[i][keyIdx])]) continue;
+      var obj = {};
+      for (var h = 0; h < headers.length; h++) obj[headers[h]] = data[i][h];
+      dihapus.unshift(obj);
+      sh.deleteRow(i + 2);
+    }
+    return dihapus;
+  });
+}
+
 // ── Audit ────────────────────────────────────────────────────────────────────
 
 /** Catat satu baris AUDIT_LOG (append-only). data_lama/data_baru → JSON string. */

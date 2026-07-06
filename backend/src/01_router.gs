@@ -126,6 +126,8 @@ var ACTION_MAP = {
   'sp2d.rekonsiliasi':  { handler: sp2dRekonsiliasi,  roles: ['PPK', 'KPA', 'WADIR3', 'ADMIN'] },
   'sp2d.list':          { handler: sp2dList,          roles: ['PPK', 'ADMIN'] },
   'sp2d.koreksi':       { handler: sp2dKoreksi,       roles: ['PPK', 'ADMIN'] },
+  'sp2d.cek_dobel':     { handler: sp2dCekDobel,      roles: ['PPK', 'ADMIN'] },
+  'sp2d.hapus_dobel':   { handler: sp2dHapusDobel,    roles: ['PPK', 'ADMIN'] },
 
   // Portal Penyedia (rekanan eksternal) — akses SANGAT terbatas, lihat PENYEDIA_ACTIONS
   'penyedia.portal':    { handler: penyediaPortal,    roles: ['PENYEDIA'] }

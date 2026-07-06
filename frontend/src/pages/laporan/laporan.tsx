@@ -38,6 +38,8 @@ interface CrossCheckSp2d {
   selisih_total: number; total_cocok: boolean; orang_cocok: boolean;
 }
 interface PerluCekManual { no_spm: string; kategori: string; jumlah_pembayaran: number; uraian_asli: string }
+interface BarisDobel { no_spm: string; jumlah_pembayaran: number; uraian_asli: string; perlu_cek_manual: string }
+interface KelompokDobel { nit: string; nama: string; no_sp2d: string; baris: BarisDobel[] }
 
 /** Ringkasan selisih cross-check SP2D: apakah rincian masih KURANG atau LEBIH dari agregat. */
 function statusKurangLebih(r: CrossCheckSp2d): string {
@@ -366,6 +368,43 @@ export function HalamanLaporan() {
     { judul: string; noSpm: string[]; kategoriAsal: 'DALAM_KAMPUS' | 'LUAR_KAMPUS' } | null
   >(null);
   const [sembunyikanNolPerTaruna, setSembunyikanNolPerTaruna] = useState(false);
+  const [dobelHasil, setDobelHasil] = useState<
+    { kelompok: KelompokDobel[]; jml_kelompok: number; jml_baris_dihapus: number } | null
+  >(null);
+  const [cekDobelProses, setCekDobelProses] = useState(false);
+  const [hapusDobelProses, setHapusDobelProses] = useState(false);
+
+  async function cekDobel() {
+    setCekDobelProses(true);
+    try {
+      const hasil = await api<{ kelompok: KelompokDobel[]; jml_kelompok: number; jml_baris_dihapus: number }>(
+        'sp2d.cek_dobel', { bulan }
+      );
+      if (hasil.jml_kelompok === 0) {
+        toast('Tidak ada data dobel ditemukan bulan ini.', 'sukses');
+      } else {
+        setDobelHasil(hasil);
+      }
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
+    } finally {
+      setCekDobelProses(false);
+    }
+  }
+
+  async function hapusDobel() {
+    setHapusDobelProses(true);
+    try {
+      const hasil = await api<{ dihapus: number }>('sp2d.hapus_dobel', { bulan });
+      toast(`${hasil.dihapus} baris dobel dihapus.`, 'sukses');
+      setDobelHasil(null);
+      rekonQ.refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
+    } finally {
+      setHapusDobelProses(false);
+    }
+  }
 
   function validasiBarisSp2d(kolomIdx: Record<string, number>, row: string[]): BarisPreviewSp2d {
     const ambil = (k: string) => (kolomIdx[k] !== undefined ? (row[kolomIdx[k]] ?? '').trim() : '');
@@ -674,11 +713,17 @@ export function HalamanLaporan() {
                 </div>
 
                 {(rekonQ.data.dalam_kampus_per_taruna.length > 0 || rekonQ.data.luar_kampus_per_taruna.length > 0) && (
-                  <label className="flex items-center gap-2 text-xs text-gray-500 print:hidden">
-                    <input type="checkbox" className="h-4 w-4" checked={sembunyikanNolPerTaruna}
-                      onChange={(e) => setSembunyikanNolPerTaruna(e.target.checked)} />
-                    Sembunyikan taruna nilai Rp0 (Sistem &amp; SP2D sama-sama kosong) di tabel per Taruna (SPANExt)
-                  </label>
+                  <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
+                    <label className="flex items-center gap-2 text-xs text-gray-500">
+                      <input type="checkbox" className="h-4 w-4" checked={sembunyikanNolPerTaruna}
+                        onChange={(e) => setSembunyikanNolPerTaruna(e.target.checked)} />
+                      Sembunyikan taruna nilai Rp0 (Sistem &amp; SP2D sama-sama kosong) di tabel per Taruna (SPANExt)
+                    </label>
+                    <button className="text-xs text-primary underline disabled:opacity-50" disabled={cekDobelProses}
+                      onClick={() => void cekDobel()}>
+                      {cekDobelProses ? 'Memeriksa…' : '🔁 Cek Data Dobel (NIT + No. SP2D)'}
+                    </button>
+                  </div>
                 )}
 
                 {rekonQ.data.dalam_kampus_per_taruna.length > 0 && (
@@ -838,6 +883,40 @@ export function HalamanLaporan() {
               onClose={() => setKoreksiPerTaruna(null)}
               onSukses={() => { setKoreksiPerTaruna(null); rekonQ.refresh(); }}
             />
+          )}
+
+          {dobelHasil && (
+            <Modal judul={`Data Dobel Ditemukan (${dobelHasil.jml_kelompok} taruna)`} onClose={() => setDobelHasil(null)}>
+              <div className="flex flex-col gap-3">
+                <p className="text-sm text-gray-600">
+                  {dobelHasil.jml_baris_dihapus} baris SP2D_MONITORING akan dihapus — baris
+                  pertama tiap (taruna, No. SP2D) dipertahankan, sisanya dihapus (biasanya
+                  no_spm hasil sintesis beda ejaan nama saat impor ulang). Tercatat di Log Audit.
+                  Rekap &amp; Pembayaran tidak diubah langsung — nominalnya turun otomatis
+                  begitu rekonsiliasi dibaca ulang.
+                </p>
+                <div className="max-h-72 overflow-y-auto rounded-xl border border-gray-100">
+                  {dobelHasil.kelompok.map((k) => (
+                    <div key={`${k.nit}-${k.no_sp2d}`} className="border-b border-gray-100 px-3 py-2 text-sm last:border-0">
+                      <p className="font-medium">{k.nama || k.nit} <span className="text-xs text-gray-400">({k.nit})</span></p>
+                      <p className="text-xs text-gray-500">
+                        No. SP2D {k.no_sp2d} — {k.baris.length} baris, {k.baris.length - 1} akan dihapus
+                      </p>
+                      <ul className="mt-1 flex flex-col gap-0.5 text-xs text-gray-400">
+                        {k.baris.map((b, i) => (
+                          <li key={b.no_spm}>
+                            {i === 0 ? '✅ disimpan' : '🗑️ dihapus'} — {b.no_spm} · {formatRupiah(b.jumlah_pembayaran)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+                <Button onClick={() => void hapusDobel()} disabled={hapusDobelProses}>
+                  {hapusDobelProses ? 'Menghapus…' : `Hapus ${dobelHasil.jml_baris_dihapus} Baris Dobel`}
+                </Button>
+              </div>
+            </Modal>
           )}
 
           {bisaImporSp2d && (
