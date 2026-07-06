@@ -1,13 +1,19 @@
 // /realisasi/baru/:pesananId — form harian realisasi: porsi, ketidaksesuaian, foto, geotag.
-import { useState } from 'react';
+// Realisasi Satu-Ketuk (Fitur "Kurangi Beban Pembina" 2a-2c): jumlah
+// diprefill dari PESANAN.jml_taruna, tombol "Sesuai Pesanan" mengunci nilai
+// tanpa perlu mengetik — happy path jadi konfirmasi+foto saja. Selisih tetap
+// bisa diubah manual (alur lama, tak berubah).
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ambilFotoInput, kompresFotoBase64 } from '../../lib/foto';
 import { ambilGeotag, type Geotag } from '../../lib/geo';
 import { aksiTulis } from '../../lib/sync';
+import { useListCache } from '../../lib/use-list-cache';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
 import { useToast } from '../../components/ui/toast';
+import type { Pesanan } from '../pesanan/tipe';
 import type { Realisasi } from './tipe';
 
 export function HalamanRealisasiBuat() {
@@ -15,10 +21,14 @@ export function HalamanRealisasiBuat() {
   const nav = useNavigate();
   const { toast } = useToast();
 
+  const pesananQ = useListCache<{ pesanan: Pesanan }>('pesanan.get', { pesanan_id: pesananId });
+  const jmlPesanan = pesananQ.data?.pesanan?.jml_taruna ?? null;
+
   const [porsi, setPorsi] = useState('');
   const [jmlMakan, setJmlMakan] = useState('');
   const [ketidaksesuaian, setKetidaksesuaian] = useState('');
   const [tindakLanjut, setTindakLanjut] = useState('');
+  const [ubahManual, setUbahManual] = useState(false);
   const [geo, setGeo] = useState<Geotag | null>(null);
   const [geoManualLat, setGeoManualLat] = useState('');
   const [geoManualLng, setGeoManualLng] = useState('');
@@ -29,6 +39,26 @@ export function HalamanRealisasiBuat() {
   const [fotoWideBase64, setFotoWideBase64] = useState('');
   const [proses, setProses] = useState(false);
   const [galat, setGalat] = useState('');
+
+  // Prefill sekali saat data pesanan datang — TIDAK menimpa kalau Pembina
+  // sudah mengetik sesuatu (mis. setelah refresh cache).
+  useEffect(() => {
+    if (jmlPesanan !== null && !porsi && !jmlMakan) {
+      setPorsi(String(jmlPesanan));
+      setJmlMakan(String(jmlPesanan));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jmlPesanan]);
+
+  function sesuaiPesanan() {
+    if (jmlPesanan === null) return;
+    setPorsi(String(jmlPesanan));
+    setJmlMakan(String(jmlPesanan));
+    setKetidaksesuaian('');
+    setTindakLanjut('');
+    setUbahManual(false);
+    document.getElementById('realisasi-foto')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   async function ambilLokasi() {
     setGalatGeo('');
@@ -101,12 +131,35 @@ export function HalamanRealisasiBuat() {
       <h1 className="text-xl font-bold text-primary-dark">Realisasi Harian</h1>
 
       <Card className="flex flex-col gap-3">
-        <Input label="Porsi Diterima" type="number" value={porsi} onChange={(e) => setPorsi(e.target.value)} />
-        <Input label="Jumlah Taruna Makan" type="number" value={jmlMakan} onChange={(e) => setJmlMakan(e.target.value)} />
-        <Input label="Ketidaksesuaian (kosongkan bila sesuai)" value={ketidaksesuaian} onChange={(e) => setKetidaksesuaian(e.target.value)} />
-        <Input label="Tindak Lanjut" value={tindakLanjut} onChange={(e) => setTindakLanjut(e.target.value)} />
+        {/* Jumlah dipesan ditonjolkan besar/bold (mudah dikonfirmasi di ponsel
+            sambil berdiri) — happy path tinggal ketuk "Sesuai Pesanan". */}
+        <div className="flex flex-col gap-1 rounded-xl bg-primary-light px-3 py-2">
+          <span className="text-xs text-gray-600">Jumlah Dipesan</span>
+          <span className="text-2xl font-bold text-primary-dark">
+            {jmlPesanan !== null ? `${jmlPesanan} taruna` : '…'}
+          </span>
+        </div>
+        <Button onClick={sesuaiPesanan} disabled={jmlPesanan === null}>
+          ✅ Sesuai Pesanan
+        </Button>
+        <button
+          type="button"
+          className="text-left text-xs text-primary underline"
+          onClick={() => setUbahManual((v) => !v)}
+        >
+          {ubahManual ? '▲ Sembunyikan detail' : '⚠️ Ada selisih? Ubah jumlah di sini'}
+        </button>
 
-        <div className="rounded-xl border border-gray-200 p-3">
+        {ubahManual && (
+          <>
+            <Input label="Porsi Diterima" type="number" value={porsi} onChange={(e) => setPorsi(e.target.value)} />
+            <Input label="Jumlah Taruna Makan" type="number" value={jmlMakan} onChange={(e) => setJmlMakan(e.target.value)} />
+            <Input label="Ketidaksesuaian (kosongkan bila sesuai)" value={ketidaksesuaian} onChange={(e) => setKetidaksesuaian(e.target.value)} />
+            <Input label="Tindak Lanjut" value={tindakLanjut} onChange={(e) => setTindakLanjut(e.target.value)} />
+          </>
+        )}
+
+        <div id="realisasi-lanjut" className="rounded-xl border border-gray-200 p-3">
           <p className="mb-2 text-sm font-medium">Lokasi (Geotag)</p>
           {geo ? (
             <p className="text-sm text-green-700">📍 {geo.lat.toFixed(6)}, {geo.lng.toFixed(6)}</p>
