@@ -345,9 +345,10 @@ var ACTION_MAP = {
   // Fitur F: Pembina buat & ajukan sendiri tanpa Senat (satu langkah,
   // langsung TERKIRIM) — lihat catatan lengkap di 12_pesanan.gs.
   'pesanan.pembina_kirim': { handler: pesananPembinaKirim, roles: ['PEMBINA'] },
-  // Verifikasi by-Exception (1c): bulk-approve pesanan rutin sekaligus,
+  // Verifikasi by-Exception (1c/1d): bulk-approve pesanan rutin sekaligus,
   // dipakai saat kebijakan autoLolosRutin=false — lihat 12_pesanan.gs.
   'pesanan.bulk_approve_rutin': { handler: pesananBulkApproveRutin, roles: ['PEMBINA'] },
+  'pesanan.antrian_verifikasi': { handler: pesananAntrianVerifikasi, roles: ['PEMBINA'] },
 
   // Realisasi (TAHAP 3)
   'realisasi.list':   { handler: realisasiList,  roles: [] },
@@ -1576,6 +1577,32 @@ function pesananList(payload, session) {
   });
   rows.forEach(function (r) { r.tgl_makan = _tglStr_(r.tgl_makan); });
   return { pesanan: rows };
+}
+
+/**
+ * Antrian verifikasi Pembina + info anomali per pesanan (1d). Hanya baris
+ * DIAJUKAN. Bila `autoLolosRutin` aktif, antrian ini SECARA ALAMI hanya
+ * berisi pesanan ANOMALI (yang rutin sudah auto-lolos di pesanan.submit) —
+ * bila nonaktif, berisi SEMUA (rutin+anomali) dengan label masing-masing,
+ * dipakai UI utk menampilkan delta vs kemarin & tombol "Setujui semua yang
+ * rutin" (pesanan.bulk_approve_rutin).
+ */
+function pesananAntrianVerifikasi(payload, session) {
+  var kebijakan = getKebijakanVerifikasi();
+  var diajukan = sheetRead(SHEETS.PESANAN, function (r) { return r.status === 'DIAJUKAN'; });
+  var antrian = diajukan.map(function (p) {
+    var a = _pesananAnomali_(p);
+    var salin = {};
+    Object.keys(p).forEach(function (k) { salin[k] = p[k]; });
+    salin.tgl_makan = _tglStr_(p.tgl_makan);
+    salin.anomali = a.anomali;
+    salin.label = a.label;
+    salin.alasan = a.alasan;
+    salin.jml_kemarin = a.jml_kemarin;
+    salin.selisih = a.selisih;
+    return salin;
+  }).sort(function (x, y) { return String(x.tgl_makan).localeCompare(String(y.tgl_makan)); });
+  return { kebijakan: { autoLolosRutin: !!kebijakan.autoLolosRutin }, antrian: antrian };
 }
 
 /** Detail pesanan + lampiran. */

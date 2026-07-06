@@ -61,9 +61,10 @@ var ACTION_MAP = {
   // Fitur F: Pembina buat & ajukan sendiri tanpa Senat (satu langkah,
   // langsung TERKIRIM) — lihat catatan lengkap di 12_pesanan.gs.
   'pesanan.pembina_kirim': { handler: pesananPembinaKirim, roles: ['PEMBINA'] },
-  // Verifikasi by-Exception (1c): bulk-approve pesanan rutin sekaligus,
+  // Verifikasi by-Exception (1c/1d): bulk-approve pesanan rutin sekaligus,
   // dipakai saat kebijakan autoLolosRutin=false — lihat 12_pesanan.gs.
   'pesanan.bulk_approve_rutin': { handler: pesananBulkApproveRutin, roles: ['PEMBINA'] },
+  'pesanan.antrian_verifikasi': { handler: pesananAntrianVerifikasi, roles: ['PEMBINA'] },
 
   // Realisasi (TAHAP 3)
   'realisasi.list':   { handler: realisasiList,  roles: [] },

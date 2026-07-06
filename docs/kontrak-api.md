@@ -82,6 +82,7 @@ Modul: `taruna.*` → `10_taruna.gs`; `penyedia.*`, `kontrak.*` & `menu.*` → `
 | `pesanan.kirim` | SENAT | `DISETUJUI → TERKIRIM`; hanya ≤ H-1 dari tgl_makan; lewat itu tolak → arahkan ke `pesanan.revisi` |
 | `pesanan.revisi` | SENAT | pesanan baru ber-`revisi_dari` (SOP 7b); wajib lampiran BA perubahan |
 | `pesanan.list` / `pesanan.get` | semua login | |
+| `pesanan.antrian_verifikasi` | PEMBINA | `{}` → `{kebijakan:{autoLolosRutin}, antrian:[{...pesanan, anomali, label, alasan, jml_kemarin, selisih}]}` — hanya baris `DIAJUKAN` + info anomali per baris (dipakai `/verifikasi`). Bila `autoLolosRutin` aktif, antrian ini SECARA ALAMI hanya anomali (rutin sudah auto-lolos di `pesanan.submit`); bila nonaktif, berisi semua dengan label masing-masing. |
 
 Transisi ilegal → error eksplisit (mis. "Pesanan berstatus DRAFT, tidak bisa diverifikasi").
 
