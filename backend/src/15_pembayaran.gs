@@ -57,9 +57,14 @@ function _kontrakBulan_(bulan) {
  * _rincianSp2dDalamKampus_ (23_sp2d.gs) — 1 PEMBAYARAN : N SP2D.
  */
 function _bayarDenganSp2d_(b) {
-  var r = _rincianSp2dDalamKampus_(_bulanStr_(b.bulan));
+  var bln = _bulanStr_(b.bulan);
+  var r = _rincianSp2dDalamKampus_(bln);
   var salin = {};
   Object.keys(b).forEach(function (k) { salin[k] = b[k]; });
+  // Normalisasi bulan sebelum dikirim ke klien — sheet bisa auto-tertafsir
+  // Date, membuat frontend (yang mencocokkan string 'YYYY-MM' persis) gagal
+  // menemukan pembayaran yang BARU DIBUAT (tampak seperti tidak berefek).
+  salin.bulan = bln;
   salin.sp2d_rincian = r.kelompok;
   salin.sp2d_lengkap = r.lengkap;
   salin.sp2d_perlu_cek_manual = r.perlu_cek_manual;
