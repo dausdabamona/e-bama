@@ -92,7 +92,9 @@ var ENUM = {
   SPM_KATEGORI:      ['DALAM_KAMPUS', 'LUAR_KAMPUS'],
   // Tidak ada DITOLAK (dikonfirmasi Firdaus) — SPM yang dikembalikan/ditolak KPPN
   // cukup diedit ulang (no_spm/tgl_spm) selama status belum SP2D_TERBIT.
-  SPM_STATUS:        ['DRAFT', 'DIAJUKAN', 'SP2D_TERBIT']
+  SPM_STATUS:        ['DRAFT', 'DIAJUKAN', 'SP2D_TERBIT'],
+  // Ownership Taruna — Fitur 1 Piket Verifikasi Makan (REALISASI.piket_kualitas)
+  REALISASI_KUALITAS: ['BAIK', 'CUKUP', 'KURANG']
 };
 
 // Status harian yang tergolong "kegiatan luar kampus" — taruna berhak BANTUAN

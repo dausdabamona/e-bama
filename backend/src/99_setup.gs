@@ -41,7 +41,7 @@ function _getSpreadsheet_() {
 
 // ── Definisi kolom per sheet (PERSIS docs/skema-sheet.md) ───────────────────
 // Tipe kolom: 's' teks | 'i' integer | 'n' angka desimal | 'd' tanggal |
-//             'dt' datetime | ['ENUM_KEY'] dropdown enum (nilai dari ENUM).
+//             'dt' datetime | 'b' boolean (checkbox) | ['ENUM_KEY'] dropdown enum (nilai dari ENUM).
 function _skema_() {
   var E = ENUM;
   return [
@@ -91,7 +91,13 @@ function _skema_() {
     [SHEETS.REALISASI, [
       ['real_id','s'], ['pesanan_id','s'], ['tanggal','d'], ['porsi_diterima','i'],
       ['jml_taruna_makan','i'], ['ketidaksesuaian','s'], ['tindak_lanjut','s'],
-      ['geotag_lat','n'], ['geotag_lng','n'], ['ttd_pembina_at','dt'], ['ttd_senat_at','dt']
+      ['geotag_lat','n'], ['geotag_lng','n'], ['ttd_pembina_at','dt'], ['ttd_senat_at','dt'],
+      // Ownership Taruna — Fitur 1 Piket Verifikasi Makan (append-only, idempotent).
+      // Diisi kemudian oleh action verifikasi piket (tahap berikutnya) — kosong
+      // di realisasi.create, TIDAK mengubah ttd Pembina/Senat/foto/geotag di atas.
+      ['piket_nit','s'], ['piket_nama','s'], ['piket_menu_sesuai','b'],
+      ['piket_porsi_cukup','b'], ['piket_kualitas', E.REALISASI_KUALITAS],
+      ['piket_gizi','s'], ['piket_catatan','s'], ['piket_at','dt']
     ]],
     [SHEETS.PEMBAYARAN, [
       ['bayar_id','s'], ['bulan','s'], ['kontrak_id','s'], ['nilai_total','i'],
@@ -219,6 +225,8 @@ function setupDatabase() {
           rng.setNumberFormat('yyyy-mm-dd');
         } else if (tipe === 'dt') {
           rng.setNumberFormat('yyyy-mm-dd hh:mm:ss');
+        } else if (tipe === 'b') {
+          rng.setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().build());
         } else {
           rng.setNumberFormat('@');            // teks polos (hindari auto-konversi ID)
         }

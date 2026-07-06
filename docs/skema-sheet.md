@@ -196,8 +196,25 @@ Pendataan penyediaan makan harian (SOP no. 8–9).
 | geotag_lng | number | |
 | ttd_pembina_at | datetime | tanda tangan digital (konfirmasi PIN) |
 | ttd_senat_at | datetime | idem; kedua ttd terisi → trigger rekapUpdate(tanggal) |
+| piket_nit | FK → TARUNA | Ownership Taruna, Fitur 1 "Piket Verifikasi Makan" — NIT taruna piket yang ikut verifikasi, divalidasi ke roster TARUNA. Kosong = belum diverifikasi piket. Di-append di AKHIR (migrasi idempotent) |
+| piket_nama | string | denormalisasi nama piket (untuk cetak/tampilan tanpa join TARUNA ulang) |
+| piket_menu_sesuai | boolean | piket konfirmasi menu sesuai jadwal kontrak hari itu |
+| piket_porsi_cukup | boolean | piket konfirmasi porsi cukup |
+| piket_kualitas | enum | `BAIK` / `CUKUP` / `KURANG` — penilaian piket |
+| piket_gizi | string | komponen gizi standar (`getKebijakanGizi()`, `00_config.gs`) yang piket centang benar-benar ada di piring, dipisah koma (mis. "Karbohidrat,Protein,Sayur") |
+| piket_catatan | string | opsional |
+| piket_at | datetime | waktu verifikasi piket dicatat |
 
 Foto dokumentasi (terkompres ±200KB) → LAMPIRAN `ref_type=REALISASI`, `jenis=FOTO`.
+
+**Piket Verifikasi Makan** (dikonfirmasi Firdaus — Ownership Taruna Fitur 1):
+kolom `piket_*` MENAMBAH bukti realisasi, TIDAK menggantikan `ttd_pembina_at`/
+`ttd_senat_at`/foto/geotag yang sudah ada. Diisi lewat aksi verifikasi piket
+terpisah (tahap berikutnya) memakai perangkat bersama Pembina/Senat — TANPA
+akun/login taruna sendiri (prinsip "ringan", non-punitif — kolektif lewat
+Senat & Piket, bukan komplain individual bebas). Arah datanya menegakkan
+kontrak ke PENYEDIA (lihat `realisasi.rekap_kepatuhan`, tahap lanjutan),
+bukan menghukum taruna.
 
 ### 9. PEMBAYARAN
 
