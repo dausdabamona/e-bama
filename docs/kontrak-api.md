@@ -75,9 +75,10 @@ Modul: `taruna.*` → `10_taruna.gs`; `penyedia.*`, `kontrak.*` & `menu.*` → `
 | Action | Role | Keterangan |
 |---|---|---|
 | `pesanan.create` | SENAT | tgl_makan unik; `jml_taruna` otomatis (AKTIF − STATUS_HARIAN), koreksi manual wajib catatan; simpan snapshot |
-| `pesanan.submit` | SENAT | `DRAFT → DIAJUKAN`; hanya pembuat |
+| `pesanan.submit` | SENAT | `DRAFT → DIAJUKAN`; hanya pembuat. **Verifikasi by-Exception**: bila `getKebijakanVerifikasi().autoLolosRutin` aktif (default) dan pesanan RUTIN (`_pesananAnomali_` — sama dengan kemarin dalam ambang, tanpa override manual, tanpa perubahan STATUS_HARIAN belum tercermin) → langsung lanjut otomatis ke `TERKIRIM` (`verif_by='SISTEM'`, `catatan='Auto-lolos: rutin (sama dengan kemarin)'`), TIDAK menunggu antrian Pembina. Pesanan ANOMALI tetap di `DIAJUKAN` seperti biasa. Return `{pesanan_id, status, auto_lolos, label?}`. |
 | `pesanan.verify` | PEMBINA | `DIAJUKAN → DISETUJUI` (SOP no. 6) |
 | `pesanan.return` | PEMBINA | `DIAJUKAN → DIKEMBALIKAN`; alasan wajib |
+| `pesanan.bulk_approve_rutin` | PEMBINA | Loloskan SEMUA pesanan `DIAJUKAN` yang RUTIN sekaligus (satu ketuk) — dipakai saat `autoLolosRutin`=false. RUTIN/ANOMALI dihitung ulang di backend (bukan dari klien); `verif_by`=Pembina yang mengeklik (bukan `SISTEM` — aksi manual). Return `{disetujui, detail:[{pesanan_id, label}]}`. |
 | `pesanan.kirim` | SENAT | `DISETUJUI → TERKIRIM`; hanya ≤ H-1 dari tgl_makan; lewat itu tolak → arahkan ke `pesanan.revisi` |
 | `pesanan.revisi` | SENAT | pesanan baru ber-`revisi_dari` (SOP 7b); wajib lampiran BA perubahan |
 | `pesanan.list` / `pesanan.get` | semua login | |

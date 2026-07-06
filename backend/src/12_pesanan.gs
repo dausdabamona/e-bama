@@ -298,14 +298,72 @@ function _pesananTransisi_(session, id, dariStatus, keStatus, aksi, patchTambaha
   return p;
 }
 
-/** DRAFT → DIAJUKAN (hanya pembuat). */
+/**
+ * Catatan tetap (sentinel, pola sama _CATATAN_PEMBINA_KIRIM_) yang menandai
+ * pesanan RUTIN diloloskan otomatis — dipakai frontend (pesanan-list.tsx)
+ * untuk label kartu, sama seperti Fitur F. TIDAK menimpa catatan override
+ * manual manapun (kalau catatan sudah terisi, _pesananAnomali_ SELALU
+ * menganggapnya ANOMALI, jadi jalur auto-lolos tak pernah tercapai —
+ * catatan di sini dijamin kosong sebelum ditimpa).
+ */
+var _CATATAN_AUTO_LOLOS_ = 'Auto-lolos: rutin (sama dengan kemarin)';
+
+/**
+ * DRAFT → DIAJUKAN (hanya pembuat). Fitur "Verifikasi by-Exception" (1c):
+ * bila kebijakan `autoLolosRutin` aktif (default) DAN pesanan ini RUTIN
+ * (lihat _pesananAnomali_), langsung lanjutkan DIAJUKAN → TERKIRIM otomatis
+ * (verif_by='SISTEM') — TIDAK menunggu antrian Pembina. Hanya pesanan
+ * ANOMALI yang tetap di DIAJUKAN (masuk antrian verifikasi manual Pembina,
+ * tak berubah). Bila `autoLolosRutin` mati, semua pesanan tetap di DIAJUKAN
+ * seperti sebelumnya (Pembina bisa memakai pesanan.bulk_approve_rutin utk
+ * meloloskan yang rutin secara massal).
+ */
 function pesananSubmit(payload, session) {
   var p = _pesanan_(payload && payload.pesanan_id);
   if (String(p.created_by) !== String(session.user_id)) {
     throw _fail_('Hanya pembuat pesanan yang boleh mengajukan.');
   }
   _pesananTransisi_(session, p.pesanan_id, 'DRAFT', 'DIAJUKAN', 'submit', null);
-  return { pesanan_id: p.pesanan_id, status: 'DIAJUKAN' };
+
+  var kebijakan = getKebijakanVerifikasi();
+  if (kebijakan.autoLolosRutin) {
+    var diajukan = _pesanan_(p.pesanan_id);
+    var anomali = _pesananAnomali_(diajukan);
+    if (!anomali.anomali) {
+      sheetUpdate(SHEETS.PESANAN, 'pesanan_id', p.pesanan_id, {
+        status: 'TERKIRIM', verif_by: 'SISTEM', verif_at: new Date(), catatan: _CATATAN_AUTO_LOLOS_
+      });
+      auditLog(null, 'pesanan.auto_lolos', 'PESANAN', p.pesanan_id,
+        { status: 'DIAJUKAN' }, { status: 'TERKIRIM', verif_by: 'SISTEM', label: anomali.label });
+      return { pesanan_id: p.pesanan_id, status: 'TERKIRIM', auto_lolos: true, label: anomali.label };
+    }
+  }
+  return { pesanan_id: p.pesanan_id, status: 'DIAJUKAN', auto_lolos: false };
+}
+
+/**
+ * Bulk-approve (Pembina): setujui SEMUA pesanan DIAJUKAN yang RUTIN
+ * sekaligus — satu ketuk. Dipakai saat kebijakan `autoLolosRutin`=false
+ * (semua pesanan tetap masuk antrian dulu, Pembina meloloskan yang rutin
+ * secara massal alih-alih satu-satu). RUTIN/ANOMALI dihitung ULANG di
+ * backend (tak percaya daftar dari klien) — anomali dilewati, tetap di
+ * antrian manual. `verif_by` = Pembina yang mengeklik (BUKAN 'SISTEM' —
+ * ini aksi manual, walau meloloskan banyak sekaligus).
+ */
+function pesananBulkApproveRutin(payload, session) {
+  var daftarDiajukan = sheetRead(SHEETS.PESANAN, function (r) { return r.status === 'DIAJUKAN'; });
+  var hasil = [];
+  daftarDiajukan.forEach(function (p) {
+    var anomali = _pesananAnomali_(p);
+    if (anomali.anomali) return; // anomali → lewati, tetap di antrian manual
+    sheetUpdate(SHEETS.PESANAN, 'pesanan_id', p.pesanan_id, {
+      status: 'TERKIRIM', verif_by: session.user_id, verif_at: new Date()
+    });
+    auditLog(session, 'pesanan.bulk_approve_rutin', 'PESANAN', p.pesanan_id,
+      { status: 'DIAJUKAN' }, { status: 'TERKIRIM', label: anomali.label });
+    hasil.push({ pesanan_id: p.pesanan_id, label: anomali.label });
+  });
+  return { disetujui: hasil.length, detail: hasil };
 }
 
 /** DIAJUKAN → DISETUJUI (Pembina, SOP no. 6). */
