@@ -402,6 +402,32 @@ function setKebijakanKomponenMenu(obj) {
   return { komponen: komponen };
 }
 
+// ── Kebijakan Rekap Bulanan (Redesign Tahap 1) ──────────────────────────────
+// ambangOutlier: selisih (hari_makan_maks_grup - hari_makan taruna) di ATAS
+// nilai ini ditandai KUNING "cek" di tampilan rekap (outlier relatif ke teman
+// se-grup Prodi+Tingkat) — TIDAK memengaruhi cara REKAP_BULANAN dihitung,
+// murni penanda tampilan (dikonfirmasi Firdaus).
+var _CONFIG_REKAP_DEFAULT = { ambangOutlier: 3 };
+
+/** getKebijakanRekap() — SATU-SATUNYA cara 14_rekap.gs membaca kebijakan ini. */
+function getKebijakanRekap() {
+  var raw = PropertiesService.getScriptProperties().getProperty('KEBIJAKAN_REKAP');
+  var v = { ambangOutlier: _CONFIG_REKAP_DEFAULT.ambangOutlier };
+  if (raw) {
+    var o = JSON.parse(raw);
+    if (o && o.ambangOutlier !== undefined) v.ambangOutlier = Number(o.ambangOutlier) || 0;
+  }
+  return v;
+}
+
+/** setKebijakanRekap({ambangOutlier}) — ubah kebijakan dari editor GAS. */
+function setKebijakanRekap(obj) {
+  var v = getKebijakanRekap();
+  if (obj && obj.ambangOutlier !== undefined) v.ambangOutlier = Number(obj.ambangOutlier) || 0;
+  PropertiesService.getScriptProperties().setProperty('KEBIJAKAN_REKAP', JSON.stringify(v));
+  return v;
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // ▼▼▼ 01_router.gs ▼▼▼
 // ═════════════════════════════════════════════════════════════════════════════
@@ -2563,13 +2589,20 @@ function _rekapBulan_(bulan) {
   return rows;
 }
 
-/** rekap.get {bulan} → baris + total (PPK, KPA). */
+/**
+ * rekap.get {bulan} → baris + total (PPK, KPA).
+ * D = hari realisasi sah bulan itu (hari_makan + hari_tidak_makan per baris —
+ * konstan untuk semua taruna AKTIF sejak recompute rekapUpdate terakhir).
+ * ambang_outlier dari getKebijakanRekap() — dipakai frontend untuk penanda
+ * anomali (Redesign Rekap Bulanan), TIDAK memengaruhi hitungan nominal.
+ */
 function rekapGet(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
   var rows = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
   var total = 0;
   rows.forEach(function (r) { total += _int_(r.nominal || 0, 'nominal'); });
-  return { rekap: rows, total: total, bulan: bulan };
+  var d = rows.length ? (_int_(rows[0].hari_makan || 0, 'hari_makan') + _int_(rows[0].hari_tidak_makan || 0, 'hari_tidak_makan')) : 0;
+  return { rekap: rows, total: total, bulan: bulan, D: d, ambang_outlier: getKebijakanRekap().ambangOutlier };
 }
 
 /** Ubah status semua baris satu bulan (verify/final). */

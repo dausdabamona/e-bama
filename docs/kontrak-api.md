@@ -103,7 +103,7 @@ Transisi ilegal → error eksplisit (mis. "Pesanan berstatus DRAFT, tidak bisa d
 
 | Action | Role | Keterangan |
 |---|---|---|
-| `rekap.get` | PPK, KPA, WADIR3 | per bulan |
+| `rekap.get` | PPK, KPA, WADIR3 | `{bulan}` → `{rekap, total, bulan, D, ambang_outlier}` — `rekap` baris mentah REKAP_BULANAN (nit, hari_makan, hari_tidak_makan, nominal, status, dst; nama/prodi/tingkat di-join FRONTEND dari `taruna.list` yang sudah ter-cache offline, TIDAK diduplikasi di sini); `D` = hari realisasi sah bulan itu (`hari_makan + hari_tidak_makan` baris pertama — konstan utk semua taruna AKTIF); `ambang_outlier` dari `getKebijakanRekap()` (Script Property `KEBIJAKAN_REKAP`, default 3) — dipakai frontend utk penanda anomali (Redesign Rekap Bulanan), MURNI tampilan, tidak memengaruhi hitungan nominal |
 | `rekap.approve_wadir3` | WADIR3 | `DRAFT → DISETUJUI_WADIR3` — **persetujuan PALING AWAL** atas rekap; angka belum beku |
 | `rekap.verify` | PPK | `DISETUJUI_WADIR3 → TERVERIFIKASI_PPK` — PPK memeriksa hasil yang sudah disetujui Wadir 3 |
 | `rekap.final` | PPK | `TERVERIFIKASI_PPK → FINAL` — **PPK finalkan (langkah TERAKHIR)**: angka BEKU, dasar SPM, siap dibayar; update berikutnya ditolak; syarat `bayar.create` |

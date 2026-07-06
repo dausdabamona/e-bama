@@ -102,13 +102,20 @@ function _rekapBulan_(bulan) {
   return rows;
 }
 
-/** rekap.get {bulan} → baris + total (PPK, KPA). */
+/**
+ * rekap.get {bulan} → baris + total (PPK, KPA).
+ * D = hari realisasi sah bulan itu (hari_makan + hari_tidak_makan per baris —
+ * konstan untuk semua taruna AKTIF sejak recompute rekapUpdate terakhir).
+ * ambang_outlier dari getKebijakanRekap() — dipakai frontend untuk penanda
+ * anomali (Redesign Rekap Bulanan), TIDAK memengaruhi hitungan nominal.
+ */
 function rekapGet(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
   var rows = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
   var total = 0;
   rows.forEach(function (r) { total += _int_(r.nominal || 0, 'nominal'); });
-  return { rekap: rows, total: total, bulan: bulan };
+  var d = rows.length ? (_int_(rows[0].hari_makan || 0, 'hari_makan') + _int_(rows[0].hari_tidak_makan || 0, 'hari_tidak_makan')) : 0;
+  return { rekap: rows, total: total, bulan: bulan, D: d, ambang_outlier: getKebijakanRekap().ambangOutlier };
 }
 
 /** Ubah status semua baris satu bulan (verify/final). */

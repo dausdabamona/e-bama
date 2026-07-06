@@ -391,3 +391,29 @@ function setKebijakanKomponenMenu(obj) {
   PropertiesService.getScriptProperties().setProperty('KEBIJAKAN_KOMPONEN_MENU', JSON.stringify({ komponen: komponen }));
   return { komponen: komponen };
 }
+
+// ── Kebijakan Rekap Bulanan (Redesign Tahap 1) ──────────────────────────────
+// ambangOutlier: selisih (hari_makan_maks_grup - hari_makan taruna) di ATAS
+// nilai ini ditandai KUNING "cek" di tampilan rekap (outlier relatif ke teman
+// se-grup Prodi+Tingkat) — TIDAK memengaruhi cara REKAP_BULANAN dihitung,
+// murni penanda tampilan (dikonfirmasi Firdaus).
+var _CONFIG_REKAP_DEFAULT = { ambangOutlier: 3 };
+
+/** getKebijakanRekap() — SATU-SATUNYA cara 14_rekap.gs membaca kebijakan ini. */
+function getKebijakanRekap() {
+  var raw = PropertiesService.getScriptProperties().getProperty('KEBIJAKAN_REKAP');
+  var v = { ambangOutlier: _CONFIG_REKAP_DEFAULT.ambangOutlier };
+  if (raw) {
+    var o = JSON.parse(raw);
+    if (o && o.ambangOutlier !== undefined) v.ambangOutlier = Number(o.ambangOutlier) || 0;
+  }
+  return v;
+}
+
+/** setKebijakanRekap({ambangOutlier}) — ubah kebijakan dari editor GAS. */
+function setKebijakanRekap(obj) {
+  var v = getKebijakanRekap();
+  if (obj && obj.ambangOutlier !== undefined) v.ambangOutlier = Number(obj.ambangOutlier) || 0;
+  PropertiesService.getScriptProperties().setProperty('KEBIJAKAN_REKAP', JSON.stringify(v));
+  return v;
+}
