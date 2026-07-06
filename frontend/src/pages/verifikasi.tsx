@@ -52,7 +52,12 @@ export function HalamanVerifikasi() {
             <Badge status={p.status} />
           </div>
           <p className="text-sm text-gray-600">{p.menu}</p>
-          <p className="text-xs text-gray-400">{p.jml_taruna} taruna</p>
+          {/* Jumlah taruna ditonjolkan — angka paling kritikal saat verifikasi
+              (dikonfirmasi Firdaus: menekan risiko salah-verifikasi). */}
+          <div className="flex items-baseline gap-1.5 rounded-xl bg-primary-light px-3 py-2">
+            <span className="text-2xl font-bold text-primary-dark">{p.jml_taruna}</span>
+            <span className="text-sm text-gray-600">taruna</span>
+          </div>
           <div className="flex gap-2 pt-1">
             <Button varian="bahaya" className="flex-1" onClick={() => setTampilKembalikan(p)} disabled={proses === p.pesanan_id}>
               Kembalikan
