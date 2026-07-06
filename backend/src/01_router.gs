@@ -75,6 +75,8 @@ var ACTION_MAP = {
   // Penerimaan Barang Senat — checklist per waktu makan × komponen, BUKAN Penyedia
   'realisasi.penerimaan': { handler: realisasiPenerimaan, roles: ['SENAT', 'PEMBINA', 'ADMIN'] },
   'realisasi.kebijakan_penerimaan': { handler: realisasiKebijakanPenerimaan, roles: [] },
+  // Rekap kelengkapan Penerimaan Barang (Tahap 5, opsional) — baca murni, bahan evaluasi penyedia
+  'realisasi.rekap_penerimaan': { handler: realisasiRekapPenerimaan, roles: ['PPK', 'KPA', 'WADIR3', 'SENAT'] },
 
   // Rekap bulanan (TAHAP 3 + gerbang Wadir 3)
   // SENAT/PEMBINA baca saja (halaman /rekap-ringkas, tanpa nominal di frontend)

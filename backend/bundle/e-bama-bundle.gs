@@ -482,6 +482,8 @@ var ACTION_MAP = {
   // Penerimaan Barang Senat — checklist per waktu makan × komponen, BUKAN Penyedia
   'realisasi.penerimaan': { handler: realisasiPenerimaan, roles: ['SENAT', 'PEMBINA', 'ADMIN'] },
   'realisasi.kebijakan_penerimaan': { handler: realisasiKebijakanPenerimaan, roles: [] },
+  // Rekap kelengkapan Penerimaan Barang (Tahap 5, opsional) — baca murni, bahan evaluasi penyedia
+  'realisasi.rekap_penerimaan': { handler: realisasiRekapPenerimaan, roles: ['PPK', 'KPA', 'WADIR3', 'SENAT'] },
 
   // Rekap bulanan (TAHAP 3 + gerbang Wadir 3)
   // SENAT/PEMBINA baca saja (halaman /rekap-ringkas, tanpa nominal di frontend)
@@ -2080,7 +2082,8 @@ function pesananRevisi(payload, session) {
  *         realisasi.ttd (Pembina, Senat — konfirmasi PIN),
  *         realisasi.kebijakan_piket (semua login — baca kebijakan piket & standar gizi),
  *         realisasi.penerimaan (Senat, Pembina, Admin — checklist Penerimaan Barang Senat),
- *         realisasi.kebijakan_penerimaan (semua login — baca daftar komponen menu)
+ *         realisasi.kebijakan_penerimaan (semua login — baca daftar komponen menu),
+ *         realisasi.rekap_penerimaan (PPK, KPA, WADIR3, Senat — baca, rekap kelengkapan)
  *
  * Pesanan wajib TERKIRIM. Foto → LAMPIRAN ref_type=REALISASI jenis=FOTO.
  * Kedua ttd terisi → otomatis rekapUpdate(tanggal).
@@ -2174,6 +2177,81 @@ function realisasiPenerimaan(payload, session) {
   sheetUpdate(SHEETS.REALISASI, 'real_id', r.real_id, { penerimaan: JSON.stringify(penerimaan) });
   auditLog(session, 'realisasi.penerimaan', 'REALISASI', r.real_id, null, { penerimaan: penerimaan });
   return { real_id: r.real_id, penerimaan: penerimaan };
+}
+
+/**
+ * Rekap kelengkapan Penerimaan Barang (Tahap 5, opsional) — turunan MURNI
+ * baca (parse `REALISASI.penerimaan`), TIDAK menulis apa pun. Payload
+ * {bulan, penyedia_id?} — penyedia_id menyaring lewat PESANAN.kontrak_id →
+ * KONTRAK.penyedia_id. Per komponen: `persen_lengkap` (berapa % realisasi
+ * yang mencentang ADA), `kali_tidak_ada`, `total_selisih` (SUM porsi_diterima
+ * − jumlah tercatat, hanya saat ADA — indikasi kurang KUANTITAS meski
+ * komponennya ada). Bahan evaluasi penyedia (dikonfirmasi Firdaus).
+ */
+function realisasiRekapPenerimaan(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  var penyediaId = payload && payload.penyedia_id ? String(payload.penyedia_id) : '';
+
+  var pesananPenyedia = {};
+  if (penyediaId) {
+    var kontrakPenyedia = {};
+    sheetRead(SHEETS.KONTRAK, function (k) { return String(k.penyedia_id) === penyediaId; })
+      .forEach(function (k) { kontrakPenyedia[String(k.kontrak_id)] = true; });
+    sheetRead(SHEETS.PESANAN, function (p) { return Boolean(kontrakPenyedia[String(p.kontrak_id)]); })
+      .forEach(function (p) { pesananPenyedia[String(p.pesanan_id)] = true; });
+  }
+
+  var baris = sheetRead(SHEETS.REALISASI, function (r) {
+    if (_bulanStr_(r.tanggal) !== bulan) return false;
+    if (penyediaId && !pesananPenyedia[String(r.pesanan_id)]) return false;
+    return true;
+  });
+
+  var komponenValid = getKebijakanKomponenMenu().komponen;
+  var stat = {};
+  komponenValid.forEach(function (k) { stat[k] = { kaliAda: 0, kaliCatat: 0, totalJumlah: 0, totalSelisih: 0 }; });
+
+  var totalRealisasi = 0;
+  baris.forEach(function (r) {
+    if (!r.penerimaan) return;
+    var p;
+    try { p = JSON.parse(r.penerimaan); } catch (e) { return; }
+    var punyaData = _WAKTU_MAKAN_.some(function (w) { return Array.isArray(p[w]) && p[w].length > 0; });
+    if (!punyaData) return;
+    totalRealisasi++;
+    var porsi = Number(r.porsi_diterima) || 0;
+    _WAKTU_MAKAN_.forEach(function (w) {
+      (Array.isArray(p[w]) ? p[w] : []).forEach(function (b) {
+        var s = stat[b.komponen];
+        if (!s) return; // komponen lama di luar kebijakan saat ini → lewati
+        s.kaliCatat++;
+        if (b.ada) {
+          s.kaliAda++;
+          s.totalJumlah += Number(b.jumlah) || 0;
+          s.totalSelisih += Math.max(0, porsi - (Number(b.jumlah) || 0));
+        }
+      });
+    });
+  });
+
+  var perKomponen = komponenValid.map(function (k) {
+    var s = stat[k];
+    return {
+      komponen: k, kali_ada: s.kaliAda, kali_tidak_ada: s.kaliCatat - s.kaliAda,
+      persen_lengkap: s.kaliCatat > 0 ? Math.round((s.kaliAda / s.kaliCatat) * 100) : 0,
+      total_jumlah: s.totalJumlah, total_selisih: s.totalSelisih
+    };
+  });
+
+  var totalCatat = perKomponen.reduce(function (s, k) { return s + k.kali_ada + k.kali_tidak_ada; }, 0);
+  var totalAda = perKomponen.reduce(function (s, k) { return s + k.kali_ada; }, 0);
+  var palingKurang = perKomponen.slice().sort(function (a, b) { return b.kali_tidak_ada - a.kali_tidak_ada; })[0];
+
+  return {
+    bulan: bulan, total_realisasi: totalRealisasi, per_komponen: perKomponen,
+    persen_lengkap_keseluruhan: totalCatat > 0 ? Math.round((totalAda / totalCatat) * 100) : 0,
+    komponen_paling_sering_kurang: (palingKurang && palingKurang.kali_tidak_ada > 0) ? palingKurang.komponen : ''
+  };
 }
 
 /** Daftar realisasi, filter {bulan?}. */
