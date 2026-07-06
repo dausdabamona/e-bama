@@ -39,7 +39,7 @@ export function HalamanPesananDetail() {
 
   const p = data.pesanan;
   const bisaSubmit = p.status === 'DRAFT' && p.created_by === session?.user_id;
-  const bisaKirim = p.status === 'DISETUJUI';
+  const bisaKirim = p.status === 'DISETUJUI' && session?.role === 'SENAT';
   const bisaRevisi = p.status === 'TERKIRIM';
   const idxTimeline = TIMELINE.findIndex((t) => t.status === p.status);
 
@@ -135,6 +135,11 @@ export function HalamanPesananDetail() {
         )}
         {bisaKirim && (
           <Button onClick={() => void kirim()} disabled={proses}>Kirim ke Penyedia</Button>
+        )}
+        {p.status === 'DISETUJUI' && session?.role !== 'SENAT' && (
+          <p className="text-xs text-amber-700">
+            ⏳ Menunggu Senat mengirim ke penyedia (atau otomatis terkirim pukul 21:00 WIT).
+          </p>
         )}
         {bisaRevisi && (
           <Button varian="garis" onClick={() => setTampilRevisi(true)}>Buat Revisi (BA Perubahan)</Button>
