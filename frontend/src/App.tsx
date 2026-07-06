@@ -23,6 +23,7 @@ import { HalamanDashboardKpa } from './pages/dashboard-kpa/dashboard-kpa';
 import { HalamanKokpitPpk } from './pages/kokpit-ppk/kokpit-ppk';
 import { HalamanKontrak } from './pages/kontrak/kontrak';
 import { HalamanLaporan } from './pages/laporan/laporan';
+import { HalamanMenuHariIni } from './pages/menu-hari-ini';
 import { HalamanLaporanResmi } from './pages/laporan/laporan-resmi';
 import { HalamanLogin } from './pages/login';
 import { HalamanPembayaran } from './pages/pembayaran/pembayaran';
@@ -75,6 +76,7 @@ export default function App() {
               <Route path="/realisasi" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanRealisasiList /></WajibLogin>} />
               <Route path="/realisasi/baru/:pesananId" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanRealisasiBuat /></WajibLogin>} />
               <Route path="/realisasi/:id" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanRealisasiDetail /></WajibLogin>} />
+              <Route path="/menu-hari-ini" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanMenuHariIni /></WajibLogin>} />
               {/* Pembina */}
               <Route path="/verifikasi" element={<WajibLogin roles={['PEMBINA']}><HalamanVerifikasi /></WajibLogin>} />
               <Route path="/status-taruna" element={<WajibLogin roles={['PEMBINA', 'ADMIN', 'BAAK']}><HalamanStatusTaruna /></WajibLogin>} />

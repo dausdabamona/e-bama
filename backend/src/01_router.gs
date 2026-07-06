@@ -32,6 +32,8 @@ var ACTION_MAP = {
   'kontrak.lampiran_upload': { handler: kontrakLampiranUpload, roles: ['PPK'] },
   'menu.list':        { handler: menuList,       roles: [] },
   'menu.upsert':      { handler: menuUpsert,     roles: ['PPK'] },
+  // Ownership Taruna Fitur 2a — papan "Menu Hari Ini", read-only, nol data sensitif
+  'menu.hari_ini':    { handler: menuHariIni,    roles: ['SENAT', 'PEMBINA'] },
 
   // Status harian (TAHAP 3)
   'status.set':       { handler: statusSet,      roles: ['ADMIN', 'PEMBINA', 'BAAK'] },

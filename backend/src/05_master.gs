@@ -274,6 +274,57 @@ function menuList(payload, session) {
   return { menu: rows };
 }
 
+/**
+ * "Menu Hari Ini" (Ownership Taruna Fitur 2a) — Pagi/Siang/Malam tanggal
+ * tertentu (default hari ini) dari MENU_KONTRAK kontrak aktif, standar gizi
+ * (getKebijakanGizi), dan status verifikasi piket REALISASI tanggal itu bila
+ * sudah ada. READ-ONLY murni, NOL data sensitif (tanpa rupiah/rekening/
+ * daftar per-taruna) — cocok ditayangkan di papan ruang makan bersama.
+ *
+ * Komposisi antaran SAMA PERSIS dengan pesananCreate/pesananSuratPenyedia:
+ * satu PESANAN.tgl_makan=D mengantar Malam(D) + Pagi/Siang(D+1). Jadi utk
+ * TANGGAL T: Malam(T) dari baris MENU_KONTRAK hari=dayOfWeek(T); Pagi/Siang(T)
+ * dari baris MENU_KONTRAK hari=dayOfWeek(T-1) (antaran "kemarin", D+1-nya
+ * adalah T). Tanpa kontrak aktif → menu kosong (`ada_kontrak:false`), TIDAK error
+ * (papan tetap tampil, cuma menu belum ada).
+ */
+function menuHariIni(payload, session) {
+  var tanggal = (payload && payload.tanggal) ? _wajibTgl_(payload.tanggal, 'tanggal') : _todayStr_();
+
+  var kontrak = null;
+  try { kontrak = _kontrakAktifPada_(tanggal); } catch (e) { kontrak = null; }
+
+  var menu = { pagi: '', siang: '', malam: '' };
+  if (kontrak) {
+    var menuRows = sheetRead(SHEETS.MENU_KONTRAK, function (r) { return String(r.kontrak_id) === String(kontrak.kontrak_id); });
+    var hariIni = _hariDalamMinggu_(tanggal);
+    var hariKemarin = _hariDalamMinggu_(_tambahHari_(tanggal, -1));
+    var rowMalam = menuRows.filter(function (r) { return r.hari === hariIni; })[0];
+    var rowPagiSiang = menuRows.filter(function (r) { return r.hari === hariKemarin; })[0];
+    menu.malam = rowMalam ? String(rowMalam.menu_malam || '') : '';
+    menu.pagi = rowPagiSiang ? String(rowPagiSiang.menu_pagi || '') : '';
+    menu.siang = rowPagiSiang ? String(rowPagiSiang.menu_siang || '') : '';
+  }
+
+  // Status piket tanggal ini bila SUDAH ADA (ambil realisasi ber-piket_at
+  // terbaru — satu tanggal bisa >1 realisasi kalau >1 pesanan hari itu).
+  var terverifikasi = sheetRead(SHEETS.REALISASI, function (r) {
+    return _tglStr_(r.tanggal) === tanggal && r.piket_nit;
+  }).sort(function (a, b) { return new Date(b.piket_at) - new Date(a.piket_at); })[0];
+
+  var piket = terverifikasi ? {
+    menu_sesuai: Boolean(terverifikasi.piket_menu_sesuai),
+    porsi_cukup: Boolean(terverifikasi.piket_porsi_cukup),
+    kualitas: String(terverifikasi.piket_kualitas || ''),
+    gizi: String(terverifikasi.piket_gizi || '').split(',').filter(function (g) { return g; })
+  } : null;
+
+  return {
+    tanggal: tanggal, ada_kontrak: Boolean(kontrak),
+    menu: menu, standar_gizi: getKebijakanGizi().komponen, piket: piket
+  };
+}
+
 /** Tambah/ubah menu 1 hari untuk kontrak (PPK). Kunci gabungan: kontrak_id + hari. */
 function menuUpsert(payload, session) {
   var kid = String((payload && payload.kontrak_id) || '').trim();

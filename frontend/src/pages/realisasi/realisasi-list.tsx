@@ -32,7 +32,10 @@ export function HalamanRealisasiList() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-bold text-primary-dark">Realisasi</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-primary-dark">Realisasi</h1>
+        <Link to="/menu-hari-ini" className="text-sm text-primary underline">🍽️ Menu Hari Ini</Link>
+      </div>
       <BulanPicker bulan={bulan} onChange={setBulan} />
 
       {memuat && !data && <LoadingSpinner label="Memuat…" />}

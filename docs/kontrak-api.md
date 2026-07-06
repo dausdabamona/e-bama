@@ -53,6 +53,7 @@ Modul: `taruna.*` → `10_taruna.gs`; `penyedia.*`, `kontrak.*` & `menu.*` → `
 | `kontrak.lampiran_upload` | PPK | `{kontrak_id, berkas:{base64,nama_file,jenis}}` — menu & nilai gizi (`jenis=MENU_GIZI`), BA penunjukan (`BA`), notulen (`NOTULEN`); boleh kapan saja |
 | `menu.list` | semua login | `{kontrak_id}` → `{menu: [...]}` urut Senin→Minggu |
 | `menu.upsert` | PPK | `{kontrak_id, hari, menu_pagi, menu_siang, menu_malam}` — menu mingguan terjadwal (referensi hari-dalam-minggu, bukan snapshot tanggal); kunci gabungan (kontrak_id, hari) |
+| `menu.hari_ini` | SENAT, PEMBINA | `{tanggal?}` (default hari ini) → `{tanggal, ada_kontrak, menu:{pagi,siang,malam}, standar_gizi, piket}` — Ownership Taruna Fitur 2a, papan "Menu Hari Ini" READ-ONLY. Komposisi antaran sama seperti `pesanan.create`: Malam(T) dari `MENU_KONTRAK` hari=dayOfWeek(T), Pagi/Siang(T) dari hari=dayOfWeek(T-1). `piket` = status verifikasi piket REALISASI tanggal itu (realisasi ber-`piket_at` terbaru) atau `null` bila belum ada. NOL data sensitif (tanpa rupiah/rekening/daftar per-taruna) |
 | `pengguna.list` / `pengguna.upsert` / `pengguna.reset_pin` | ADMIN | `pengguna.upsert` menerima `penyedia_id` — **wajib & harus valid** bila `role=PENYEDIA` (menautkan akun ke satu penyedia), dipaksa kosong untuk role lain |
 
 ### Status Harian (SOP: Peringatan no. 2)
