@@ -20,6 +20,7 @@ import { HalamanCetakForm08 } from './pages/cetak/form-08';
 import { HalamanCetakForm09 } from './pages/cetak/form-09';
 import { HalamanCetakForm10 } from './pages/cetak/form-10';
 import { HalamanDashboardKpa } from './pages/dashboard-kpa/dashboard-kpa';
+import { HalamanKokpitPpk } from './pages/kokpit-ppk/kokpit-ppk';
 import { HalamanKontrak } from './pages/kontrak/kontrak';
 import { HalamanLaporan } from './pages/laporan/laporan';
 import { HalamanLaporanResmi } from './pages/laporan/laporan-resmi';
@@ -82,6 +83,7 @@ export default function App() {
               {/* PPK */}
               <Route path="/rekap" element={<WajibLogin roles={['PPK']}><HalamanRekap /></WajibLogin>} />
               <Route path="/rekap/historis" element={<WajibLogin roles={['PPK', 'ADMIN']}><HalamanRekapHistoris /></WajibLogin>} />
+              <Route path="/kokpit-ppk" element={<WajibLogin roles={['PPK', 'KPA', 'WADIR3']}><HalamanKokpitPpk /></WajibLogin>} />
               <Route path="/kontrak" element={<WajibLogin roles={['PPK']}><HalamanKontrak /></WajibLogin>} />
               <Route path="/pembayaran" element={<WajibLogin roles={['PPK', 'SENAT', 'KPA', 'WADIR3']}><HalamanPembayaran /></WajibLogin>} />
               {/* Senat + PPK (+KPA/Wadir3 lihat) */}

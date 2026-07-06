@@ -38,6 +38,7 @@ export const NAV_PER_ROLE: Record<Role, ItemNav[]> = {
     { ke: '/akun', label: 'Akun', ikon: '👤' }
   ],
   PPK: [
+    { ke: '/kokpit-ppk', label: 'Kokpit', ikon: '🧭' },
     { ke: '/rekap', label: 'Rekap', ikon: '📊' },
     { ke: '/pembayaran', label: 'Bayar', ikon: '🏦' },
     { ke: '/tagihan', label: 'Tagihan', ikon: '💳' },
@@ -46,6 +47,7 @@ export const NAV_PER_ROLE: Record<Role, ItemNav[]> = {
   ],
   KPA: [
     { ke: '/dashboard', label: 'Dashboard', ikon: '📈' },
+    { ke: '/kokpit-ppk', label: 'Kokpit', ikon: '🧭' },
     { ke: '/laporan', label: 'Laporan', ikon: '🖨️' },
     { ke: '/akun', label: 'Akun', ikon: '👤' }
   ],
@@ -60,6 +62,7 @@ export const NAV_PER_ROLE: Record<Role, ItemNav[]> = {
   WADIR3: [
     { ke: '/persetujuan-wadir3', label: 'Persetujuan', ikon: '✅' },
     { ke: '/dashboard', label: 'Dashboard', ikon: '📈' },
+    { ke: '/kokpit-ppk', label: 'Kokpit', ikon: '🧭' },
     { ke: '/laporan', label: 'Laporan', ikon: '🖨️' },
     { ke: '/akun', label: 'Akun', ikon: '👤' }
   ],
