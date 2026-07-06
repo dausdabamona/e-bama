@@ -44,7 +44,7 @@ function _tagihanJoin_() {
   var rows = sheetRead(SHEETS.TAGIHAN).map(function (t) {
     var sp = spPerTagihan[String(t.tagihan_id)];
     return {
-      tagihan_id: t.tagihan_id, bulan: String(t.bulan), nit: t.nit,
+      tagihan_id: t.tagihan_id, bulan: _bulanStr_(t.bulan), nit: t.nit,
       nominal: Number(t.nominal) || 0, sebab: t.sebab, status: t.status,
       tgl_setor: _tglStr_(t.tgl_setor), diverifikasi_oleh: t.diverifikasi_oleh,
       catatan_hapus: t.catatan_hapus,

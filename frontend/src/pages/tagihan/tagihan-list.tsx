@@ -10,6 +10,7 @@ import { ErrorMessage } from '../../components/ui/error-message';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
 import { useListCache } from '../../lib/use-list-cache';
 import { formatRupiah, type Tagihan } from './tipe';
+import type { Taruna } from '../taruna/tipe';
 
 function labelLevel(level: number): string {
   if (level >= 3) return 'SP-3';
@@ -27,6 +28,8 @@ export function HalamanTagihanList() {
   const { session } = useAuth();
   const { data, memuat, galat, refresh } = useListCache<{ tagihan: Tagihan[] }>('tagihan.list', {});
   const ringkasanQ = useListCache<Ringkasan>('tagihan.summary', {});
+  const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', {});
+  const namaByNit = new Map((tarunaQ.data?.taruna ?? []).map((t) => [t.nit, t.nama]));
   const tampilRingkasan = session?.role === 'PPK' || session?.role === 'KPA' || session?.role === 'WADIR3';
 
   return (
@@ -75,7 +78,8 @@ export function HalamanTagihanList() {
             <Link key={t.tagihan_id} to={`/tagihan/${t.tagihan_id}`}>
               <Card className="flex items-center justify-between active:bg-primary-light/30">
                 <div>
-                  <p className="font-semibold">{t.nit} — {t.bulan}</p>
+                  <p className="font-semibold">{namaByNit.get(t.nit) ?? t.nit}</p>
+                  <p className="text-xs text-gray-400">{t.nit} · {t.bulan}</p>
                   <p className="text-sm text-gray-500">{formatRupiah(t.nominal)}</p>
                   <p className="text-xs text-gray-400">{t.sebab.replace(/_/g, ' ')}</p>
                 </div>

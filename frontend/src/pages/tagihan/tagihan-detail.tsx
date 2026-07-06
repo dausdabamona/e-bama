@@ -16,6 +16,7 @@ import { api } from '../../lib/api';
 import { useListCache } from '../../lib/use-list-cache';
 import { urlDrive } from '../pesanan/tipe';
 import { formatRupiah, type SuratPeringatan, type Tagihan } from './tipe';
+import type { Taruna } from '../taruna/tipe';
 
 function hariIni(): string {
   return new Date().toISOString().slice(0, 10);
@@ -29,6 +30,7 @@ export function HalamanTagihanDetail() {
 
   const tagihanQ = useListCache<{ tagihan: Tagihan[] }>('tagihan.list', {});
   const spQ = useListCache<{ sp: SuratPeringatan[] }>('sp.list', { tagihan_id: id });
+  const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', {});
 
   const [tglSetor, setTglSetor] = useState(hariIni());
   const [fotoNama, setFotoNama] = useState('');
@@ -41,6 +43,7 @@ export function HalamanTagihanDetail() {
   if (tagihanQ.galat && !tagihanQ.data) return <ErrorMessage pesan={tagihanQ.galat} onRetry={tagihanQ.refresh} />;
   const t = tagihanQ.data?.tagihan?.find((x) => x.tagihan_id === id);
   if (!t) return <ErrorMessage pesan="Tagihan tidak ditemukan." onRetry={tagihanQ.refresh} />;
+  const namaTaruna = tarunaQ.data?.taruna?.find((x) => x.nit === t.nit)?.nama;
 
   async function pilihBerkas() {
     const file = await ambilFotoInput();
@@ -97,7 +100,10 @@ export function HalamanTagihanDetail() {
     <div className="flex flex-col gap-4">
       <button className="text-sm text-primary" onClick={() => nav('/tagihan')}>← Kembali</button>
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-primary-dark">{t.nit} — {t.bulan}</h1>
+        <div>
+          <h1 className="text-xl font-bold text-primary-dark">{namaTaruna ?? t.nit}</h1>
+          <p className="text-xs text-gray-400">{t.nit} · {t.bulan}</p>
+        </div>
         <Badge status={t.status} />
       </div>
 
