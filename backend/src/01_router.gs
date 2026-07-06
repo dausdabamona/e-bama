@@ -78,6 +78,14 @@ var ACTION_MAP = {
   // bayar.close: fallback manual (baris historis status lama) — bukan alur normal, lihat 15_pembayaran.gs
   'bayar.close':      { handler: bayarClose,     roles: ['PPK'] },
 
+  // SPM (§18 skema-sheet.md) — header kelompok Prodi+Tingkat+Suplier, authored,
+  // beda provenance dari sp2d.* (imported). Baca lebih longgar (pola bayar.*/
+  // sp2d.rekonsiliasi), tulis PPK/ADMIN saja. TIDAK masuk PENYEDIA_ACTIONS.
+  'spm.list':         { handler: spmList,        roles: ['PPK', 'KPA', 'SENAT', 'WADIR3', 'ADMIN'] },
+  'spm.update':       { handler: spmUpdate,      roles: ['PPK', 'ADMIN'] },
+  'spm.set_sp2d':     { handler: spmSetSp2d,     roles: ['PPK', 'ADMIN'] },
+  'spm.regenerate':   { handler: spmRegenerate,  roles: ['PPK', 'ADMIN'] },
+
   // Tagihan gagal debet (TAHAP 4A)
   'tagihan.create':   { handler: tagihanCreate,  roles: ['SENAT', 'PPK'] },
   'tagihan.list':     { handler: tagihanList,    roles: [] },
