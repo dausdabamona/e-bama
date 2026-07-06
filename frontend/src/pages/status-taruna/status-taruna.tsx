@@ -11,6 +11,7 @@ import { EmptyState } from '../../components/ui/empty-state';
 import { ErrorMessage } from '../../components/ui/error-message';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
 import { useListCache } from '../../lib/use-list-cache';
+import { SearchSelect } from '../../components/ui/search-select';
 import { useToast } from '../../components/ui/toast';
 
 interface Taruna { nit: string; nama: string; kelas: string; status: string }
@@ -158,12 +159,13 @@ export function HalamanStatusTaruna() {
 
         {mode === 'individu' ? (
           <>
-            <label className="block text-sm font-medium text-gray-700">Taruna</label>
-            <select value={nitTerpilih} onChange={(e) => setNitTerpilih(e.target.value)}
-              className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2.5">
-              <option value="">— Pilih taruna —</option>
-              {daftarTaruna.map((t) => <option key={t.nit} value={t.nit}>{t.nama} ({t.nit})</option>)}
-            </select>
+            <SearchSelect
+              label="Taruna"
+              value={nitTerpilih}
+              onChange={setNitTerpilih}
+              placeholder="Ketik nama atau NIT untuk mencari…"
+              opsi={daftarTaruna.map((t) => ({ value: t.nit, label: `${t.nama} (${t.nit})` }))}
+            />
           </>
         ) : (
           <>
