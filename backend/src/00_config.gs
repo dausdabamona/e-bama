@@ -35,7 +35,8 @@ var SHEETS = {
   REKAP_BULANAN:    'REKAP_BULANAN',
   BANTUAN_LUAR_KAMPUS: 'BANTUAN_LUAR_KAMPUS',
   TARUNA_REKENING:  'TARUNA_REKENING',
-  SP2D_MONITORING:  'SP2D_MONITORING'
+  SP2D_MONITORING:  'SP2D_MONITORING',
+  SPM:              'SPM'
 };
 
 // ── Role pengguna ───────────────────────────────────────────────────────────
@@ -83,7 +84,15 @@ var ENUM = {
                       'PEMBAYARAN', 'TAGIHAN', 'SP'],
   LAMPIRAN_JENIS:    ['FOTO', 'SURAT', 'BA', 'INVOICE', 'BUKTI_SETOR',
                       'BUKTI_DEBET', 'MENU_GIZI', 'NOTULEN', 'LAINNYA'],
-  SP2D_KATEGORI:     ['DALAM_KAMPUS', 'LUAR_KAMPUS']         // SP2D_MONITORING.kategori
+  SP2D_KATEGORI:     ['DALAM_KAMPUS', 'LUAR_KAMPUS'],        // SP2D_MONITORING.kategori
+  // SPM (§18 skema-sheet.md) — header kelompok authored (beda dari SP2D_MONITORING
+  // yang imported). Nilai kategori SENGAJA sama persis dengan SP2D_KATEGORI (dua
+  // konsep yang memang identik: DALAM_KAMPUS/LUAR_KAMPUS), didefinisikan terpisah
+  // supaya SPM tidak diam-diam ikut berubah kalau SP2D_KATEGORI direvisi nanti.
+  SPM_KATEGORI:      ['DALAM_KAMPUS', 'LUAR_KAMPUS'],
+  // Tidak ada DITOLAK (dikonfirmasi Firdaus) — SPM yang dikembalikan/ditolak KPPN
+  // cukup diedit ulang (no_spm/tgl_spm) selama status belum SP2D_TERBIT.
+  SPM_STATUS:        ['DRAFT', 'DIAJUKAN', 'SP2D_TERBIT']
 };
 
 // Status harian yang tergolong "kegiatan luar kampus" — taruna berhak BANTUAN

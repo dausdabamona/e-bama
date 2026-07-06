@@ -45,7 +45,8 @@ var SHEETS = {
   REKAP_BULANAN:    'REKAP_BULANAN',
   BANTUAN_LUAR_KAMPUS: 'BANTUAN_LUAR_KAMPUS',
   TARUNA_REKENING:  'TARUNA_REKENING',
-  SP2D_MONITORING:  'SP2D_MONITORING'
+  SP2D_MONITORING:  'SP2D_MONITORING',
+  SPM:              'SPM'
 };
 
 // ── Role pengguna ───────────────────────────────────────────────────────────
@@ -93,7 +94,15 @@ var ENUM = {
                       'PEMBAYARAN', 'TAGIHAN', 'SP'],
   LAMPIRAN_JENIS:    ['FOTO', 'SURAT', 'BA', 'INVOICE', 'BUKTI_SETOR',
                       'BUKTI_DEBET', 'MENU_GIZI', 'NOTULEN', 'LAINNYA'],
-  SP2D_KATEGORI:     ['DALAM_KAMPUS', 'LUAR_KAMPUS']         // SP2D_MONITORING.kategori
+  SP2D_KATEGORI:     ['DALAM_KAMPUS', 'LUAR_KAMPUS'],        // SP2D_MONITORING.kategori
+  // SPM (§18 skema-sheet.md) — header kelompok authored (beda dari SP2D_MONITORING
+  // yang imported). Nilai kategori SENGAJA sama persis dengan SP2D_KATEGORI (dua
+  // konsep yang memang identik: DALAM_KAMPUS/LUAR_KAMPUS), didefinisikan terpisah
+  // supaya SPM tidak diam-diam ikut berubah kalau SP2D_KATEGORI direvisi nanti.
+  SPM_KATEGORI:      ['DALAM_KAMPUS', 'LUAR_KAMPUS'],
+  // Tidak ada DITOLAK (dikonfirmasi Firdaus) — SPM yang dikembalikan/ditolak KPPN
+  // cukup diedit ulang (no_spm/tgl_spm) selama status belum SP2D_TERBIT.
+  SPM_STATUS:        ['DRAFT', 'DIAJUKAN', 'SP2D_TERBIT']
 };
 
 // Status harian yang tergolong "kegiatan luar kampus" — taruna berhak BANTUAN
@@ -4810,7 +4819,7 @@ function kajurApprove(payload, session) {
  *      Lewati bila skrip terikat (bound) langsung ke spreadsheet.
  *   1) setupSemua()        → jalankan ketiga langkah sekaligus (disarankan)
  *    atau satu per satu:
- *   2) setupDatabase()     → buat 17 sheet + header + validasi + format + proteksi
+ *   2) setupDatabase()     → buat 18 sheet + header + validasi + format + proteksi
  *   3) seedAwal()          → 5 akun contoh (kata sandi default 123456, di-hash SHA-256+SALT)
  *   4) setupFolderDrive()  → folder Drive e-BAMA/{LAMPIRAN,SURAT_PERINGATAN,TEMPLATE}
  *
@@ -4942,6 +4951,19 @@ function _skema_() {
       ['bulan','s'], ['kegiatan','s'], ['jumlah_orang','i'], ['jumlah_pembayaran','i'],
       ['tgl_spm','d'], ['no_sp2d','s'], ['tgl_sp2d','d'], ['status_sp2d','s'],
       ['uraian_asli','s'], ['perlu_cek_manual','s']
+    ]],
+    // SPM (§18 skema-sheet.md) — header kelompok AUTHORED (dibuat satker sebelum
+    // SP2D terbit), beda provenance dari SP2D_MONITORING (imported). Satu sheet,
+    // dua kategori simetris: DALAM_KAMPUS (kunci bulan+prodi+tingkat+penyedia_id,
+    // anak PEMBAYARAN lewat bayar_id) & LUAR_KAMPUS (kunci bulan+prodi+tingkat+
+    // kegiatan+pembayaran_ke, tanpa bayar_id — tidak ada sheet amplop). 1 SPM = 1 SP2D
+    // (dikonfirmasi Firdaus), jadi field hasil SP2D menempel di baris yang sama.
+    [SHEETS.SPM, [
+      ['spm_id','s'], ['kategori', E.SPM_KATEGORI], ['bayar_id','s'], ['bulan','s'],
+      ['prodi','s'], ['tingkat','s'], ['penyedia_id','s'], ['kegiatan','s'],
+      ['pembayaran_ke','i'], ['periode','s'], ['nominal','i'],
+      ['no_spm','s'], ['tgl_spm','d'], ['no_sp2d','s'], ['tgl_sp2d','d'],
+      ['status', E.SPM_STATUS]
     ]]
   ];
 }
@@ -4964,7 +4986,7 @@ function setupSemua() {
 }
 
 /**
- * setupDatabase() — buat/segarkan 17 sheet sesuai skema. Idempotent.
+ * setupDatabase() — buat/segarkan 18 sheet sesuai skema. Idempotent.
  */
 function setupDatabase() {
   var ss = _getSpreadsheet_();
