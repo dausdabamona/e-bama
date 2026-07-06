@@ -64,6 +64,31 @@ function useTanpaCache<T>(action: string, payload?: unknown) {
   return { data, memuat, galat, refresh };
 }
 
+/**
+ * Unduh CSV format SPM SPAN (pipe-delimited) untuk satu suplier — SATU baris per
+ * taruna penerima (LS langsung ke taruna). Header persis yang diminta SPAN:
+ * NO|NAMA_SUPPLIER|NAMA_PEMILIK_REKENING|NO_REKENING|JUMLAH_UANG. Tanpa BOM/quote
+ * (parser SPAN pipe polos). JUMLAH_UANG = integer rupiah tanpa pemisah ribuan.
+ * Kembalikan jumlah taruna yang DILEWATI (rekening lengkap belum diisi).
+ */
+function unduhCsvSpm(suplier: SuplierF10, bulan: string): number {
+  const sanit = (v: string) => String(v || '').replace(/[|\r\n]+/g, ' ').trim();
+  const semua = suplier.kelompok.flatMap((k) => k.baris);
+  const dipakai = semua.filter((b) => b.rekening_lengkap_ada && b.no_rekening_lengkap);
+  const header = 'NO|NAMA_SUPPLIER|NAMA_PEMILIK_REKENING|NO_REKENING|JUMLAH_UANG';
+  const barisCsv = dipakai.map((b, i) =>
+    `${i + 1}|${sanit(b.nama)}|${sanit(b.nama_pemilik || b.nama)}|${sanit(b.no_rekening_lengkap)}|${b.nominal}`);
+  const teks = [header, ...barisCsv].join('\n') + '\n';
+  const blob = new Blob([teks], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `SPM-${suplier.penyedia_id || 'tanpa-suplier'}-${bulan}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  return semua.length - dipakai.length;
+}
+
 /** Satu lembar SPM per suplier (halaman cetak sendiri, break-before-page). */
 function LembarSuplier({ suplier, urutan, pejabat, bulan }: {
   suplier: SuplierF10; urutan: number; pejabat: Form10Data['pejabat']; bulan: string;
@@ -82,6 +107,19 @@ function LembarSuplier({ suplier, urutan, pejabat, bulan }: {
           {suplier.penyedia_id ? <> · ID Suplier: <span className="font-mono">{suplier.penyedia_id}</span></> : null}
         </p>
       </div>
+
+      {!belumAdaSuplier && (
+        <div className="mt-2 flex flex-col items-center gap-1 print:hidden">
+          <Button varian="garis" onClick={() => unduhCsvSpm(suplier, bulan)}>
+            ⬇️ Unduh CSV SPM (format SPAN) — {suplier.penyedia_nama || `ID ${suplier.penyedia_id}`}
+          </Button>
+          {suplier.kelompok.flatMap((k) => k.baris).some((b) => !b.rekening_lengkap_ada) && (
+            <p className="text-xs text-amber-600">
+              {suplier.kelompok.flatMap((k) => k.baris).filter((b) => !b.rekening_lengkap_ada).length} taruna dilewati (rekening lengkap belum diisi).
+            </p>
+          )}
+        </div>
+      )}
 
       {belumAdaSuplier && (
         <p className="mt-2 text-xs text-red-600 print:hidden">
