@@ -169,14 +169,17 @@ disengaja) — **sudah diimplementasi**:
 - Sheet TERPISAH `TARUNA_REKENING` (lihat `docs/skema-sheet.md` §16),
   TERPISAH dari `TARUNA.rek_mask` yang tetap 4 digit untuk semua hal lain
   (dashboard, laporan, `taruna.list`, dst).
-- Dua action khusus (`22_rekening.gs`): `rekening.lihat_lengkap` (role ADMIN,
-  PPK — dipakai internal `cetak.form07`/`cetak.form08`) dan `rekening.simpan`
+- Tiga action khusus (`22_rekening.gs`): `rekening.lihat_lengkap` (role ADMIN,
+  PPK — dipakai internal `cetak.form07`/`cetak.form08`, arah NIT→rekening),
+  `rekening.cocokkan` (role ADMIN, PPK — arah SEBALIKNYA rekening→NIT, dipakai
+  importer gagal-debet `/tagihan/impor-debet` utk cocokkan nomor rekening
+  laporan bank ke NIT pemiliknya EXACT, bukan tebak nama) dan `rekening.simpan`
   (role **ADMIN SAJA**, supaya input data sensitif ini tetap satu pintu) —
-  bukan CRUD generik, keduanya diperiksa role dua kali: `ACTION_MAP.roles`
+  bukan CRUD generik, ketiganya diperiksa role dua kali: `ACTION_MAP.roles`
   DAN helper `_hanyaAdminPPK_(session)` di dalam handler.
-- WAJIB 1 baris `AUDIT_LOG` tiap panggilan `rekening.lihat_lengkap` yang
-  berhasil (BACA, bukan cuma tulis) — catat NIT yang terbaca, JANGAN catat
-  nomor rekeningnya di `AUDIT_LOG`.
+- WAJIB 1 baris `AUDIT_LOG` tiap panggilan `rekening.lihat_lengkap` ATAU
+  `rekening.cocokkan` yang berhasil (BACA, bukan cuma tulis) — catat NIT/jumlah
+  yang terbaca, JANGAN catat nomor rekeningnya di `AUDIT_LOG`.
 - Tidak ada form isi bebas di halaman Taruna biasa — pengisian rekening
   lengkap lewat modal terpisah "🔒 Rekening" di `/taruna` yang HANYA tampil
   untuk role ADMIN (frontend hiding only; backend tetap menegakkan lewat

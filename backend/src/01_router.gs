@@ -141,6 +141,7 @@ var ACTION_MAP = {
 
   // Rekening lengkap (TARUNA_REKENING) — TAHAP SENSITIF, lihat CLAUDE.md § 4/§ 7
   'rekening.lihat_lengkap': { handler: rekeningLihatLengkap, roles: ['ADMIN', 'PPK'] },
+  'rekening.cocokkan':      { handler: rekeningCocokkan,     roles: ['ADMIN', 'PPK'] },
   'rekening.simpan':        { handler: rekeningSimpan,       roles: ['ADMIN'] },
   'rekening.simpan_batch':  { handler: rekeningSimpanBatch,  roles: ['ADMIN'] },
 

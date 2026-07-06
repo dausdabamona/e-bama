@@ -394,6 +394,7 @@ var ACTION_MAP = {
 
   // Rekening lengkap (TARUNA_REKENING) — TAHAP SENSITIF, lihat CLAUDE.md § 4/§ 7
   'rekening.lihat_lengkap': { handler: rekeningLihatLengkap, roles: ['ADMIN', 'PPK'] },
+  'rekening.cocokkan':      { handler: rekeningCocokkan,     roles: ['ADMIN', 'PPK'] },
   'rekening.simpan':        { handler: rekeningSimpan,       roles: ['ADMIN'] },
   'rekening.simpan_batch':  { handler: rekeningSimpanBatch,  roles: ['ADMIN'] },
 
@@ -4332,6 +4333,42 @@ function rekeningLihatLengkap(payload, session) {
     auditLog(session, 'rekening.lihat_lengkap', 'TARUNA_REKENING', nitList.join(','), null, { nit_list: nitList });
 
     return { rekening: hasil };
+  });
+}
+
+/**
+ * rekening.cocokkan {no_rekening_list, bulan?, bank?} — arah SEBALIKNYA dari
+ * rekening.lihat_lengkap (rekening→NIT, bukan NIT→rekening). Dipakai importer
+ * gagal-debet (/tagihan/impor-debet): nomor rekening PENUH dari laporan bank
+ * dicocokkan EXACT ke TARUNA_REKENING.no_rekening_lengkap → NIT pemiliknya,
+ * bukan tebak nama (nama di laporan bank sering terpotong). Role ADMIN/PPK,
+ * diperiksa dua kali (ACTION_MAP.roles + _hanyaAdminPPK_ di sini). WAJIB 1 baris
+ * AUDIT_LOG per pemanggilan berhasil — TANPA nomor rekening di AUDIT_LOG.
+ */
+function rekeningCocokkan(payload, session) {
+  _hanyaAdminPPK_(session);
+  var daftar = ((payload && payload.no_rekening_list) || [])
+    .map(function (n) { return String(n).trim(); })
+    .filter(function (n) { return !!n; });
+  if (!daftar.length) throw _fail_('no_rekening_list wajib diisi.');
+
+  return withLock(function () {
+    var byRekening = {};
+    sheetRead(SHEETS.TARUNA_REKENING).forEach(function (r) { byRekening[String(r.no_rekening_lengkap)] = r; });
+
+    var hasil = daftar.map(function (noRek) {
+      var r = byRekening[noRek];
+      if (!r) return { no_rekening: noRek, ditemukan: false };
+      return { no_rekening: noRek, ditemukan: true, nit: r.nit, nama_pemilik: r.nama_pemilik, bank: r.bank };
+    });
+
+    // AUDIT: jumlah dicocokkan/ditemukan + konteks (bulan/bank) bila dikirim —
+    // JANGAN pernah simpan nomor rekening itu sendiri di AUDIT_LOG.
+    var konteks = (payload && payload.bulan ? payload.bulan : '?') + ':' + (payload && payload.bank ? payload.bank : '?');
+    auditLog(session, 'rekening.cocokkan', 'TARUNA_REKENING', konteks, null,
+      { jumlah_dicocokkan: daftar.length, jumlah_ditemukan: hasil.filter(function (h) { return h.ditemukan; }).length });
+
+    return { hasil: hasil };
   });
 }
 

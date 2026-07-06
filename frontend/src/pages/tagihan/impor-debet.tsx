@@ -1,8 +1,11 @@
 // /tagihan/impor-debet (PPK) — impor CSV hasil pendebetan bank (mis. laporan
 // Autotran BNI/BSI) lalu tandai gagal debet massal, tanpa isi ulang manual.
-// Nama di bank dicocokkan ke NIT via prefix match (pola sama dengan
-// taruna-impor-rekening.tsx) — Admin/PPK WAJIB konfirmasi/pilih tiap baris
-// sebelum kirim. Baris yang statusnya terbaca "gagal" otomatis dicentang.
+// Pencocokan UTAMA: nomor REKENING PENUH di CSV → TARUNA_REKENING.no_rekening_lengkap
+// (rekening.cocokkan, EXACT match) — bukan tebak nama, karena nama di laporan
+// bank sering terpotong ("Muhamad Ilham Sa"). Kalau CSV tidak punya kolom
+// rekening, jatuh ke pencocokan nama (prefix) TAPI wajib konfirmasi manual tiap
+// baris (NIT tidak pernah diisi otomatis). Sebab tagihan diusulkan otomatis per
+// baris dari kode/teks error bank, tetap bisa diubah manual.
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BulanPicker, bulanIni } from '../../components/bulan-picker';
@@ -20,14 +23,16 @@ import type { Taruna } from '../taruna/tipe';
 const SEBAB = ['SALDO_KURANG', 'GAGAL_DEBET', 'REKENING_BERMASALAH'];
 
 interface BarisImporDebet {
-  nama: string; nominal: number; statusMentah: string; keterangan: string;
+  nama: string; rekening: string; nominal: number; statusMentah: string; keterangan: string;
   nitTerpilih: string; kandidat: { nit: string; nama: string }[];
-  dipilih: boolean;
+  dipilih: boolean; sebab: string;
+  cocokRekening: boolean; // true = ditemukan exact match via rekening.cocokkan
+  perluKonfirmasi: boolean; // true = rekening ada tapi tak ketemu, ATAU mode fallback nama
 }
 
 interface Kelompok { bank: string; prodi: string; baris: { idx: number; b: BarisImporDebet; t?: Taruna }[] }
 
-/** Normalisasi nama untuk pencocokan: kapital, hapus titik/koma/kutip/strip, rapikan spasi. */
+/** Normalisasi nama untuk pencocokan fallback: kapital, hapus titik/koma/kutip/strip, rapikan spasi. */
 function normalisasiNama(s: string): string {
   return s.toUpperCase().replace(/[.,'’-]/g, '').replace(/\s+/g, ' ').trim();
 }
@@ -39,26 +44,36 @@ function cariIndeksKolom(header: string[], ...kandidatNama: string[]): number {
   return header.findIndex((h) => target.includes(rapikan(h)));
 }
 
-/** Status/keterangan bank yang menandakan debet gagal (mis. "0 PROCESSED" = sukses). */
+/** Status/keterangan bank yang menandakan debet gagal ("0 PROCESSED"/"BERHASIL" = sukses). */
 function terlihatGagal(status: string, keterangan: string): boolean {
+  const s = `${status} ${keterangan}`.toLowerCase().trim();
+  if (!s) return false;
+  const sukses = /(^|\s)(0\s*)?processed\b/.test(s) || /berhasil/.test(s);
+  return !sukses;
+}
+
+/** Petakan teks/kode error bank → sebab TAGIHAN yang paling mendekati. */
+function petakanSebab(status: string, keterangan: string): string {
   const s = `${status} ${keterangan}`.toLowerCase();
-  if (!s.trim()) return false;
-  if (/processed/.test(s) && !/(gagal|reject|tidak cukup|tolak)/.test(s)) return false;
-  return /(gagal|reject|tidak cukup|tolak|error|err)/.test(s);
+  if (/tidak cukup|saldo|\b266\b/.test(s)) return 'SALDO_KURANG';
+  if (/rekening|blokir|tutup|invalid|tidak ditemukan/.test(s)) return 'REKENING_BERMASALAH';
+  return 'GAGAL_DEBET';
 }
 
 export function HalamanTagihanImporDebet() {
   const nav = useNavigate();
   const { toast } = useToast();
   const [bulan, setBulan] = useState(bulanIni());
+  const [bank, setBank] = useState<'BNI' | 'BSI'>('BNI');
   const rekapQ = useListCache<{ rekap: { nit: string; status: string }[] }>('rekap.get', { bulan });
   const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', {});
   const daftarTaruna = tarunaQ.data?.taruna ?? [];
   const tarunaByNit = new Map(daftarTaruna.map((t) => [t.nit, t]));
 
   const [baris, setBaris] = useState<BarisImporDebet[]>([]);
-  const [sebab, setSebab] = useState(SEBAB[0]);
+  const [modeRekening, setModeRekening] = useState(true);
   const [proses, setProses] = useState(false);
+  const [mencocokkan, setMencocokkan] = useState(false);
   const [galat, setGalat] = useState('');
 
   const rekap = rekapQ.data?.rekap ?? [];
@@ -80,26 +95,67 @@ export function HalamanTagihanImporDebet() {
     if (semua.length < 2) { toast('File CSV kosong atau tidak valid.', 'galat'); return; }
 
     const header = semua[0].map((h) => h.trim());
+    const iRek = cariIndeksKolom(header, 'rekening', 'no_rekening', 'no_rekening_lengkap', 'rekening_lengkap');
     const iNama = cariIndeksKolom(header, 'nama', 'nama di bank');
     const iNom = cariIndeksKolom(header, 'nominal');
-    const iStatus = cariIndeksKolom(header, 'status');
-    const iKet = cariIndeksKolom(header, 'keterangan', 'err message', 'errmessage');
+    const iStatus = cariIndeksKolom(header, 'status', 'tran');
+    const iKet = cariIndeksKolom(header, 'keterangan', 'err message', 'errmessage', 'error');
 
-    if (iNama < 0) {
-      toast('Header CSV wajib memuat kolom "nama".', 'galat');
+    if (iRek < 0 && iNama < 0) {
+      toast('Header CSV wajib memuat kolom "rekening" (disarankan) atau "nama".', 'galat');
       return;
     }
+    const pakaiRekening = iRek >= 0;
+    setModeRekening(pakaiRekening);
 
-    const hasil = semua.slice(1).map((row) => {
-      const nama = (row[iNama] ?? '').trim();
-      const statusMentah = iStatus >= 0 ? (row[iStatus] ?? '').trim() : '';
-      const keterangan = iKet >= 0 ? (row[iKet] ?? '').trim() : '';
-      const kandidat = cariKandidat(nama);
-      const gagal = terlihatGagal(statusMentah, keterangan);
+    const mentah = semua.slice(1).map((row) => ({
+      nama: iNama >= 0 ? (row[iNama] ?? '').trim() : '',
+      rekening: iRek >= 0 ? (row[iRek] ?? '').trim() : '',
+      nominal: iNom >= 0 ? Number(row[iNom] ?? 0) : 0,
+      statusMentah: iStatus >= 0 ? (row[iStatus] ?? '').trim() : '',
+      keterangan: iKet >= 0 ? (row[iKet] ?? '').trim() : ''
+    }));
+
+    let cocokByRekening = new Map<string, { nit: string; nama_pemilik: string }>();
+    if (pakaiRekening) {
+      const daftarRekening = Array.from(new Set(mentah.map((m) => m.rekening).filter(Boolean)));
+      if (daftarRekening.length > 0) {
+        setMencocokkan(true);
+        try {
+          const r = await api<{ hasil: { no_rekening: string; ditemukan: boolean; nit?: string; nama_pemilik?: string }[] }>(
+            'rekening.cocokkan', { no_rekening_list: daftarRekening, bulan, bank }
+          );
+          r.hasil.forEach((h) => { if (h.ditemukan && h.nit) cocokByRekening.set(h.no_rekening, { nit: h.nit, nama_pemilik: h.nama_pemilik ?? '' }); });
+        } catch (e) {
+          toast(e instanceof Error ? e.message : 'Gagal mencocokkan rekening.', 'galat');
+        } finally {
+          setMencocokkan(false);
+        }
+      }
+    }
+
+    const hasil: BarisImporDebet[] = mentah.map((m) => {
+      const gagal = terlihatGagal(m.statusMentah, m.keterangan);
+      const sebab = petakanSebab(m.statusMentah, m.keterangan);
+      if (pakaiRekening) {
+        const cocok = m.rekening ? cocokByRekening.get(m.rekening) : undefined;
+        if (cocok) {
+          return {
+            ...m, nitTerpilih: cocok.nit, kandidat: [{ nit: cocok.nit, nama: cocok.nama_pemilik || cocok.nit }],
+            dipilih: gagal, sebab, cocokRekening: true, perluKonfirmasi: false
+          };
+        }
+        // Rekening tak ketemu exact → tetap tawarkan usulan dari nama (bila ada) sbg bantuan, wajib konfirmasi manual.
+        return {
+          ...m, nitTerpilih: '', kandidat: cariKandidat(m.nama), dipilih: gagal, sebab,
+          cocokRekening: false, perluKonfirmasi: true
+        };
+      }
+      // Mode fallback (tak ada kolom rekening di CSV) — NIT TIDAK PERNAH diisi otomatis,
+      // walau kandidat cuma satu; admin wajib memilih sendiri sbg konfirmasi eksplisit.
       return {
-        nama, nominal: iNom >= 0 ? Number(row[iNom] ?? 0) : 0, statusMentah, keterangan,
-        nitTerpilih: kandidat.length === 1 ? kandidat[0].nit : '',
-        kandidat, dipilih: gagal
+        ...m, nitTerpilih: '', kandidat: cariKandidat(m.nama), dipilih: gagal, sebab,
+        cocokRekening: false, perluKonfirmasi: true
       };
     });
     setBaris(hasil);
@@ -107,6 +163,9 @@ export function HalamanTagihanImporDebet() {
 
   function setNit(i: number, nit: string) {
     setBaris((prev) => prev.map((b, idx) => (idx === i ? { ...b, nitTerpilih: nit } : b)));
+  }
+  function setSebabBaris(i: number, sebab: string) {
+    setBaris((prev) => prev.map((b, idx) => (idx === i ? { ...b, sebab } : b)));
   }
   function toggleDipilih(i: number) {
     setBaris((prev) => prev.map((b, idx) => (idx === i ? { ...b, dipilih: !b.dipilih } : b)));
@@ -116,10 +175,10 @@ export function HalamanTagihanImporDebet() {
     const map = new Map<string, Kelompok>();
     baris.forEach((b, idx) => {
       const t = b.nitTerpilih ? tarunaByNit.get(b.nitTerpilih) : undefined;
-      const bank = t?.bank || 'Tanpa Bank';
+      const bankGrup = t?.bank || 'Tanpa Bank';
       const prodi = t?.prodi || 'Tanpa Prodi';
-      const key = `${bank}||${prodi}`;
-      if (!map.has(key)) map.set(key, { bank, prodi, baris: [] });
+      const key = `${bankGrup}||${prodi}`;
+      if (!map.has(key)) map.set(key, { bank: bankGrup, prodi, baris: [] });
       map.get(key)!.baris.push({ idx, b, t });
     });
     const arr = Array.from(map.values());
@@ -140,10 +199,18 @@ export function HalamanTagihanImporDebet() {
     if (jmlDobelNit) { setGalat('Ada NIT yang dipilih untuk lebih dari satu baris — perbaiki dulu.'); return; }
     setProses(true); setGalat('');
     try {
-      const r = await api<{ tagihan: { tagihan_id: string }[] }>('tagihan.create', {
-        bulan, nit: terpilih.map((b) => b.nitTerpilih), sebab
+      const perSebab = new Map<string, string[]>();
+      terpilih.forEach((b) => {
+        const list = perSebab.get(b.sebab) ?? [];
+        list.push(b.nitTerpilih);
+        perSebab.set(b.sebab, list);
       });
-      toast(`${r.tagihan.length} tagihan dicatat, SP-1 terbit otomatis.`, 'sukses');
+      let total = 0;
+      for (const [sebab, nitList] of perSebab) {
+        const r = await api<{ tagihan: { tagihan_id: string }[] }>('tagihan.create', { bulan, nit: nitList, sebab });
+        total += r.tagihan.length;
+      }
+      toast(`${total} tagihan dicatat, SP-1 terbit otomatis.`, 'sukses');
       nav('/tagihan');
     } catch (e) {
       setGalat(e instanceof Error ? e.message : 'Gagal.');
@@ -156,12 +223,27 @@ export function HalamanTagihanImporDebet() {
     <div className="flex flex-col gap-4">
       <button className="text-sm text-primary" onClick={() => nav('/tagihan')}>← Kembali</button>
       <h1 className="text-xl font-bold text-primary-dark">Impor CSV Hasil Pendebetan</h1>
-      <p className="text-xs text-amber-700">
-        ⚠️ Nama di laporan bank kadang terpotong/beda ejaan — pencocokan otomatis HANYA usulan
-        (awalan nama cocok). Periksa/tentukan NIT tiap baris sebelum kirim. Baris berstatus
-        "gagal/tidak cukup/tolak" otomatis dicentang, boleh diubah manual.
-      </p>
+      {modeRekening ? (
+        <p className="text-xs text-gray-500">
+          Pencocokan via nomor rekening PENUH (exact match) — baris hijau sudah pasti,
+          baris kuning tak ketemu & perlu konfirmasi manual.
+        </p>
+      ) : (
+        <p className="text-xs text-amber-700">
+          ⚠️ CSV tidak punya kolom rekening — pencocokan HANYA usulan dari nama (sering
+          terpotong di laporan bank). NIT TIDAK diisi otomatis; setiap baris WAJIB
+          dikonfirmasi manual sebelum kirim.
+        </p>
+      )}
       <BulanPicker bulan={bulan} onChange={setBulan} />
+      <div>
+        <label className="mb-1 block text-sm font-medium text-gray-700">Bank Laporan Ini</label>
+        <select value={bank} onChange={(e) => setBank(e.target.value as 'BNI' | 'BSI')}
+          className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2.5">
+          <option value="BNI">BNI</option>
+          <option value="BSI">BSI</option>
+        </select>
+      </div>
       {rekapQ.galat && <ErrorMessage pesan={rekapQ.galat} onRetry={rekapQ.refresh} />}
       {belumFinal && (
         <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
@@ -171,25 +253,21 @@ export function HalamanTagihanImporDebet() {
 
       <Card className="flex flex-col gap-2">
         <p className="text-xs text-gray-500">
-          Unggah CSV dengan kolom minimal <code>nama</code> — opsional <code>nominal</code>,{' '}
-          <code>status</code>, <code>keterangan</code> (format hasil konversi laporan Autotran bank).
+          Unggah CSV — kolom <code>rekening</code> (nomor penuh, disarankan) atau <code>nama</code>,
+          opsional <code>nominal</code>, <code>status</code>, <code>keterangan</code> (format hasil
+          konversi laporan Autotran bank).
         </p>
         {tarunaQ.memuat && !tarunaQ.data ? (
-          <LoadingSpinner label="Memuat daftar Taruna dulu (perlu untuk cocokkan nama)…" />
+          <LoadingSpinner label="Memuat daftar Taruna dulu…" />
         ) : (
           <input type="file" accept=".csv,text/csv" onChange={(e) => void pilihFile(e)}
             className="min-h-tap rounded-xl border border-gray-300 px-3 py-2.5 text-sm" />
         )}
+        {mencocokkan && <LoadingSpinner label="Mencocokkan nomor rekening ke NIT…" />}
       </Card>
 
       {baris.length > 0 && !belumFinal && (
         <Card className="flex flex-col gap-3">
-          <label className="block text-sm font-medium text-gray-700">Sebab (dipakai untuk semua yang dicentang)</label>
-          <select value={sebab} onChange={(e) => setSebab(e.target.value)}
-            className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2.5">
-            {SEBAB.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
-          </select>
-
           <div className="flex items-center justify-between text-sm">
             <span className="text-green-700">{terpilih.length} dari {baris.length} baris akan ditandai gagal debet</span>
           </div>
@@ -209,16 +287,17 @@ export function HalamanTagihanImporDebet() {
                         <th className="py-1 pr-2">Nama di Bank</th>
                         <th className="py-1 pr-2 text-right">Nominal</th>
                         <th className="py-1 pr-2">Status</th>
-                        <th className="py-1">Cocokkan ke Taruna</th>
+                        <th className="py-1 pr-2">Cocokkan ke Taruna</th>
+                        <th className="py-1">Sebab</th>
                       </tr>
                     </thead>
                     <tbody>
                       {k.baris.map(({ idx, b }) => (
-                        <tr key={idx} className={`border-b border-gray-100 ${!b.nitTerpilih ? 'bg-amber-50' : ''}`}>
+                        <tr key={idx} className={`border-b border-gray-100 ${b.cocokRekening ? 'bg-green-50' : b.perluKonfirmasi ? 'bg-amber-50' : ''}`}>
                           <td className="py-1">
                             <input type="checkbox" className="h-4 w-4" checked={b.dipilih} onChange={() => toggleDipilih(idx)} />
                           </td>
-                          <td className="py-1 pr-2">{b.nama}</td>
+                          <td className="py-1 pr-2">{b.nama || <span className="text-gray-400">—</span>}</td>
                           <td className="py-1 pr-2 text-right">{b.nominal ? formatRupiah(b.nominal) : '-'}</td>
                           <td className="py-1 pr-2">
                             {b.statusMentah || b.keterangan ? (
@@ -227,18 +306,24 @@ export function HalamanTagihanImporDebet() {
                               </span>
                             ) : '-'}
                           </td>
-                          <td className="py-1">
+                          <td className="py-1 pr-2">
                             <select value={b.nitTerpilih} onChange={(e) => setNit(idx, e.target.value)}
                               className="w-full rounded border border-gray-300 px-1 py-1">
                               <option value="">— pilih taruna —</option>
                               {b.kandidat.length > 0 && (
-                                <optgroup label="Usulan (cocok awalan nama)">
+                                <optgroup label={b.cocokRekening ? 'Cocok rekening (pasti)' : 'Usulan (cocok awalan nama)'}>
                                   {b.kandidat.map((kd) => <option key={kd.nit} value={kd.nit}>{kd.nama} ({kd.nit})</option>)}
                                 </optgroup>
                               )}
                               <optgroup label="Semua Taruna">
                                 {daftarTaruna.map((t) => <option key={t.nit} value={t.nit}>{t.nama} ({t.nit})</option>)}
                               </optgroup>
+                            </select>
+                          </td>
+                          <td className="py-1">
+                            <select value={b.sebab} onChange={(e) => setSebabBaris(idx, e.target.value)}
+                              className="w-full rounded border border-gray-300 px-1 py-1">
+                              {SEBAB.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
                             </select>
                           </td>
                         </tr>
