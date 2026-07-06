@@ -60,9 +60,22 @@ export function HalamanTagihanDetail() {
         tagihan_id: t!.tagihan_id, tgl_setor: tglSetor,
         berkas: { base64: fotoBase64, nama_file: fotoNama || 'bukti-setor.jpg' }
       });
-      toast(r.antri ? 'Disimpan lokal, akan dikirim otomatis.' : 'Bukti setor terkirim, menunggu verifikasi PPK.', 'sukses');
+      toast(r.antri ? 'Disimpan lokal, akan dikirim otomatis.' : 'Bukti setor terkirim, menunggu verifikasi Pembina.', 'sukses');
       tagihanQ.refresh();
       setFotoNama(''); setFotoBase64('');
+    } catch (e) {
+      setGalat(e instanceof Error ? e.message : 'Gagal.');
+    } finally {
+      setProses(false);
+    }
+  }
+
+  async function verifikasiPembina() {
+    setProses(true); setGalat('');
+    try {
+      await api('tagihan.verifikasi_pembina', { tagihan_id: t!.tagihan_id });
+      toast('Diverifikasi Pembina — menunggu verifikasi PPK/Admin.', 'sukses');
+      tagihanQ.refresh();
     } catch (e) {
       setGalat(e instanceof Error ? e.message : 'Gagal.');
     } finally {
@@ -120,6 +133,17 @@ export function HalamanTagihanDetail() {
         )}
       </Card>
 
+      {t.status === 'TERTAGIH' && t.tgl_setor && (
+        <Card className="flex flex-col gap-1">
+          <p className="text-sm font-semibold text-gray-600">Status Verifikasi (ganda, wajib 2 pihak)</p>
+          <p className="text-sm">
+            {t.verif_pembina_oleh ? '✅' : '⏳'} Verifikasi Pembina (1/2)
+            {t.verif_pembina_oleh ? ` — ${t.verif_pembina_oleh}` : ' — menunggu'}
+          </p>
+          <p className="text-sm">⏳ Verifikasi PPK/Admin (2/2) — menunggu</p>
+        </Card>
+      )}
+
       <Card>
         <p className="mb-2 text-sm font-semibold text-gray-600">Riwayat Surat Peringatan</p>
         {spQ.memuat && !spQ.data && <LoadingSpinner />}
@@ -139,14 +163,14 @@ export function HalamanTagihanDetail() {
         ))}
       </Card>
 
-      {t.status === 'TERTAGIH' && session?.role === 'SENAT' && (
+      {t.status === 'TERTAGIH' && (session?.role === 'SENAT' || session?.role === 'PEMBINA') && (
         <Card className="flex flex-col gap-3">
-          <p className="text-sm font-semibold text-gray-600">Setor Bukti Pembayaran</p>
+          <p className="text-sm font-semibold text-gray-600">Setor Bukti Transfer ke Rekening Senat</p>
           <label className="block text-sm font-medium text-gray-700">Tanggal Setor</label>
           <input type="date" value={tglSetor} onChange={(e) => setTglSetor(e.target.value)}
             className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2.5" />
           <Button varian="garis" onClick={() => void pilihBerkas()}>
-            {fotoNama ? `📎 ${fotoNama}` : '📷 Unggah Bukti Setor'}
+            {fotoNama ? `📎 ${fotoNama}` : '📷 Unggah Screenshot/Foto Bukti Transfer'}
           </Button>
           {galat && <p className="text-sm text-red-600">{galat}</p>}
           <Button onClick={() => void kirimSetor()} disabled={proses}>
@@ -155,22 +179,38 @@ export function HalamanTagihanDetail() {
         </Card>
       )}
 
-      {t.status === 'TERTAGIH' && session?.role === 'PPK' && (
+      {t.status === 'TERTAGIH' && session?.role === 'PEMBINA' && t.tgl_setor && !t.verif_pembina_oleh && (
         <Card className="flex flex-col gap-2">
-          <p className="text-sm font-semibold text-gray-600">Tindakan PPK</p>
-          {t.tgl_setor && (
+          <p className="text-sm font-semibold text-gray-600">Verifikasi Pembina (1/2)</p>
+          <p className="text-xs text-gray-500">Konfirmasi bukti transfer di atas benar dan sah.</p>
+          {galat && <p className="text-sm text-red-600">{galat}</p>}
+          <Button onClick={() => void verifikasiPembina()} disabled={proses}>
+            {proses ? 'Memproses…' : '✅ Konfirmasi Bukti Transfer'}
+          </Button>
+        </Card>
+      )}
+
+      {t.status === 'TERTAGIH' && (session?.role === 'PPK' || session?.role === 'ADMIN') && (
+        <Card className="flex flex-col gap-2">
+          <p className="text-sm font-semibold text-gray-600">Tindakan PPK/Admin</p>
+          {t.tgl_setor && !t.verif_pembina_oleh && (
+            <p className="text-xs text-amber-700">⏳ Menunggu verifikasi Pembina dulu (verifikasi ganda wajib).</p>
+          )}
+          {t.tgl_setor && t.verif_pembina_oleh && (
             <Button onClick={() => void verifikasiSetoran()} disabled={proses}>
-              Verifikasi Setoran → LUNAS
+              {proses ? 'Memproses…' : 'Verifikasi (2/2) → LUNAS'}
             </Button>
           )}
-          {spQ.data && spQ.data.sp.length > 0 && (
+          {session?.role === 'PPK' && spQ.data && spQ.data.sp.length > 0 && (
             <Button varian="garis" onClick={() => void terbitkanUlangSp()} disabled={proses}>
               Terbitkan Ulang SP Level Aktif
             </Button>
           )}
-          <Button varian="bahaya" onClick={() => setTampilHapus(true)} disabled={proses}>
-            Hapuskan Tagihan
-          </Button>
+          {session?.role === 'PPK' && (
+            <Button varian="bahaya" onClick={() => setTampilHapus(true)} disabled={proses}>
+              Hapuskan Tagihan
+            </Button>
+          )}
         </Card>
       )}
 

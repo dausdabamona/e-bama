@@ -101,7 +101,7 @@ function _skema_() {
     [SHEETS.TAGIHAN, [
       ['tagihan_id','s'], ['bulan','s'], ['nit','s'], ['nominal','i'],
       ['sebab', E.TAGIHAN_SEBAB], ['status', E.TAGIHAN_STATUS], ['tgl_setor','d'],
-      ['diverifikasi_oleh','s'], ['catatan_hapus','s']
+      ['diverifikasi_oleh','s'], ['catatan_hapus','s'], ['verif_pembina_oleh','s']
     ]],
     [SHEETS.SURAT_PERINGATAN, [
       ['sp_id','s'], ['tagihan_id','s'], ['level','i'], ['no_surat','s'],

@@ -151,8 +151,9 @@ diisi ulang sejak migrasi harga per-porsi → per-hari, dikonfirmasi Firdaus).
 | `tagihan.list` | semua login | sertakan `level_aktif` (MAX level SP) + `tenggat_aktif`; cache 60 detik, invalidate saat tulis |
 | `tagihan.summary` | PPK, KPA, WADIR3 | `{per_level: {0..3: {jumlah, nominal}}, total_outstanding}` — dashboard piutang |
 | `tagihan.status_debet` | PPK, SENAT, KPA, WADIR3 (baca saja) | `{bulan}` → `{bulan, baris:[{nit,nama,prodi,tingkat,nominal,status_debet:'BERHASIL'\|'GAGAL',tagihan_id,sebab,status_tagihan}], total_taruna, jml_berhasil, jml_gagal}` — laporan status debet taruna→Senat per taruna. Bandingkan REKAP_BULANAN nominal>0 vs TAGIHAN bulan itu; `BERHASIL` = **inferensi** (tidak ada baris TAGIHAN, bukan konfirmasi aktif dari bank); `GAGAL` = ada baris TAGIHAN apa pun status penyelesaiannya (TERTAGIH/LUNAS/DIHAPUSKAN/ESKALASI_MANUAL tetap dihitung gagal debet awal) |
-| `tagihan.setor` | SENAT | bukti setor (`jenis=BUKTI_SETOR`) + tgl_setor; status tetap TERTAGIH |
-| `tagihan.verify` | PPK | syarat bukti setor ada → `LUNAS` |
+| `tagihan.setor` | SENAT, PEMBINA | bukti setor (`jenis=BUKTI_SETOR`, screenshot/foto transfer) + tgl_setor; status tetap TERTAGIH |
+| `tagihan.verifikasi_pembina` | PEMBINA | verifikasi PERTAMA — syarat bukti setor ada; set `verif_pembina_oleh`; status TETAP TERTAGIH (bukan transisi akhir) — verifikasi ganda, dikonfirmasi Firdaus |
+| `tagihan.verify` | PPK, ADMIN | verifikasi KEDUA/final — syarat bukti setor DAN `verif_pembina_oleh` sudah ada → `LUNAS`. Efek samping: hapus SP milik tagihan ini yang `tgl_terbit` lebih baru dari `tgl_setor` (dibayar sebelum SP terbit → SP tak berdasar) |
 | `tagihan.waive` | PPK | `catatan_hapus` WAJIB → `DIHAPUSKAN` |
 | `tagihan.regenerate_sp` | PPK | terbitkan ulang PDF level aktif — no_surat BARU, baris SP baru, `generated_by=MANUAL` |
 | `sp.list` | semua login | riwayat SP per tagihan |

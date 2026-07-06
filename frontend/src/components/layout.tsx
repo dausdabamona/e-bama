@@ -31,6 +31,7 @@ export const NAV_PER_ROLE: Record<Role, ItemNav[]> = {
     { ke: '/verifikasi', label: 'Verifikasi', ikon: '🔎' },
     { ke: '/pesanan', label: 'Pesanan', ikon: '🍱' },
     { ke: '/realisasi', label: 'Realisasi', ikon: '✅' },
+    { ke: '/tagihan', label: 'Tagihan', ikon: '💳' },
     { ke: '/status-taruna', label: 'Status', ikon: '📋' },
     { ke: '/taruna', label: 'Taruna', ikon: '🎓' },
     { ke: '/rekap-ringkas', label: 'Rekap', ikon: '📊' },
@@ -51,6 +52,7 @@ export const NAV_PER_ROLE: Record<Role, ItemNav[]> = {
   ADMIN: [
     { ke: '/taruna', label: 'Taruna', ikon: '🎓' },
     { ke: '/status-taruna', label: 'Status', ikon: '📋' },
+    { ke: '/tagihan', label: 'Tagihan', ikon: '💳' },
     { ke: '/pengguna', label: 'Pengguna', ikon: '👥' },
     { ke: '/laporan', label: 'Laporan', ikon: '🖨️' },
     { ke: '/akun', label: 'Akun', ikon: '👤' }

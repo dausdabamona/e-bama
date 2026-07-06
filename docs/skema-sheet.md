@@ -253,12 +253,25 @@ Status: `TERTAGIH → LUNAS | DIHAPUSKAN | ESKALASI_MANUAL`.
 | nominal 📸 | integer | snapshot dari REKAP_BULANAN (harus FINAL) saat tagihan dibuat |
 | sebab | enum | `GAGAL_DEBET` / `SALDO_KURANG` / `REKENING_BERMASALAH` |
 | status | enum | `TERTAGIH` / `LUNAS` / `DIHAPUSKAN` / `ESKALASI_MANUAL` |
-| tgl_setor | date | tanggal taruna setor ke rekening Senat |
-| diverifikasi_oleh | FK → PENGGUNA | PPK |
+| tgl_setor | date | tanggal taruna setor ke rekening Senat (diisi Senat/Pembina saat lapor bukti transfer) |
+| diverifikasi_oleh | FK → PENGGUNA | **verifikasi KEDUA/final** (PPK atau ADMIN) — inilah yang memicu status `LUNAS` |
 | catatan_hapus | string | WAJIB terisi bila status `DIHAPUSKAN` |
+| verif_pembina_oleh | FK → PENGGUNA | **verifikasi PERTAMA (Pembina)** — dikonfirmasi Firdaus: pelunasan butuh verifikasi ganda (Pembina lalu PPK/Admin), bukan satu pihak saja. Kosong = belum diverifikasi Pembina; `tagihan.verify` (verifikasi kedua) MENOLAK selama kolom ini kosong. Di-append di AKHIR (migrasi idempotent) |
 
-Bukti setor → LAMPIRAN `ref_type=TAGIHAN`, `jenis=BUKTI_SETOR`.
+Bukti setor (screenshot/foto transfer) → LAMPIRAN `ref_type=TAGIHAN`, `jenis=BUKTI_SETOR` — WAJIB
+ada sebelum verifikasi Pembina MAUPUN verifikasi PPK/Admin boleh dilakukan.
 Level SP aktif TIDAK disimpan di sini — dibaca `MAX(level)` dari SURAT_PERINGATAN.
+
+**Alur verifikasi ganda** (dikonfirmasi Firdaus): `tagihan.setor` kini bisa diisi role
+**SENAT atau PEMBINA** (bukan Senat saja) — melampirkan bukti transfer, status tetap
+`TERTAGIH`. Lalu **dua verifikasi berurutan, oleh dua pihak berbeda**, keduanya wajib
+sebelum `LUNAS`: (1) `tagihan.verifikasi_pembina` (role PEMBINA) — set `verif_pembina_oleh`,
+status TETAP `TERTAGIH` (bukan transisi akhir); (2) `tagihan.verify` (role PPK/ADMIN) —
+menolak bila `verif_pembina_oleh` masih kosong; berhasil → `status=LUNAS`,
+`diverifikasi_oleh` terisi. **Efek samping otomatis** saat `tagihan.verify` berhasil:
+SP mana pun milik tagihan ini yang `tgl_terbit` LEBIH BARU dari `tgl_setor` (taruna
+sudah bayar SEBELUM SP itu terbit — SP jadi tak berdasar) **DIHAPUS** dari
+SURAT_PERINGATAN (bukan cuma diabaikan), supaya riwayat SP tidak menyesatkan.
 
 ### 11. SURAT_PERINGATAN
 
