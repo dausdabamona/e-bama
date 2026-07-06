@@ -46,6 +46,20 @@ function _wajibBulan_(v, nama) {
   return s;
 }
 
+/** Daftar tanggal 'yyyy-MM-dd' dari `dari` s.d. `sampai` inklusif. Maks 186 hari (±6 bulan). */
+function _daftarTanggal_(dari, sampai) {
+  if (sampai < dari) throw _fail_('tgl_akhir tidak boleh sebelum tanggal.');
+  var out = [];
+  var d = new Date(dari + 'T00:00:00');
+  var akhir = new Date(sampai + 'T00:00:00');
+  while (d <= akhir) {
+    out.push(_tglStr_(d));
+    d.setDate(d.getDate() + 1);
+    if (out.length > 186) throw _fail_('Rentang tanggal maksimal 186 hari.');
+  }
+  return out;
+}
+
 /**
  * Normalisasi mask 4 digit terakhir (rek_mask / npwp_mask).
  * Terima '1234', '••••1234', '****1234' → simpan '••••1234'.

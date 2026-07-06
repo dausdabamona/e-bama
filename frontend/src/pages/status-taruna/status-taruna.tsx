@@ -38,6 +38,13 @@ function hariIni(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/** Jumlah hari inklusif antara dua tanggal 'yyyy-MM-dd'. */
+function jmlHari(dari: string, sampai: string): number {
+  const a = new Date(dari + 'T00:00:00');
+  const b = new Date(sampai + 'T00:00:00');
+  return Math.round((b.getTime() - a.getTime()) / 86400000) + 1;
+}
+
 export function HalamanStatusTaruna() {
   const { toast } = useToast();
   const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', { status: 'AKTIF' });
@@ -48,6 +55,7 @@ export function HalamanStatusTaruna() {
 
   const [mode, setMode] = useState<'individu' | 'massal'>('individu');
   const [tanggal, setTanggal] = useState(hariIni());
+  const [tglAkhir, setTglAkhir] = useState('');
   const [statusPilih, setStatusPilih] = useState(ENUM_STATUS[0]);
   const [nitTerpilih, setNitTerpilih] = useState('');
   const [kelasTerpilih, setKelasTerpilih] = useState('');
@@ -74,12 +82,16 @@ export function HalamanStatusTaruna() {
 
   async function simpanIndividu() {
     if (!nitTerpilih) { setGalat('Pilih taruna.'); return; }
+    if (tglAkhir && tglAkhir < tanggal) { setGalat('Tanggal Sampai tidak boleh sebelum Mulai.'); return; }
     setProses(true); setGalat('');
     try {
-      const r = await aksiTulis('status.set', { tanggal, nit: nitTerpilih, status: statusPilih, berkas: berkasPayload() });
-      toast(r.antri ? 'Disimpan lokal, akan dikirim otomatis.' : 'Status tersimpan.', 'sukses');
+      const r = await aksiTulis('status.set', {
+        tanggal, tgl_akhir: tglAkhir || undefined, nit: nitTerpilih, status: statusPilih, berkas: berkasPayload()
+      });
+      const hari = tglAkhir ? jmlHari(tanggal, tglAkhir) : 1;
+      toast(r.antri ? 'Disimpan lokal, akan dikirim otomatis.' : `Status tersimpan${hari > 1 ? ` untuk ${hari} hari` : ''}.`, 'sukses');
       statusQ.refresh();
-      setNitTerpilih(''); setFotoNama(''); setFotoBase64('');
+      setNitTerpilih(''); setTglAkhir(''); setFotoNama(''); setFotoBase64('');
     } catch (e) {
       setGalat(e instanceof Error ? e.message : 'Gagal.');
     } finally {
@@ -89,14 +101,16 @@ export function HalamanStatusTaruna() {
 
   async function simpanMassal() {
     if (nitMassal.size === 0) { setGalat('Pilih minimal satu taruna.'); return; }
+    if (tglAkhir && tglAkhir < tanggal) { setGalat('Tanggal Sampai tidak boleh sebelum Mulai.'); return; }
     setProses(true); setGalat('');
     try {
       const r = await aksiTulis('status.batch', {
-        tanggal, status: statusPilih, nit: Array.from(nitMassal), berkas: berkasPayload()
+        tanggal, tgl_akhir: tglAkhir || undefined, status: statusPilih, nit: Array.from(nitMassal), berkas: berkasPayload()
       });
-      toast(r.antri ? 'Disimpan lokal, akan dikirim otomatis.' : `${nitMassal.size} taruna tersimpan.`, 'sukses');
+      const hari = tglAkhir ? jmlHari(tanggal, tglAkhir) : 1;
+      toast(r.antri ? 'Disimpan lokal, akan dikirim otomatis.' : `${nitMassal.size} taruna tersimpan${hari > 1 ? ` × ${hari} hari` : ''}.`, 'sukses');
       statusQ.refresh();
-      setNitMassal(new Set()); setFotoNama(''); setFotoBase64('');
+      setNitMassal(new Set()); setTglAkhir(''); setFotoNama(''); setFotoBase64('');
     } catch (e) {
       setGalat(e instanceof Error ? e.message : 'Gagal.');
     } finally {
@@ -122,9 +136,19 @@ export function HalamanStatusTaruna() {
           <Button varian={mode === 'massal' ? 'utama' : 'garis'} className="flex-1" onClick={() => setMode('massal')}>Massal (Kelas)</Button>
         </div>
 
-        <label className="block text-sm font-medium text-gray-700">Tanggal</label>
-        <input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)}
-          className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2.5" />
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700">Mulai</label>
+            <input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)}
+              className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2.5" />
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700">Sampai (opsional)</label>
+            <input type="date" value={tglAkhir} min={tanggal} onChange={(e) => setTglAkhir(e.target.value)}
+              className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2.5" />
+          </div>
+        </div>
+        <p className="-mt-2 text-xs text-gray-400">Kosongkan "Sampai" jika hanya satu hari.</p>
 
         <label className="block text-sm font-medium text-gray-700">Status</label>
         <select value={statusPilih} onChange={(e) => setStatusPilih(e.target.value)}

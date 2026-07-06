@@ -40,7 +40,11 @@ function kajurTarunaList(payload, session) {
   return { taruna: rows, prodi: prodi };
 }
 
-/** Set absen luar kampus satu taruna. Payload {tanggal, nit, status}. Backdate diizinkan. */
+/**
+ * Set absen luar kampus satu taruna. Payload {tanggal, nit, status, tgl_akhir?}.
+ * Backdate diizinkan. `tgl_akhir` opsional → isi rentang tanggal (PKL/KPA biasanya
+ * berlangsung berbulan-bulan, tidak perlu input per hari).
+ */
 function kajurStatusSet(payload, session) {
   var prodi = _hanyaKajur_(session);
   var tanggal = _wajibTgl_(payload && payload.tanggal, 'tanggal');
@@ -51,10 +55,16 @@ function kajurStatusSet(payload, session) {
     throw _fail_('Ketua Jurusan hanya boleh menginput status luar kampus: ' + STATUS_LUAR_KAMPUS.join(' / '));
   }
   _pastikanTarunaProdi_(nit, prodi);
-  return withLock(function () { return _statusUpsert_(session, tanggal, nit, status); });
+  var daftarTgl = (payload && payload.tgl_akhir)
+    ? _daftarTanggal_(tanggal, _wajibTgl_(payload.tgl_akhir, 'tgl_akhir'))
+    : [tanggal];
+  return withLock(function () {
+    var hasil = daftarTgl.map(function (t) { return _statusUpsert_(session, t, nit, status); });
+    return hasil.length === 1 ? hasil[0] : { jml: hasil.length };
+  });
 }
 
-/** Set absen luar kampus massal. Payload {tanggal, status, nit:[]}. */
+/** Set absen luar kampus massal. Payload {tanggal, status, nit:[], tgl_akhir?}. */
 function kajurStatusBatch(payload, session) {
   var prodi = _hanyaKajur_(session);
   var tanggal = _wajibTgl_(payload && payload.tanggal, 'tanggal');
@@ -70,9 +80,14 @@ function kajurStatusBatch(payload, session) {
   daftar.forEach(function (nit) {
     if (!prodiNit[String(nit).trim()]) throw _fail_('Taruna di luar prodi Anda: ' + nit);
   });
+  var daftarTgl = (payload && payload.tgl_akhir)
+    ? _daftarTanggal_(tanggal, _wajibTgl_(payload.tgl_akhir, 'tgl_akhir'))
+    : [tanggal];
   return withLock(function () {
     var n = 0;
-    daftar.forEach(function (nit) { _statusUpsert_(session, tanggal, String(nit).trim(), status); n++; });
+    daftar.forEach(function (nit) {
+      daftarTgl.forEach(function (t) { _statusUpsert_(session, t, String(nit).trim(), status); n++; });
+    });
     return { jml: n };
   });
 }

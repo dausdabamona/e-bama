@@ -30,6 +30,13 @@ function hariIni(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/** Jumlah hari inklusif antara dua tanggal 'yyyy-MM-dd'. */
+function jmlHari(dari: string, sampai: string): number {
+  const a = new Date(dari + 'T00:00:00');
+  const b = new Date(sampai + 'T00:00:00');
+  return Math.round((b.getTime() - a.getTime()) / 86400000) + 1;
+}
+
 export function HalamanKetuaJurusan() {
   const { toast } = useToast();
   const [bulan, setBulan] = useState(bulanIni());
@@ -40,6 +47,7 @@ export function HalamanKetuaJurusan() {
 
   // ── Form input absen ──
   const [tanggal, setTanggal] = useState(hariIni());
+  const [tglAkhir, setTglAkhir] = useState('');
   const [status, setStatus] = useState(STATUS_LUAR_KAMPUS[0]);
   const [terpilih, setTerpilih] = useState<Record<string, boolean>>({});
 
@@ -50,16 +58,20 @@ export function HalamanKetuaJurusan() {
 
   async function simpanAbsen() {
     if (!tanggal) { toast('Pilih tanggal.', 'galat'); return; }
+    if (tglAkhir && tglAkhir < tanggal) { toast('Tanggal Sampai tidak boleh sebelum Mulai.', 'galat'); return; }
     if (nitTerpilih.length === 0) { toast('Pilih minimal satu taruna.', 'galat'); return; }
     setProses(true);
     try {
+      const tgl_akhir = tglAkhir || undefined;
       if (nitTerpilih.length === 1) {
-        await api('kajur.status_set', { tanggal, nit: nitTerpilih[0], status });
+        await api('kajur.status_set', { tanggal, tgl_akhir, nit: nitTerpilih[0], status });
       } else {
-        await api('kajur.status_batch', { tanggal, status, nit: nitTerpilih });
+        await api('kajur.status_batch', { tanggal, tgl_akhir, status, nit: nitTerpilih });
       }
-      toast(`Absen ${status.replace(/_/g, ' ')} tersimpan untuk ${nitTerpilih.length} taruna (${tanggal}).`, 'sukses');
-      setTerpilih({});
+      const hari = tglAkhir ? jmlHari(tanggal, tglAkhir) : 1;
+      const rentang = hari > 1 ? `${tanggal} s.d. ${tglAkhir} (${hari} hari)` : tanggal;
+      toast(`Absen ${status.replace(/_/g, ' ')} tersimpan untuk ${nitTerpilih.length} taruna (${rentang}).`, 'sukses');
+      setTerpilih({}); setTglAkhir('');
       rekapQ.refresh();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Gagal menyimpan.', 'galat');
@@ -100,7 +112,8 @@ export function HalamanKetuaJurusan() {
           tanggal yang sudah lewat.
         </p>
         <div className="flex flex-wrap gap-2">
-          <Input label="Tanggal" type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
+          <Input label="Mulai" type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
+          <Input label="Sampai (opsional)" type="date" value={tglAkhir} min={tanggal} onChange={(e) => setTglAkhir(e.target.value)} />
           <div className="flex-1">
             <label className="mb-1 block text-sm font-medium text-gray-700">Status</label>
             <select value={status} onChange={(e) => setStatus(e.target.value)}
@@ -109,6 +122,7 @@ export function HalamanKetuaJurusan() {
             </select>
           </div>
         </div>
+        <p className="-mt-2 text-xs text-gray-400">Kosongkan "Sampai" jika hanya satu hari.</p>
 
         {tarunaQ.memuat && !tarunaQ.data && <LoadingSpinner label="Memuat taruna…" />}
         {tarunaQ.data && daftarTaruna.length === 0 && <EmptyState pesan="Belum ada taruna di prodi ini." />}

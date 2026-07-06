@@ -10,6 +10,10 @@
  *
  * Unik per (tanggal, nit) — upsert. Surat pendukung → LAMPIRAN ref_type=STATUS_HARIAN.
  * Setiap aksi tulis → withLock + auditLog.
+ *
+ * `tgl_akhir` (opsional, status.set/status.batch) → isi rentang tanggal
+ * sekaligus (satu baris STATUS_HARIAN per hari, lihat _daftarTanggal_ di
+ * 05_master.gs) — mis. cuti 2 minggu tidak perlu diinput per hari.
  */
 
 /** Upsert internal satu (tanggal, nit). Kembalikan {status_id, aksi:'BARU'|'UBAH'}. */
@@ -41,30 +45,45 @@ function _statusUpsert_(session, tanggal, nit, status) {
   return { status_id: id, aksi: 'BARU' };
 }
 
-/** Set status satu taruna satu tanggal. Payload {tanggal, nit, status, berkas?}. */
+/**
+ * Set status satu taruna. Payload {tanggal, nit, status, berkas?, tgl_akhir?}.
+ * `tgl_akhir` opsional → isi rentang tanggal, satu baris STATUS_HARIAN per hari
+ * (mis. cuti 2 minggu sekali input, bukan per hari).
+ */
 function statusSet(payload, session) {
   var tanggal = _wajibTgl_(payload && payload.tanggal, 'tanggal');
   var nit = String((payload && payload.nit) || '').trim();
   if (!nit) throw _fail_('nit wajib diisi.');
-  var hasil = _statusUpsert_(session, tanggal, nit, String((payload && payload.status) || ''));
+  var status = String((payload && payload.status) || '');
+  var daftarTgl = (payload && payload.tgl_akhir)
+    ? _daftarTanggal_(tanggal, _wajibTgl_(payload.tgl_akhir, 'tgl_akhir'))
+    : [tanggal];
 
-  // Surat pendukung opsional: berkas {base64, nama_file, jenis?}
+  var hasil = daftarTgl.map(function (t) { return _statusUpsert_(session, t, nit, status); });
+
+  // Surat pendukung opsional: berkas {base64, nama_file, jenis?} → tautkan ke entri pertama
   if (payload.berkas && payload.berkas.base64) {
-    lampiranSave(session, 'STATUS_HARIAN', hasil.status_id,
+    lampiranSave(session, 'STATUS_HARIAN', hasil[0].status_id,
       payload.berkas.jenis || 'SURAT', payload.berkas.base64, payload.berkas.nama_file);
   }
-  return hasil;
+  return hasil.length === 1 ? hasil[0] : { jml: hasil.length };
 }
 
-/** Input massal: {tanggal, status, nit: [], berkas?}. Mis. satu kelas pesiar. */
+/** Input massal: {tanggal, status, nit: [], berkas?, tgl_akhir?}. Mis. satu kelas pesiar (atau rentang tanggal). */
 function statusBatch(payload, session) {
   var tanggal = _wajibTgl_(payload && payload.tanggal, 'tanggal');
   var daftar = (payload && payload.nit) || [];
   if (!daftar.length) throw _fail_('nit harus berupa daftar minimal 1 taruna.');
   var status = String((payload && payload.status) || '');
+  var daftarTgl = (payload && payload.tgl_akhir)
+    ? _daftarTanggal_(tanggal, _wajibTgl_(payload.tgl_akhir, 'tgl_akhir'))
+    : [tanggal];
+
   var hasil = [];
   daftar.forEach(function (nit) {
-    hasil.push(_statusUpsert_(session, tanggal, String(nit).trim(), status));
+    daftarTgl.forEach(function (t) {
+      hasil.push(_statusUpsert_(session, t, String(nit).trim(), status));
+    });
   });
   if (payload.berkas && payload.berkas.base64 && hasil.length) {
     // Satu surat pendukung untuk batch → tautkan ke entri pertama

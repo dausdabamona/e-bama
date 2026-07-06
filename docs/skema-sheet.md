@@ -138,6 +138,11 @@ Taruna yang TIDAK berhak makan pada tanggal tertentu (SOP: Peringatan no. 2).
 
 Surat pendukung → LAMPIRAN `ref_type=STATUS_HARIAN`.
 
+Penulisan bisa berupa **rentang tanggal** (`tgl_akhir` opsional di payload
+`status.set`/`status.batch`/`kajur.status_set`/`kajur.status_batch`, maks 186
+hari) — tetap satu baris per (tanggal, nit), skema TIDAK berubah; hanya
+kemudahan input (mis. cuti 2 minggu tidak perlu diinput satu-per-satu hari).
+
 ### 7. PESANAN
 
 Pre-Order H-1, satu pesanan per hari (SOP no. 5–7).

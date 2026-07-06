@@ -59,11 +59,11 @@ Modul: `taruna.*` → `10_taruna.gs`; `penyedia.*`, `kontrak.*` & `menu.*` → `
 
 | Action | Role | Keterangan |
 |---|---|---|
-| `status.set` | ADMIN, PEMBINA, BAAK | upsert per (tanggal, nit); BAAK dipakai untuk surat taruna keluar kampus (PKL) & surat penarikan kembali, lampirkan lewat `berkas` |
-| `status.batch` | ADMIN, PEMBINA, BAAK | input massal (mis. satu kelas pesiar) |
+| `status.set` | ADMIN, PEMBINA, BAAK | `{tanggal, nit, status, berkas?, tgl_akhir?}` — upsert per (tanggal, nit); BAAK dipakai untuk surat taruna keluar kampus (PKL) & surat penarikan kembali, lampirkan lewat `berkas`. **`tgl_akhir` opsional**: bila diisi, membuat satu baris STATUS_HARIAN per hari dari `tanggal` s.d. `tgl_akhir` inklusif (maks 186 hari) — utk status berdurasi (cuti/sakit/PKL berhari-hari) tanpa input per hari. Balikan: `{status_id, aksi}` bila 1 hari, `{jml}` bila rentang |
+| `status.batch` | ADMIN, PEMBINA, BAAK | `{tanggal, status, nit:[], berkas?, tgl_akhir?}` — input massal (mis. satu kelas pesiar); `tgl_akhir` idem `status.set` (per taruna × per hari dalam rentang). Balikan `{jml}` = jumlah baris (taruna×hari) |
 | `kajur.taruna_list` | KETUA_JURUSAN | `{}` → `{taruna, prodi}` — taruna prodi akun (scope `session.prodi`), tanpa rekening |
-| `kajur.status_set` | KETUA_JURUSAN | `{tanggal, nit, status}` — input absen luar kampus 1 taruna prodinya. Status WAJIB ∈ STATUS_LUAR_KAMPUS; nit WAJIB di prodi akun. **Boleh tanggal lampau** (taruna PKL di luar kampus). Tulis STATUS_HARIAN (`_statusUpsert_`) |
-| `kajur.status_batch` | KETUA_JURUSAN | `{tanggal, status, nit:[]}` — idem massal (semua nit divalidasi di prodi dulu, all-or-nothing) |
+| `kajur.status_set` | KETUA_JURUSAN | `{tanggal, nit, status, tgl_akhir?}` — input absen luar kampus 1 taruna prodinya. Status WAJIB ∈ STATUS_LUAR_KAMPUS; nit WAJIB di prodi akun. **Boleh tanggal lampau** (taruna PKL di luar kampus). `tgl_akhir` opsional idem `status.set` (rentang tanggal, mis. PKL 3 bulan). Tulis STATUS_HARIAN (`_statusUpsert_`) |
+| `kajur.status_batch` | KETUA_JURUSAN | `{tanggal, status, nit:[], tgl_akhir?}` — idem massal (semua nit divalidasi di prodi dulu, all-or-nothing); `tgl_akhir` idem di atas |
 | `kajur.rekap` | KETUA_JURUSAN | `{bulan}` → `{bulan, prodi, baris:[{nit,nama,tingkat,kelas,kegiatan,hari_luar_kampus,nilai_per_hari,nominal,ada_blk,disetujui_kajur}], total_nominal}` — rekap luar kampus prodi, jml hari dari STATUS_HARIAN × tarif BANTUAN_LUAR_KAMPUS. **TANPA nomor rekening** |
 | `kajur.approve` | KETUA_JURUSAN | `{bulan}` → `{disetujui, prodi, bulan}` — set BANTUAN_LUAR_KAMPUS.status baris prodinya bulan itu `DRAFT→DISETUJUI_KAJUR` (withLock + audit) |
 | `status.list` | semua login | per rentang tanggal |
