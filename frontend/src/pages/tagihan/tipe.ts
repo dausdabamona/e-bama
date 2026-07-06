@@ -11,9 +11,14 @@ export interface Tagihan {
   verif_1_oleh: string;
   verif_2_oleh: string;
   nilai_transfer: number;
+  selisih_transfer: number;
   bukti_setor_drive_file_id: string;
   level_aktif: number;
   tenggat_aktif: string;
+}
+
+export interface KebijakanTagihan {
+  toleransiSelisihTransfer: number;
 }
 
 export interface SuratPeringatan {

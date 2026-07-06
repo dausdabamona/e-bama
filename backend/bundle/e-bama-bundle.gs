@@ -279,6 +279,37 @@ function setKebijakanVerifikasi(obj) {
   return v;
 }
 
+// ── Kebijakan Tagihan (DEFAULT) ───────────────────────────────────────────
+// toleransiSelisihTransfer: selisih (nominal - nilai_transfer) dalam Rupiah
+// yang MASIH dianggap lunas penuh tanpa catatan piutang (potongan biaya
+// transfer antarbank, dsb). Di ATAS ambang ini, sisanya dicatat sebagai
+// piutang kurang bayar utk ditagihkan pada pendebetan bulan berikutnya
+// (dikonfirmasi Firdaus) — TIDAK memblokir LUNAS, cuma soal catatan.
+var _CONFIG_TAGIHAN_DEFAULT = { toleransiSelisihTransfer: 20000 };
+
+/** getKebijakanTagihan() — SATU-SATUNYA cara 16_tagihan.gs membaca kebijakan ini. */
+function getKebijakanTagihan() {
+  var p = PropertiesService.getScriptProperties();
+  var v = { toleransiSelisihTransfer: _CONFIG_TAGIHAN_DEFAULT.toleransiSelisihTransfer };
+  var raw = p.getProperty('KEBIJAKAN_TAGIHAN');
+  if (raw) {
+    var o = JSON.parse(raw);
+    if (o.toleransiSelisihTransfer !== undefined) v.toleransiSelisihTransfer = Number(o.toleransiSelisihTransfer) || 0;
+  }
+  return v;
+}
+
+/**
+ * setKebijakanTagihan({toleransiSelisihTransfer?}) — ubah kebijakan dari
+ * editor GAS. Hanya kunci yang disertakan yang ditimpa.
+ */
+function setKebijakanTagihan(obj) {
+  var v = getKebijakanTagihan();
+  if (obj && obj.toleransiSelisihTransfer !== undefined) v.toleransiSelisihTransfer = Number(obj.toleransiSelisihTransfer) || 0;
+  PropertiesService.getScriptProperties().setProperty('KEBIJAKAN_TAGIHAN', JSON.stringify(v));
+  return v;
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // ▼▼▼ 01_router.gs ▼▼▼
 // ═════════════════════════════════════════════════════════════════════════════
@@ -2873,16 +2904,22 @@ function _tagihanJoin_() {
   var rows = sheetRead(SHEETS.TAGIHAN).map(function (t) {
     var sp = spPerTagihan[String(t.tagihan_id)];
     var bukti = lampiranList('TAGIHAN', t.tagihan_id).filter(function (l) { return l.jenis === 'BUKTI_SETOR'; })[0];
+    var nominal = Number(t.nominal) || 0;
+    var nilaiTransfer = Number(t.nilai_transfer) || 0;
     return {
       tagihan_id: t.tagihan_id, bulan: _bulanStr_(t.bulan), nit: t.nit,
-      nominal: Number(t.nominal) || 0, sebab: t.sebab, status: t.status,
+      nominal: nominal, sebab: t.sebab, status: t.status,
       tgl_setor: _tglStr_(t.tgl_setor), diverifikasi_oleh: t.diverifikasi_oleh,
       catatan_hapus: t.catatan_hapus,
       // Nama kolom sheet `verif_pembina_oleh` legacy — di JSON diekspos generik
       // sebagai verif_1_oleh (verifikator PERTAMA, bisa peran apa saja).
       verif_1_oleh: String(t.verif_pembina_oleh || ''),
       verif_2_oleh: String(t.verif_2_oleh || ''),
-      nilai_transfer: Number(t.nilai_transfer) || 0,
+      nilai_transfer: nilaiTransfer,
+      // Selisih (nominal - nilai_transfer) — DIHITUNG, bukan disimpan. >0 =
+      // kurang bayar, dipakai frontend bandingkan dgn kebijakan.toleransiSelisihTransfer
+      // dari tagihanList() (lihat getKebijakanTagihan, 00_config.gs).
+      selisih_transfer: nominal - nilaiTransfer,
       bukti_setor_drive_file_id: bukti ? bukti.drive_file_id : '',
       level_aktif: sp ? sp.level : 0,
       tenggat_aktif: sp ? sp.tenggat : ''
@@ -2950,7 +2987,12 @@ function tagihanCreate(payload, session) {
   return { tagihan: hasil };
 }
 
-/** Daftar tagihan + level_aktif + tenggat_aktif. Filter {bulan?, status?}. */
+/**
+ * Daftar tagihan + level_aktif + tenggat_aktif + selisih_transfer. Filter
+ * {bulan?, status?}. `kebijakan` disertakan supaya frontend bisa menandai
+ * tagihan LUNAS dgn selisih_transfer di atas toleransi sebagai piutang
+ * kurang bayar (dikonfirmasi Firdaus — lihat getKebijakanTagihan).
+ */
 function tagihanList(payload, session) {
   var f = payload || {};
   var rows = _tagihanJoin_().filter(function (t) {
@@ -2958,7 +3000,7 @@ function tagihanList(payload, session) {
     if (f.status && t.status !== f.status) return false;
     return true;
   });
-  return { tagihan: rows };
+  return { tagihan: rows, kebijakan: getKebijakanTagihan() };
 }
 
 /** Dashboard piutang: {per_level: {0..3:{jumlah,nominal}}, total_outstanding}. */
@@ -3010,6 +3052,14 @@ function tagihanSetor(payload, session) {
  * — selisihnya tetap terlihat di data untuk rekonsiliasi, TIDAK memblokir
  * pelunasan. Satu-satunya syarat nilai: harus > 0 (bilangan bulat).
  *
+ * Selisih (nominal - nilai_transfer) di ATAS `getKebijakanTagihan().
+ * toleransiSelisihTransfer` (default Rp20.000, dikonfirmasi Firdaus) TETAP
+ * memicu LUNAS seperti biasa, TAPI dicatat sebagai `piutang_kurang_bayar` di
+ * AUDIT_LOG saat verifikasi kedua — jejak utk PPK menagih sisanya pada
+ * pendebetan bulan berikutnya (proses tagih ulang tetap manual via
+ * `tagihan.create` bulan depan, TIDAK otomatis — nominal tagihan baru wajib
+ * berbasis REKAP_BULANAN FINAL bulan itu, yang belum ada saat ini).
+ *
  * Verifikasi PERTAMA: catat sebagai verifikator 1 — kolom sheet lama
  * `verif_pembina_oleh` kini generik (lihat docs/skema-sheet.md §10), status
  * TETAP TERTAGIH. Verifikasi KEDUA — user_id WAJIB beda dari verifikator
@@ -3054,10 +3104,21 @@ function tagihanVerifikasi(payload, session) {
     if (idHapus.length) sheetDeleteRows(SHEETS.SURAT_PERINGATAN, 'sp_id', idHapus);
   }
 
+  // Selisih (kurang bayar) di atas toleransi → catat di AUDIT_LOG sebagai jejak
+  // piutang yang perlu ditagihkan lagi pada pendebetan bulan depan (dikonfirmasi
+  // Firdaus) — TIDAK memblokir LUNAS, cuma jejak; nilai aktualnya tetap terbaca
+  // dari selisih_transfer (nominal - nilai_transfer) di tagihan.list.
+  var selisih = Number(t.nominal) - nilai;
+  var piutangKurang = selisih > getKebijakanTagihan().toleransiSelisihTransfer ? selisih : 0;
+
   auditLog(session, 'tagihan.verifikasi', 'TAGIHAN', t.tagihan_id,
-    { status: t.status }, { status: 'LUNAS', verif_2_oleh: session.user_id, sp_dihapus: idHapus });
+    { status: t.status },
+    { status: 'LUNAS', verif_2_oleh: session.user_id, sp_dihapus: idHapus, piutang_kurang_bayar: piutangKurang });
   _tagihanCacheClear_();
-  return { tagihan_id: t.tagihan_id, status: 'LUNAS', verif_ke: 2, verif_2_oleh: session.user_id, sp_dihapus: idHapus };
+  return {
+    tagihan_id: t.tagihan_id, status: 'LUNAS', verif_ke: 2, verif_2_oleh: session.user_id,
+    sp_dihapus: idHapus, piutang_kurang_bayar: piutangKurang
+  };
 }
 
 /**

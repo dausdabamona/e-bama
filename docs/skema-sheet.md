@@ -264,6 +264,16 @@ Bukti setor (screenshot/foto transfer) → LAMPIRAN `ref_type=TAGIHAN`, `jenis=B
 ada sebelum verifikasi manapun (pertama atau kedua) boleh dilakukan.
 Level SP aktif TIDAK disimpan di sini — dibaca `MAX(level)` dari SURAT_PERINGATAN.
 
+**Piutang kurang bayar** (dikonfirmasi Firdaus): `selisih_transfer` (=
+`nominal - nilai_transfer`) TIDAK disimpan sebagai kolom — dihitung saat
+baca (`tagihan.list`). Bila di ATAS `getKebijakanTagihan().toleransiSelisihTransfer`
+(default Rp20.000, `00_config.gs`), tagihan tetap jadi `LUNAS` seperti biasa,
+tapi selisihnya dicatat di `AUDIT_LOG` (`piutang_kurang_bayar`) dan ditandai
+di frontend sebagai piutang yang perlu ditagihkan lagi pada pendebetan bulan
+berikutnya — proses tagih ulang tetap MANUAL lewat `tagihan.create` bulan
+depan (nominal tagihan baru wajib berbasis REKAP_BULANAN FINAL bulan itu),
+bukan otomatis.
+
 **Alur verifikasi ganda** (dikonfirmasi Firdaus, direvisi — bukan lagi berurutan per
 peran): `tagihan.setor` bisa diisi role **SENAT/PEMBINA/ADMIN/PPK** — melampirkan bukti
 transfer, status tetap `TERTAGIH`. Lalu `tagihan.verifikasi` (role SENAT/PEMBINA/ADMIN/PPK,

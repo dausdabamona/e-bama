@@ -268,3 +268,34 @@ function setKebijakanVerifikasi(obj) {
   PropertiesService.getScriptProperties().setProperty('KEBIJAKAN_VERIFIKASI', JSON.stringify(v));
   return v;
 }
+
+// ── Kebijakan Tagihan (DEFAULT) ───────────────────────────────────────────
+// toleransiSelisihTransfer: selisih (nominal - nilai_transfer) dalam Rupiah
+// yang MASIH dianggap lunas penuh tanpa catatan piutang (potongan biaya
+// transfer antarbank, dsb). Di ATAS ambang ini, sisanya dicatat sebagai
+// piutang kurang bayar utk ditagihkan pada pendebetan bulan berikutnya
+// (dikonfirmasi Firdaus) — TIDAK memblokir LUNAS, cuma soal catatan.
+var _CONFIG_TAGIHAN_DEFAULT = { toleransiSelisihTransfer: 20000 };
+
+/** getKebijakanTagihan() — SATU-SATUNYA cara 16_tagihan.gs membaca kebijakan ini. */
+function getKebijakanTagihan() {
+  var p = PropertiesService.getScriptProperties();
+  var v = { toleransiSelisihTransfer: _CONFIG_TAGIHAN_DEFAULT.toleransiSelisihTransfer };
+  var raw = p.getProperty('KEBIJAKAN_TAGIHAN');
+  if (raw) {
+    var o = JSON.parse(raw);
+    if (o.toleransiSelisihTransfer !== undefined) v.toleransiSelisihTransfer = Number(o.toleransiSelisihTransfer) || 0;
+  }
+  return v;
+}
+
+/**
+ * setKebijakanTagihan({toleransiSelisihTransfer?}) — ubah kebijakan dari
+ * editor GAS. Hanya kunci yang disertakan yang ditimpa.
+ */
+function setKebijakanTagihan(obj) {
+  var v = getKebijakanTagihan();
+  if (obj && obj.toleransiSelisihTransfer !== undefined) v.toleransiSelisihTransfer = Number(obj.toleransiSelisihTransfer) || 0;
+  PropertiesService.getScriptProperties().setProperty('KEBIJAKAN_TAGIHAN', JSON.stringify(v));
+  return v;
+}

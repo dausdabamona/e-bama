@@ -10,7 +10,7 @@ import { EmptyState } from '../../components/ui/empty-state';
 import { ErrorMessage } from '../../components/ui/error-message';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
 import { useListCache } from '../../lib/use-list-cache';
-import { formatRupiah, type Tagihan } from './tipe';
+import { formatRupiah, type KebijakanTagihan, type Tagihan } from './tipe';
 import type { Taruna } from '../taruna/tipe';
 
 function labelLevel(level: number): string {
@@ -49,7 +49,8 @@ const INFO_TAHAP: Record<TahapBayar, { label: string; kartu: string }> = {
 
 export function HalamanTagihanList() {
   const { session } = useAuth();
-  const { data, memuat, galat, refresh } = useListCache<{ tagihan: Tagihan[] }>('tagihan.list', {});
+  const { data, memuat, galat, refresh } = useListCache<{ tagihan: Tagihan[]; kebijakan?: KebijakanTagihan }>('tagihan.list', {});
+  const toleransi = data?.kebijakan?.toleransiSelisihTransfer ?? 20000;
   const ringkasanQ = useListCache<Ringkasan>('tagihan.summary', {});
   const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', {});
   const namaByNit = new Map((tarunaQ.data?.taruna ?? []).map((t) => [t.nit, t.nama]));
@@ -141,6 +142,11 @@ export function HalamanTagihanList() {
                       {t.status === 'TERTAGIH' && t.level_aktif > 0 && (
                         <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
                           {labelLevel(t.level_aktif)}
+                        </span>
+                      )}
+                      {t.status === 'LUNAS' && t.selisih_transfer > toleransi && (
+                        <span className="rounded-full bg-amber-500 px-2 py-0.5 text-xs font-bold text-white">
+                          Kurang {formatRupiah(t.selisih_transfer)}
                         </span>
                       )}
                     </div>

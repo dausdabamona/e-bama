@@ -15,7 +15,7 @@ import { useToast } from '../../components/ui/toast';
 import { api } from '../../lib/api';
 import { useListCache } from '../../lib/use-list-cache';
 import { urlDrive } from '../pesanan/tipe';
-import { formatRupiah, type SuratPeringatan, type Tagihan } from './tipe';
+import { formatRupiah, type KebijakanTagihan, type SuratPeringatan, type Tagihan } from './tipe';
 import type { Taruna } from '../taruna/tipe';
 
 function hariIni(): string {
@@ -34,7 +34,7 @@ export function HalamanTagihanDetail() {
   const nav = useNavigate();
   const { toast } = useToast();
 
-  const tagihanQ = useListCache<{ tagihan: Tagihan[] }>('tagihan.list', {});
+  const tagihanQ = useListCache<{ tagihan: Tagihan[]; kebijakan?: KebijakanTagihan }>('tagihan.list', {});
   const spQ = useListCache<{ sp: SuratPeringatan[] }>('sp.list', { tagihan_id: id });
   const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', {});
 
@@ -55,6 +55,7 @@ export function HalamanTagihanDetail() {
   if (!t) return <ErrorMessage pesan="Tagihan tidak ditemukan." onRetry={tagihanQ.refresh} />;
   const namaTaruna = tarunaQ.data?.taruna?.find((x) => x.nit === t.nit)?.nama;
   const nilaiTransferNum = Number(nilaiTransfer !== '' ? nilaiTransfer : t.nominal);
+  const toleransi = tagihanQ.data?.kebijakan?.toleransiSelisihTransfer ?? 20000;
 
   async function pilihBerkas() {
     // kameraSaja:false — bukti setor ADALAH screenshot transfer, wajib bisa
@@ -138,6 +139,18 @@ export function HalamanTagihanDetail() {
           <a href={urlDrive(t.bukti_setor_drive_file_id)} target="_blank" rel="noreferrer" className="text-sm text-primary underline">
             📎 Lihat Bukti Setor
           </a>
+        )}
+        {t.status === 'LUNAS' && t.nilai_transfer > 0 && (
+          <>
+            <p className="text-sm text-gray-500">Nilai Transfer Diterima</p>
+            <p className="font-medium">{formatRupiah(t.nilai_transfer)}</p>
+          </>
+        )}
+        {t.status === 'LUNAS' && t.selisih_transfer > toleransi && (
+          <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800">
+            ⚠️ Piutang kurang bayar {formatRupiah(t.selisih_transfer)} — akan ditagihkan pada
+            pendebetan bulan depan.
+          </p>
         )}
       </Card>
 
@@ -234,8 +247,9 @@ export function HalamanTagihanDetail() {
               />
               {nilaiTransferNum !== t.nominal && (
                 <p className="text-xs text-amber-700">
-                  ⚠️ Selisih {formatRupiah(Math.abs(nilaiTransferNum - t.nominal))} dari nominal
-                  tagihan ({formatRupiah(t.nominal)}) — pastikan sudah dicek dengan mutasi rekening.
+                  {t.nominal - nilaiTransferNum > toleransi
+                    ? `⚠️ Kurang ${formatRupiah(t.nominal - nilaiTransferNum)} dari nominal tagihan (${formatRupiah(t.nominal)}) — di atas toleransi ${formatRupiah(toleransi)}, akan dicatat sebagai piutang untuk ditagihkan pada pendebetan bulan depan.`
+                    : `⚠️ Selisih ${formatRupiah(Math.abs(nilaiTransferNum - t.nominal))} dari nominal tagihan (${formatRupiah(t.nominal)}) — masih dalam toleransi, pastikan sudah dicek dengan mutasi rekening.`}
                 </p>
               )}
               {galat && <p className="text-sm text-red-600">{galat}</p>}
