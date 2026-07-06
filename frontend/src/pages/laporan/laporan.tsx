@@ -365,6 +365,7 @@ export function HalamanLaporan() {
   const [koreksiPerTaruna, setKoreksiPerTaruna] = useState<
     { judul: string; noSpm: string[]; kategoriAsal: 'DALAM_KAMPUS' | 'LUAR_KAMPUS' } | null
   >(null);
+  const [sembunyikanNolPerTaruna, setSembunyikanNolPerTaruna] = useState(false);
 
   function validasiBarisSp2d(kolomIdx: Record<string, number>, row: string[]): BarisPreviewSp2d {
     const ambil = (k: string) => (kolomIdx[k] !== undefined ? (row[kolomIdx[k]] ?? '').trim() : '');
@@ -672,6 +673,14 @@ export function HalamanLaporan() {
                   )}
                 </div>
 
+                {(rekonQ.data.dalam_kampus_per_taruna.length > 0 || rekonQ.data.luar_kampus_per_taruna.length > 0) && (
+                  <label className="flex items-center gap-2 text-xs text-gray-500 print:hidden">
+                    <input type="checkbox" className="h-4 w-4" checked={sembunyikanNolPerTaruna}
+                      onChange={(e) => setSembunyikanNolPerTaruna(e.target.checked)} />
+                    Sembunyikan taruna nilai Rp0 (Sistem &amp; SP2D sama-sama kosong) di tabel per Taruna (SPANExt)
+                  </label>
+                )}
+
                 {rekonQ.data.dalam_kampus_per_taruna.length > 0 && (
                   <div>
                     <p className="mb-1 text-xs font-semibold text-gray-500">Dalam Kampus — per Taruna (SPANExt)</p>
@@ -687,7 +696,7 @@ export function HalamanLaporan() {
                       </thead>
                       <tbody>
                         {rekonQ.data.dalam_kampus_per_taruna
-                          .filter((r) => !(r.sistem === 0 && r.sp2d === 0))
+                          .filter((r) => !sembunyikanNolPerTaruna || !(r.sistem === 0 && r.sp2d === 0))
                           .map((r) => (
                           <tr key={r.nit} className={`border-b border-gray-100 ${r.cocok ? '' : 'bg-red-50'}`}>
                             <td className="py-1 pr-2">{r.nit}</td>
@@ -729,7 +738,7 @@ export function HalamanLaporan() {
                       </thead>
                       <tbody>
                         {rekonQ.data.luar_kampus_per_taruna
-                          .filter((r) => !(r.sistem === 0 && r.sp2d === 0))
+                          .filter((r) => !sembunyikanNolPerTaruna || !(r.sistem === 0 && r.sp2d === 0))
                           .map((r, i) => (
                           <tr key={`${r.nit}-${r.kegiatan}-${i}`} className={`border-b border-gray-100 ${r.cocok ? '' : 'bg-red-50'}`}>
                             <td className="py-1 pr-2">{r.nama || r.nit}</td>
