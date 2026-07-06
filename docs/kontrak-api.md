@@ -150,12 +150,11 @@ diisi ulang sejak migrasi harga per-porsi → per-hari, dikonfirmasi Firdaus).
 | Action | Role | Keterangan |
 |---|---|---|
 | `tagihan.create` | SENAT, PPK | batch `{bulan, nit[], sebab}`; nominal snapshot dari REKAP FINAL; tolak duplikat bulan+nit; **langsung terbitkan SP-1** |
-| `tagihan.list` | semua login | sertakan `level_aktif` (MAX level SP) + `tenggat_aktif`; cache 60 detik, invalidate saat tulis |
+| `tagihan.list` | semua login | sertakan `level_aktif` (MAX level SP) + `tenggat_aktif` + `verif_1_oleh`/`verif_2_oleh`/`nilai_transfer`/`bukti_setor_drive_file_id`; cache 60 detik, invalidate saat tulis |
 | `tagihan.summary` | PPK, KPA, WADIR3 | `{per_level: {0..3: {jumlah, nominal}}, total_outstanding}` — dashboard piutang |
 | `tagihan.status_debet` | PPK, SENAT, KPA, WADIR3 (baca saja) | `{bulan}` → `{bulan, baris:[{nit,nama,prodi,tingkat,nominal,status_debet:'BERHASIL'\|'GAGAL',tagihan_id,sebab,status_tagihan}], total_taruna, jml_berhasil, jml_gagal}` — laporan status debet taruna→Senat per taruna. Bandingkan REKAP_BULANAN nominal>0 vs TAGIHAN bulan itu; `BERHASIL` = **inferensi** (tidak ada baris TAGIHAN, bukan konfirmasi aktif dari bank); `GAGAL` = ada baris TAGIHAN apa pun status penyelesaiannya (TERTAGIH/LUNAS/DIHAPUSKAN/ESKALASI_MANUAL tetap dihitung gagal debet awal) |
-| `tagihan.setor` | SENAT, PEMBINA | bukti setor (`jenis=BUKTI_SETOR`, screenshot/foto transfer) + tgl_setor; status tetap TERTAGIH |
-| `tagihan.verifikasi_pembina` | PEMBINA | verifikasi PERTAMA — syarat bukti setor ada; set `verif_pembina_oleh`; status TETAP TERTAGIH (bukan transisi akhir) — verifikasi ganda, dikonfirmasi Firdaus |
-| `tagihan.verify` | PPK, ADMIN | verifikasi KEDUA/final — syarat bukti setor DAN `verif_pembina_oleh` sudah ada → `LUNAS`. Efek samping: hapus SP milik tagihan ini yang `tgl_terbit` lebih baru dari `tgl_setor` (dibayar sebelum SP terbit → SP tak berdasar) |
+| `tagihan.setor` | SENAT, PEMBINA, ADMIN, PPK | bukti setor (`jenis=BUKTI_SETOR`, screenshot/foto transfer) + tgl_setor; status tetap TERTAGIH |
+| `tagihan.verifikasi` | SENAT, PEMBINA, ADMIN, PPK | `{tagihan_id, nilai_transfer}` — verifikasi ganda TANPA urutan peran tetap (dikonfirmasi Firdaus, direvisi): siapa pun di antara 4 role boleh jadi verifikator 1 atau 2, syaratnya cuma dua ORANG berbeda (`user_id`), peran boleh sama. Syarat: bukti setor ada, `nilai_transfer` = nominal tagihan (ini yang menandai "sudah diverifikasi"). Panggilan ke-1 → set verifikator 1, status TETAP TERTAGIH. Panggilan ke-2 (user_id beda) → set verifikator 2 → `LUNAS`, `diverifikasi_oleh` terisi. Efek samping: hapus SP milik tagihan ini yang `tgl_terbit` lebih baru dari `tgl_setor` (dibayar sebelum SP terbit → SP tak berdasar) |
 | `tagihan.waive` | PPK | `catatan_hapus` WAJIB → `DIHAPUSKAN` |
 | `tagihan.regenerate_sp` | PPK | terbitkan ulang PDF level aktif — no_surat BARU, baris SP baru, `generated_by=MANUAL` |
 | `sp.list` | semua login | riwayat SP per tagihan |

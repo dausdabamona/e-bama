@@ -25,23 +25,24 @@ interface Ringkasan {
   total_outstanding: number;
 }
 
-// Tahap alur pembayaran (verifikasi ganda) — dipakai untuk kelompok +
-// warna kartu, biar sekilas kelihatan mana yang perlu tindakan siapa.
-type TahapBayar = 'BELUM_SETOR' | 'MENUNGGU_PEMBINA' | 'MENUNGGU_PPK' | 'SELESAI';
+// Tahap alur pembayaran (verifikasi ganda, peran bebas — siapa pun di antara
+// Senat/Pembina/Admin/PPK) — dipakai untuk kelompok + warna kartu, biar
+// sekilas kelihatan mana yang perlu tindakan.
+type TahapBayar = 'BELUM_SETOR' | 'MENUNGGU_VERIF_1' | 'MENUNGGU_VERIF_2' | 'SELESAI';
 
 function tahapBayar(t: Tagihan): TahapBayar {
   if (t.status !== 'TERTAGIH') return 'SELESAI';
   if (!t.tgl_setor) return 'BELUM_SETOR';
-  if (!t.verif_pembina_oleh) return 'MENUNGGU_PEMBINA';
-  return 'MENUNGGU_PPK';
+  if (!t.verif_1_oleh) return 'MENUNGGU_VERIF_1';
+  return 'MENUNGGU_VERIF_2';
 }
 
-// Urutan paling-butuh-tindakan dulu: siap diverifikasi PPK, lalu menunggu
-// Pembina, lalu belum disetor sama sekali, lalu yang sudah selesai/lain.
-const URUTAN_TAHAP: TahapBayar[] = ['MENUNGGU_PPK', 'MENUNGGU_PEMBINA', 'BELUM_SETOR', 'SELESAI'];
+// Urutan paling-butuh-tindakan dulu: siap verifikasi ke-2 (final), lalu
+// menunggu verifikasi ke-1, lalu belum disetor sama sekali, lalu selesai/lain.
+const URUTAN_TAHAP: TahapBayar[] = ['MENUNGGU_VERIF_2', 'MENUNGGU_VERIF_1', 'BELUM_SETOR', 'SELESAI'];
 const INFO_TAHAP: Record<TahapBayar, { label: string; kartu: string }> = {
-  MENUNGGU_PPK: { label: 'Menunggu Verifikasi PPK/Admin', kartu: 'border-l-4 border-blue-400' },
-  MENUNGGU_PEMBINA: { label: 'Menunggu Verifikasi Pembina', kartu: 'border-l-4 border-amber-400' },
+  MENUNGGU_VERIF_2: { label: 'Menunggu Verifikasi ke-2 (Final)', kartu: 'border-l-4 border-blue-400' },
+  MENUNGGU_VERIF_1: { label: 'Menunggu Verifikasi ke-1', kartu: 'border-l-4 border-amber-400' },
   BELUM_SETOR: { label: 'Belum Disetor', kartu: 'border-l-4 border-gray-300' },
   SELESAI: { label: 'Selesai / Lainnya', kartu: '' }
 };

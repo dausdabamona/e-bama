@@ -109,9 +109,10 @@ var ACTION_MAP = {
   // Laporan status debet taruna→Senat per taruna (berhasil/gagal) — baca saja,
   // tanpa rekening lengkap, akses sama seperti tagihan.summary + SENAT.
   'tagihan.status_debet': { handler: tagihanStatusDebet, roles: ['PPK', 'SENAT', 'KPA', 'WADIR3'] },
-  'tagihan.setor':    { handler: tagihanSetor,   roles: ['SENAT', 'PEMBINA'] },
-  'tagihan.verifikasi_pembina': { handler: tagihanVerifikasiPembina, roles: ['PEMBINA'] },
-  'tagihan.verify':   { handler: tagihanVerify,  roles: ['PPK', 'ADMIN'] },
+  'tagihan.setor':    { handler: tagihanSetor,   roles: ['SENAT', 'PEMBINA', 'ADMIN', 'PPK'] },
+  // Verifikasi ganda TANPA urutan peran tetap — siapa pun di antara 4 role
+  // boleh jadi verifikator 1 ATAU 2, ASAL dua orang (user_id) berbeda.
+  'tagihan.verifikasi': { handler: tagihanVerifikasi, roles: ['SENAT', 'PEMBINA', 'ADMIN', 'PPK'] },
   'tagihan.waive':    { handler: tagihanWaive,   roles: ['PPK'] },
   'tagihan.regenerate_sp': { handler: tagihanRegenerateSp, roles: ['PPK'] },
 

@@ -8,7 +8,10 @@ export interface Tagihan {
   tgl_setor: string;
   diverifikasi_oleh: string;
   catatan_hapus: string;
-  verif_pembina_oleh: string;
+  verif_1_oleh: string;
+  verif_2_oleh: string;
+  nilai_transfer: number;
+  bukti_setor_drive_file_id: string;
   level_aktif: number;
   tenggat_aktif: string;
 }

@@ -38,6 +38,10 @@ export function HalamanTagihanDetail() {
   const [proses, setProses] = useState(false);
   const [galat, setGalat] = useState('');
   const [tampilHapus, setTampilHapus] = useState(false);
+  const [nilaiTransfer, setNilaiTransfer] = useState('');
+
+  const bisaSetorVerifikasi = session?.role === 'SENAT' || session?.role === 'PEMBINA'
+    || session?.role === 'ADMIN' || session?.role === 'PPK';
 
   if (tagihanQ.memuat && !tagihanQ.data) return <LoadingSpinner />;
   if (tagihanQ.galat && !tagihanQ.data) return <ErrorMessage pesan={tagihanQ.galat} onRetry={tagihanQ.refresh} />;
@@ -60,7 +64,7 @@ export function HalamanTagihanDetail() {
         tagihan_id: t!.tagihan_id, tgl_setor: tglSetor,
         berkas: { base64: fotoBase64, nama_file: fotoNama || 'bukti-setor.jpg' }
       });
-      toast(r.antri ? 'Disimpan lokal, akan dikirim otomatis.' : 'Bukti setor terkirim, menunggu verifikasi Pembina.', 'sukses');
+      toast(r.antri ? 'Disimpan lokal, akan dikirim otomatis.' : 'Bukti setor terkirim, menunggu verifikasi.', 'sukses');
       tagihanQ.refresh();
       setFotoNama(''); setFotoBase64('');
     } catch (e) {
@@ -70,27 +74,17 @@ export function HalamanTagihanDetail() {
     }
   }
 
-  async function verifikasiPembina() {
+  async function kirimVerifikasi() {
+    const nilai = Number(nilaiTransfer !== '' ? nilaiTransfer : t!.nominal);
+    if (!Number.isFinite(nilai) || nilai < 0) { setGalat('Nilai transferan tidak valid.'); return; }
     setProses(true); setGalat('');
     try {
-      await api('tagihan.verifikasi_pembina', { tagihan_id: t!.tagihan_id });
-      toast('Diverifikasi Pembina — menunggu verifikasi PPK/Admin.', 'sukses');
+      const r = await api<{ status: string }>('tagihan.verifikasi', { tagihan_id: t!.tagihan_id, nilai_transfer: nilai });
+      toast(r.status === 'LUNAS' ? 'Verifikasi ke-2 berhasil — LUNAS.' : 'Verifikasi ke-1 tercatat, menunggu verifikator kedua (orang lain).', 'sukses');
+      setNilaiTransfer('');
       tagihanQ.refresh();
     } catch (e) {
       setGalat(e instanceof Error ? e.message : 'Gagal.');
-    } finally {
-      setProses(false);
-    }
-  }
-
-  async function verifikasiSetoran() {
-    setProses(true);
-    try {
-      await api('tagihan.verify', { tagihan_id: t!.tagihan_id });
-      toast('Tagihan diverifikasi — LUNAS.', 'sukses');
-      tagihanQ.refresh();
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
     } finally {
       setProses(false);
     }
@@ -131,20 +125,28 @@ export function HalamanTagihanDetail() {
             <p className="font-medium">{t.tgl_setor}</p>
           </>
         )}
+        {t.bukti_setor_drive_file_id && (
+          <a href={urlDrive(t.bukti_setor_drive_file_id)} target="_blank" rel="noreferrer" className="text-sm text-primary underline">
+            📎 Lihat Bukti Setor
+          </a>
+        )}
       </Card>
 
       {t.status === 'TERTAGIH' && (
         <Card className="flex flex-col gap-1">
           <p className="text-sm font-semibold text-gray-600">Alur Pembayaran → Rekening Senat</p>
           <p className="text-sm">
-            {t.tgl_setor ? '✅' : '⏳'} Setor Bukti Transfer (Senat/Pembina)
+            {t.tgl_setor ? '✅' : '⏳'} Setor Bukti Transfer
             {t.tgl_setor ? ` — ${t.tgl_setor}` : ' — belum disetor'}
           </p>
           <p className="text-sm">
-            {t.verif_pembina_oleh ? '✅' : '⏳'} Verifikasi Pembina (1/2)
-            {t.verif_pembina_oleh ? ` — ${t.verif_pembina_oleh}` : ' — menunggu'}
+            {t.verif_1_oleh ? '✅' : '⏳'} Verifikasi 1/2
+            {t.verif_1_oleh ? ` — ${t.verif_1_oleh}` : ' — menunggu'}
           </p>
-          <p className="text-sm">⏳ Verifikasi PPK/Admin (2/2) — menunggu, memicu LUNAS</p>
+          <p className="text-sm">
+            {t.verif_2_oleh ? '✅' : '⏳'} Verifikasi 2/2
+            {t.verif_2_oleh ? ` — ${t.verif_2_oleh}` : ' — menunggu, memicu LUNAS'}
+          </p>
         </Card>
       )}
 
@@ -167,7 +169,7 @@ export function HalamanTagihanDetail() {
         ))}
       </Card>
 
-      {t.status === 'TERTAGIH' && (session?.role === 'SENAT' || session?.role === 'PEMBINA') && (
+      {t.status === 'TERTAGIH' && bisaSetorVerifikasi && (
         <Card className="flex flex-col gap-3">
           <p className="text-sm font-semibold text-gray-600">Setor Bukti Transfer ke Rekening Senat</p>
           <label className="block text-sm font-medium text-gray-700">Tanggal Setor</label>
@@ -183,38 +185,49 @@ export function HalamanTagihanDetail() {
         </Card>
       )}
 
-      {t.status === 'TERTAGIH' && session?.role === 'PEMBINA' && t.tgl_setor && !t.verif_pembina_oleh && (
-        <Card className="flex flex-col gap-2">
-          <p className="text-sm font-semibold text-gray-600">Verifikasi Pembina (1/2)</p>
-          <p className="text-xs text-gray-500">Konfirmasi bukti transfer di atas benar dan sah.</p>
-          {galat && <p className="text-sm text-red-600">{galat}</p>}
-          <Button onClick={() => void verifikasiPembina()} disabled={proses}>
-            {proses ? 'Memproses…' : '✅ Konfirmasi Bukti Transfer'}
-          </Button>
+      {t.status === 'TERTAGIH' && bisaSetorVerifikasi && t.tgl_setor && (
+        <Card className="flex flex-col gap-3">
+          <p className="text-sm font-semibold text-gray-600">
+            Verifikasi Pelunasan {t.verif_1_oleh ? '(2/2 — memicu LUNAS)' : '(1/2)'}
+          </p>
+          <p className="text-xs text-gray-500">
+            Lihat bukti setor di atas, lalu masukkan nominal yang benar-benar masuk ke
+            rekening Senat — inilah tanda sudah diverifikasi. Wajib oleh 2 orang berbeda
+            (peran boleh sama).
+          </p>
+          {t.verif_1_oleh && t.verif_1_oleh === session?.user_id ? (
+            <p className="text-sm text-amber-700">
+              ⏳ Anda sudah verifikasi sebagai verifikator pertama. Menunggu verifikator
+              kedua (orang lain).
+            </p>
+          ) : (
+            <>
+              <Input
+                label="Nilai Transferan (Rp)"
+                type="number"
+                value={nilaiTransfer !== '' ? nilaiTransfer : String(t.nominal)}
+                onChange={(e) => setNilaiTransfer(e.target.value)}
+              />
+              {galat && <p className="text-sm text-red-600">{galat}</p>}
+              <Button onClick={() => void kirimVerifikasi()} disabled={proses}>
+                {proses ? 'Memproses…' : t.verif_1_oleh ? '✅ Verifikasi (2/2) → LUNAS' : '✅ Verifikasi (1/2)'}
+              </Button>
+            </>
+          )}
         </Card>
       )}
 
-      {t.status === 'TERTAGIH' && (session?.role === 'PPK' || session?.role === 'ADMIN') && (
+      {t.status === 'TERTAGIH' && session?.role === 'PPK' && (
         <Card className="flex flex-col gap-2">
-          <p className="text-sm font-semibold text-gray-600">Tindakan PPK/Admin</p>
-          {t.tgl_setor && !t.verif_pembina_oleh && (
-            <p className="text-xs text-amber-700">⏳ Menunggu verifikasi Pembina dulu (verifikasi ganda wajib).</p>
-          )}
-          {t.tgl_setor && t.verif_pembina_oleh && (
-            <Button onClick={() => void verifikasiSetoran()} disabled={proses}>
-              {proses ? 'Memproses…' : 'Verifikasi (2/2) → LUNAS'}
-            </Button>
-          )}
-          {session?.role === 'PPK' && spQ.data && spQ.data.sp.length > 0 && (
+          <p className="text-sm font-semibold text-gray-600">Tindakan PPK</p>
+          {spQ.data && spQ.data.sp.length > 0 && (
             <Button varian="garis" onClick={() => void terbitkanUlangSp()} disabled={proses}>
               Terbitkan Ulang SP Level Aktif
             </Button>
           )}
-          {session?.role === 'PPK' && (
-            <Button varian="bahaya" onClick={() => setTampilHapus(true)} disabled={proses}>
-              Hapuskan Tagihan
-            </Button>
-          )}
+          <Button varian="bahaya" onClick={() => setTampilHapus(true)} disabled={proses}>
+            Hapuskan Tagihan
+          </Button>
         </Card>
       )}
 
