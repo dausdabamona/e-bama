@@ -24,6 +24,7 @@ export const NAV_PER_ROLE: Record<Role, ItemNav[]> = {
     { ke: '/pesanan', label: 'Pesanan', ikon: '🍱' },
     { ke: '/realisasi', label: 'Realisasi', ikon: '✅' },
     { ke: '/tagihan', label: 'Tagihan', ikon: '💳' },
+    { ke: '/rekap-ringkas', label: 'Rekap', ikon: '📊' },
     { ke: '/akun', label: 'Akun', ikon: '👤' }
   ],
   PEMBINA: [
@@ -32,6 +33,7 @@ export const NAV_PER_ROLE: Record<Role, ItemNav[]> = {
     { ke: '/realisasi', label: 'Realisasi', ikon: '✅' },
     { ke: '/status-taruna', label: 'Status', ikon: '📋' },
     { ke: '/taruna', label: 'Taruna', ikon: '🎓' },
+    { ke: '/rekap-ringkas', label: 'Rekap', ikon: '📊' },
     { ke: '/akun', label: 'Akun', ikon: '👤' }
   ],
   PPK: [

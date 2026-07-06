@@ -1,10 +1,9 @@
-// /persetujuan-wadir3 (Wadir 3) — persetujuan PALING AWAL rekap: DRAFT → DISETUJUI_WADIR3.
-// Wadir 3 menyetujui substansi rekap lebih dulu, lalu diteruskan ke PPK untuk
-// verifikasi & finalisasi (siap bayar). Angka BELUM beku di sini — baru beku saat PPK finalkan.
-// Halaman ini menampilkan rekap PENJELASAN (ringkasan + per prodi/tingkat + rincian
-// per taruna) supaya Wadir 3 paham substansi sebelum menyetujui — TANPA nominal
-// (dikonfirmasi Firdaus: persetujuan Wadir 3 soal kebenaran hari makan/kehadiran,
-// bukan verifikasi uang — itu tugas PPK di tahap berikutnya).
+// /rekap-ringkas (Senat, Pembina) — rekap bulanan BACA SAJA, dikelompokkan per
+// Prodi & Tingkat, TANPA nominal (dikonfirmasi Firdaus: role ini cukup tahu
+// hari makan/kehadiran, bukan uang — itu ranah PPK). Rincian per taruna
+// tersedia sebagai bagian yang bisa dibuka/tutup, sama gaya seperti halaman
+// Persetujuan Wadir 3 (persetujuan-wadir3.tsx) — bedanya di sini tanpa
+// tombol/aksi apa pun (murni tampilan).
 import { useState } from 'react';
 import { BulanPicker, bulanIni } from '../../components/bulan-picker';
 import { Badge } from '../../components/ui/badge';
@@ -12,14 +11,11 @@ import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { EmptyState } from '../../components/ui/empty-state';
 import { ErrorMessage } from '../../components/ui/error-message';
-import { Modal } from '../../components/ui/modal';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
-import { useToast } from '../../components/ui/toast';
-import { api } from '../../lib/api';
 import { useListCache } from '../../lib/use-list-cache';
 
 interface BarisRekap {
-  nit: string; status: string; nominal: number;
+  nit: string; status: string;
   hari_makan: number; hari_tidak_makan: number;
 }
 interface Taruna { nit: string; nama: string; prodi: string; tingkat: string }
@@ -29,14 +25,11 @@ interface Kelompok {
   jml_taruna: number; hari_makan: number;
 }
 
-export function HalamanPersetujuanWadir3() {
+export function HalamanRekapRingkas() {
   const [bulan, setBulan] = useState(bulanIni());
-  const { toast } = useToast();
-  const rekapQ = useListCache<{ rekap: BarisRekap[]; total: number }>('rekap.get', { bulan });
+  const rekapQ = useListCache<{ rekap: BarisRekap[] }>('rekap.get', { bulan });
   const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', {});
-  const [tampilKonfirmasi, setTampilKonfirmasi] = useState(false);
   const [tampilRincian, setTampilRincian] = useState(false);
-  const [proses, setProses] = useState(false);
 
   const memuat = rekapQ.memuat || tarunaQ.memuat;
   const galat = rekapQ.galat || tarunaQ.galat;
@@ -73,23 +66,9 @@ export function HalamanPersetujuanWadir3() {
       || (ta?.nama || a.nit).localeCompare(tb?.nama || b.nit);
   });
 
-  async function setujui() {
-    setProses(true);
-    try {
-      await api('rekap.approve_wadir3', { bulan });
-      toast('Rekap disetujui — diteruskan ke PPK untuk verifikasi & finalisasi.', 'sukses');
-      setTampilKonfirmasi(false);
-      rekapQ.refresh();
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
-    } finally {
-      setProses(false);
-    }
-  }
-
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-bold text-primary-dark">Persetujuan Rekap (Wadir 3)</h1>
+      <h1 className="text-xl font-bold text-primary-dark">Rekap Bulanan</h1>
       <BulanPicker bulan={bulan} onChange={setBulan} />
 
       {memuat && !data && <LoadingSpinner label="Memuat rekap…" />}
@@ -103,17 +82,10 @@ export function HalamanPersetujuanWadir3() {
             <Badge status={status} />
           </div>
 
-          {/* Ringkasan — hari makan & kehadiran, TANPA nominal (lihat catatan berkas) */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <KartuStat label="Jumlah Taruna" nilai={String(jmlTaruna)} satuan="taruna" />
             <KartuStat label="Total Hari Makan" nilai={totalHariMakan.toLocaleString('id-ID')} satuan="hari" tekankan />
           </div>
-
-          <p className="text-xs text-gray-500">
-            Persetujuan ini soal <strong>kebenaran hari makan/kehadiran</strong> bulan ini,
-            bukan nominal uang. Setelah disetujui, PPK yang memverifikasi &amp; mengunci angka
-            (termasuk nominal) saat finalisasi sebelum pembayaran dibuat.
-          </p>
 
           {/* Rekap per Prodi + Tingkat */}
           <Card className="overflow-x-auto">
@@ -187,38 +159,7 @@ export function HalamanPersetujuanWadir3() {
               </Card>
             )}
           </div>
-
-          {/* Aksi persetujuan */}
-          {status === 'DRAFT' && (
-            <Button onClick={() => setTampilKonfirmasi(true)}>Setujui Rekap</Button>
-          )}
-          {status === 'DISETUJUI_WADIR3' && (
-            <Card className="bg-green-50 text-center text-sm text-green-800">
-              ✅ Sudah disetujui — menunggu PPK memverifikasi &amp; memfinalkan (siap bayar).
-            </Card>
-          )}
-          {(status === 'TERVERIFIKASI_PPK' || status === 'FINAL') && (
-            <Card className="bg-green-50 text-center text-sm text-green-800">
-              ✅ Sudah disetujui — PPK sedang/menyelesaikan proses finalisasi &amp; pembayaran.
-            </Card>
-          )}
         </>
-      )}
-
-      {tampilKonfirmasi && (
-        <Modal judul="Setujui Rekap?" onClose={() => setTampilKonfirmasi(false)}>
-          <div className="flex flex-col gap-3">
-            <p className="text-sm text-gray-600">
-              Anda akan menyetujui rekap bulan ini untuk <strong>{jmlTaruna} taruna</strong>{' '}
-              ({totalHariMakan.toLocaleString('id-ID')} hari makan). Setelah disetujui,
-              rekap diteruskan ke <strong>PPK</strong> untuk diverifikasi dan difinalkan
-              (termasuk mengunci nominal saat finalisasi) sebelum pembayaran dibuat.
-            </p>
-            <Button onClick={() => void setujui()} disabled={proses}>
-              {proses ? 'Memproses…' : 'Ya, Setujui Rekap'}
-            </Button>
-          </div>
-        </Modal>
       )}
     </div>
   );

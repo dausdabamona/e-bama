@@ -36,6 +36,7 @@ import { HalamanRealisasiDetail } from './pages/realisasi/realisasi-detail';
 import { HalamanRekap } from './pages/rekap/rekap';
 import { HalamanRekapHistoris } from './pages/rekap/rekap-historis';
 import { HalamanPersetujuanWadir3 } from './pages/rekap/persetujuan-wadir3';
+import { HalamanRekapRingkas } from './pages/rekap/rekap-ringkas';
 import { HalamanStatusTaruna } from './pages/status-taruna/status-taruna';
 import { HalamanTagihanList } from './pages/tagihan/tagihan-list';
 import { HalamanTagihanDetail } from './pages/tagihan/tagihan-detail';
@@ -72,6 +73,8 @@ export default function App() {
               {/* Pembina */}
               <Route path="/verifikasi" element={<WajibLogin roles={['PEMBINA']}><HalamanVerifikasi /></WajibLogin>} />
               <Route path="/status-taruna" element={<WajibLogin roles={['PEMBINA', 'ADMIN', 'BAAK']}><HalamanStatusTaruna /></WajibLogin>} />
+              {/* Rekap ringkas baca-saja (Senat, Pembina) — grup Prodi+Tingkat, tanpa nominal */}
+              <Route path="/rekap-ringkas" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanRekapRingkas /></WajibLogin>} />
               {/* PPK */}
               <Route path="/rekap" element={<WajibLogin roles={['PPK']}><HalamanRekap /></WajibLogin>} />
               <Route path="/rekap/historis" element={<WajibLogin roles={['PPK', 'ADMIN']}><HalamanRekapHistoris /></WajibLogin>} />

@@ -61,7 +61,8 @@ var ACTION_MAP = {
   'realisasi.ttd':    { handler: realisasiTtd,   roles: ['PEMBINA', 'SENAT'] },
 
   // Rekap bulanan (TAHAP 3 + gerbang Wadir 3)
-  'rekap.get':        { handler: rekapGet,       roles: ['PPK', 'KPA', 'WADIR3'] },
+  // SENAT/PEMBINA baca saja (halaman /rekap-ringkas, tanpa nominal di frontend)
+  'rekap.get':        { handler: rekapGet,       roles: ['PPK', 'KPA', 'WADIR3', 'SENAT', 'PEMBINA'] },
   'rekap.verify':     { handler: rekapVerify,    roles: ['PPK'] },
   'rekap.final':      { handler: rekapFinal,     roles: ['PPK'] },
   'rekap.approve_wadir3': { handler: rekapApproveWadir3, roles: ['WADIR3'] },
