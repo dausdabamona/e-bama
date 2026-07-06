@@ -12,9 +12,15 @@ import { useListCache } from '../../lib/use-list-cache';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
+import { SearchSelect } from '../../components/ui/search-select';
 import { useToast } from '../../components/ui/toast';
 import type { Pesanan } from '../pesanan/tipe';
-import type { Realisasi } from './tipe';
+import type { Taruna } from '../taruna/tipe';
+import type { KebijakanPiket, Realisasi } from './tipe';
+
+const LABEL_KUALITAS: Record<'BAIK' | 'CUKUP' | 'KURANG', string> = {
+  BAIK: 'Baik', CUKUP: 'Cukup', KURANG: 'Kurang'
+};
 
 export function HalamanRealisasiBuat() {
   const { pesananId } = useParams<{ pesananId: string }>();
@@ -23,6 +29,10 @@ export function HalamanRealisasiBuat() {
 
   const pesananQ = useListCache<{ pesanan: Pesanan }>('pesanan.get', { pesanan_id: pesananId });
   const jmlPesanan = pesananQ.data?.pesanan?.jml_taruna ?? null;
+  const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', { status: 'AKTIF' });
+  const kebijakanQ = useListCache<KebijakanPiket>('realisasi.kebijakan_piket', {});
+  const komponenGizi = kebijakanQ.data?.komponen_gizi ?? [];
+  const piketWajib = kebijakanQ.data?.wajib ?? false;
 
   const [porsi, setPorsi] = useState('');
   const [jmlMakan, setJmlMakan] = useState('');
@@ -37,8 +47,22 @@ export function HalamanRealisasiBuat() {
   const [fotoBase64, setFotoBase64] = useState('');
   const [fotoWideNama, setFotoWideNama] = useState('');
   const [fotoWideBase64, setFotoWideBase64] = useState('');
+  const [piketNit, setPiketNit] = useState('');
+  const [piketMenuSesuai, setPiketMenuSesuai] = useState(false);
+  const [piketPorsiCukup, setPiketPorsiCukup] = useState(false);
+  const [piketKualitas, setPiketKualitas] = useState<'' | 'BAIK' | 'CUKUP' | 'KURANG'>('');
+  const [piketGizi, setPiketGizi] = useState<Set<string>>(new Set());
+  const [piketCatatan, setPiketCatatan] = useState('');
   const [proses, setProses] = useState(false);
   const [galat, setGalat] = useState('');
+
+  function toggleGizi(komponen: string) {
+    setPiketGizi((s) => {
+      const baru = new Set(s);
+      if (baru.has(komponen)) baru.delete(komponen); else baru.add(komponen);
+      return baru;
+    });
+  }
 
   // Prefill sekali saat data pesanan datang — TIDAK menimpa kalau Pembina
   // sudah mengetik sesuatu (mis. setelah refresh cache).
@@ -102,6 +126,8 @@ export function HalamanRealisasiBuat() {
   async function simpan() {
     if (!porsi || !jmlMakan) { setGalat('Porsi diterima dan jumlah taruna makan wajib diisi.'); return; }
     if (!geoSiap) { setGalat('Geotag wajib diisi (otomatis atau manual).'); return; }
+    if (piketWajib && !piketNit) { setGalat('Verifikasi piket wajib diisi (kebijakan aktif).'); return; }
+    if (piketNit && !piketKualitas) { setGalat('Pilih kualitas makan pada Verifikasi Piket Taruna.'); return; }
 
     setProses(true);
     setGalat('');
@@ -115,6 +141,14 @@ export function HalamanRealisasiBuat() {
       };
       if (fotoBase64) payload.berkas = { base64: fotoBase64, nama_file: fotoNama || 'realisasi-closeup.jpg' };
       if (fotoWideBase64) payload.berkas_wide = { base64: fotoWideBase64, nama_file: fotoWideNama || 'realisasi-wide.jpg' };
+      if (piketNit) {
+        payload.piket_nit = piketNit;
+        payload.piket_menu_sesuai = piketMenuSesuai;
+        payload.piket_porsi_cukup = piketPorsiCukup;
+        payload.piket_kualitas = piketKualitas;
+        payload.piket_gizi = Array.from(piketGizi);
+        payload.piket_catatan = piketCatatan;
+      }
 
       const r = await aksiTulis<{ realisasi: Realisasi }>('realisasi.create', payload);
       if (r.antri) {
@@ -198,7 +232,69 @@ export function HalamanRealisasiBuat() {
             <p className="text-xs text-gray-400">Ambil/isi lokasi (geotag) dulu sebelum memotret — watermark butuh koordinat.</p>
           )}
         </div>
+      </Card>
 
+      {/* Ownership Taruna Fitur 1b: piket taruna ikut menandatangani di
+          perangkat bersama (TANPA akun sendiri) — menguatkan bukti realisasi,
+          MELENGKAPI ttd Pembina+Senat+foto+geotag di atas, bukan menggantikan. */}
+      <Card className="flex flex-col gap-3">
+        <p className="text-sm font-semibold text-gray-600">
+          Verifikasi Piket Taruna {piketWajib ? '(wajib)' : '(opsional)'}
+        </p>
+        <p className="text-xs text-gray-500">
+          Kolektif lewat Senat & Piket — bahan evaluasi kepatuhan penyedia,
+          bukan komplain individual. Piket cukup diketik di sini, tanpa login.
+        </p>
+        <SearchSelect
+          label="NIT/Nama Piket"
+          placeholder="Ketik nama atau NIT piket…"
+          value={piketNit}
+          onChange={setPiketNit}
+          opsi={(tarunaQ.data?.taruna ?? []).map((t) => ({ value: t.nit, label: `${t.nama} (${t.nit})` }))}
+        />
+        {piketNit && (
+          <>
+            <label className="flex min-h-tap items-center gap-2 text-sm">
+              <input type="checkbox" checked={piketMenuSesuai}
+                onChange={(e) => setPiketMenuSesuai(e.target.checked)} className="h-5 w-5" />
+              Menu sesuai jadwal kontrak
+            </label>
+            <label className="flex min-h-tap items-center gap-2 text-sm">
+              <input type="checkbox" checked={piketPorsiCukup}
+                onChange={(e) => setPiketPorsiCukup(e.target.checked)} className="h-5 w-5" />
+              Porsi cukup
+            </label>
+
+            <p className="text-sm font-medium text-gray-700">Kualitas</p>
+            <div className="flex gap-2">
+              {(['BAIK', 'CUKUP', 'KURANG'] as const).map((k) => (
+                <Button key={k} type="button" varian={piketKualitas === k ? 'utama' : 'garis'}
+                  className="flex-1" onClick={() => setPiketKualitas(k)}>
+                  {LABEL_KUALITAS[k]}
+                </Button>
+              ))}
+            </div>
+
+            {komponenGizi.length > 0 && (
+              <>
+                <p className="text-sm font-medium text-gray-700">Gizi yang benar-benar ada di piring</p>
+                <div className="flex flex-wrap gap-2">
+                  {komponenGizi.map((g) => (
+                    <label key={g} className="flex min-h-tap items-center gap-1 rounded-full border border-gray-300 px-3 py-1 text-sm">
+                      <input type="checkbox" checked={piketGizi.has(g)} onChange={() => toggleGizi(g)} className="h-4 w-4" />
+                      {g}
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <Input label="Catatan (opsional)" value={piketCatatan} onChange={(e) => setPiketCatatan(e.target.value)} />
+          </>
+        )}
+      </Card>
+
+      <Card className="flex flex-col gap-3">
         {galat && <p className="text-sm text-red-600">{galat}</p>}
         <Button onClick={() => void simpan()} disabled={proses}>
           {proses ? 'Menyimpan…' : 'Simpan Realisasi'}

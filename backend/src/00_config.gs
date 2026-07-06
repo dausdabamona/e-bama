@@ -333,3 +333,28 @@ function setKebijakanGizi(obj) {
   PropertiesService.getScriptProperties().setProperty('KEBIJAKAN_GIZI', JSON.stringify({ komponen: komponen }));
   return { komponen: komponen };
 }
+
+// ── Kebijakan Piket Verifikasi Makan (Ownership Taruna — Fitur 1b) ──────────
+// wajib:false (default) — verifikasi piket OPSIONAL, tidak menghalangi
+// Pembina/Senat mengirim realisasi tanpa piket. true → piket_nit WAJIB diisi
+// saat realisasi.create (dikonfirmasi Firdaus: tunable, bukan dipaksa langsung).
+var _CONFIG_PIKET_DEFAULT = { wajib: false };
+
+/** getKebijakanPiket() — SATU-SATUNYA cara 13_realisasi.gs membaca kebijakan ini. */
+function getKebijakanPiket() {
+  var raw = PropertiesService.getScriptProperties().getProperty('KEBIJAKAN_PIKET');
+  var v = { wajib: _CONFIG_PIKET_DEFAULT.wajib };
+  if (raw) {
+    var o = JSON.parse(raw);
+    if (o && o.wajib !== undefined) v.wajib = !!o.wajib;
+  }
+  return v;
+}
+
+/** setKebijakanPiket({wajib}) — ubah kebijakan dari editor GAS. */
+function setKebijakanPiket(obj) {
+  var v = getKebijakanPiket();
+  if (obj && obj.wajib !== undefined) v.wajib = !!obj.wajib;
+  PropertiesService.getScriptProperties().setProperty('KEBIJAKAN_PIKET', JSON.stringify(v));
+  return v;
+}

@@ -10,4 +10,17 @@ export interface Realisasi {
   geotag_lng: number;
   ttd_pembina_at: string;
   ttd_senat_at: string;
+  piket_nit: string;
+  piket_nama: string;
+  piket_menu_sesuai: boolean;
+  piket_porsi_cukup: boolean;
+  piket_kualitas: '' | 'BAIK' | 'CUKUP' | 'KURANG';
+  piket_gizi: string;
+  piket_catatan: string;
+  piket_at: string;
+}
+
+export interface KebijakanPiket {
+  wajib: boolean;
+  komponen_gizi: string[];
 }
