@@ -54,6 +54,7 @@ export function HalamanTagihanDetail() {
   const t = tagihanQ.data?.tagihan?.find((x) => x.tagihan_id === id);
   if (!t) return <ErrorMessage pesan="Tagihan tidak ditemukan." onRetry={tagihanQ.refresh} />;
   const namaTaruna = tarunaQ.data?.taruna?.find((x) => x.nit === t.nit)?.nama;
+  const nilaiTransferNum = Number(nilaiTransfer !== '' ? nilaiTransfer : t.nominal);
 
   async function pilihBerkas() {
     // kameraSaja:false — bukti setor ADALAH screenshot transfer, wajib bisa
@@ -83,8 +84,8 @@ export function HalamanTagihanDetail() {
   }
 
   async function kirimVerifikasi() {
-    const nilai = Number(nilaiTransfer !== '' ? nilaiTransfer : t!.nominal);
-    if (!Number.isFinite(nilai) || nilai < 0) { setGalat('Nilai transferan tidak valid.'); return; }
+    const nilai = nilaiTransferNum;
+    if (!Number.isFinite(nilai) || nilai <= 0) { setGalat('Nilai transferan harus lebih dari 0.'); return; }
     setProses(true); setGalat('');
     try {
       const r = await api<{ status: string }>('tagihan.verifikasi', { tagihan_id: t!.tagihan_id, nilai_transfer: nilai });
@@ -213,8 +214,9 @@ export function HalamanTagihanDetail() {
           )}
           <p className="text-xs text-gray-500">
             Cocokkan bukti di atas dengan mutasi rekening Senat, lalu masukkan nominal
-            yang benar-benar masuk — inilah tanda sudah diverifikasi. Wajib oleh 2 orang
-            berbeda (peran boleh sama).
+            yang benar-benar masuk — boleh berbeda dari nominal tagihan (mis. potongan
+            biaya transfer bank atau kurang bayar), inilah tanda sudah diverifikasi.
+            Wajib oleh 2 orang berbeda (peran boleh sama).
           </p>
           {t.verif_1_oleh && t.verif_1_oleh === session?.user_id ? (
             <p className="text-sm text-amber-700">
@@ -227,9 +229,15 @@ export function HalamanTagihanDetail() {
                 label="Nilai Transferan (Rp)"
                 type="text"
                 inputMode="numeric"
-                value={formatRibuan(nilaiTransfer !== '' ? nilaiTransfer : String(t.nominal))}
+                value={formatRibuan(String(nilaiTransferNum))}
                 onChange={(e) => setNilaiTransfer(e.target.value.replace(/\D/g, ''))}
               />
+              {nilaiTransferNum !== t.nominal && (
+                <p className="text-xs text-amber-700">
+                  ⚠️ Selisih {formatRupiah(Math.abs(nilaiTransferNum - t.nominal))} dari nominal
+                  tagihan ({formatRupiah(t.nominal)}) — pastikan sudah dicek dengan mutasi rekening.
+                </p>
+              )}
               {galat && <p className="text-sm text-red-600">{galat}</p>}
               <Button onClick={() => void kirimVerifikasi()} disabled={proses}>
                 {proses ? 'Memproses…' : t.verif_1_oleh ? '✅ Verifikasi (2/2) → LUNAS' : '✅ Verifikasi (1/2)'}

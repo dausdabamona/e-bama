@@ -258,7 +258,7 @@ Status: `TERTAGIH → LUNAS | DIHAPUSKAN | ESKALASI_MANUAL`.
 | catatan_hapus | string | WAJIB terisi bila status `DIHAPUSKAN` |
 | verif_pembina_oleh | FK → PENGGUNA | **verifikator PERTAMA** — nama kolom historis ("pembina") tapi SEKARANG GENERIK: siapa pun di antara Senat/Pembina/Admin/PPK (dikonfirmasi Firdaus, direvisi dari alur berurutan Pembina→PPK/Admin — kini peran bebas). Kosong = belum ada verifikator pertama. Di-append di AKHIR (migrasi idempotent) |
 | verif_2_oleh | FK → PENGGUNA | **verifikator KEDUA** — WAJIB user_id berbeda dari `verif_pembina_oleh` (peran boleh sama, mis. dua staf Pembina berlainan orang). Terisi bersamaan dengan transisi ke `LUNAS`. Di-append di AKHIR |
-| nilai_transfer | integer | nominal yang dimasukkan verifikator (dicek ulang tiap verifikasi) — WAJIB sama dengan `nominal` tagihan; inilah bentuk konkret "tanda sudah diverifikasi" (dikonfirmasi Firdaus). Di-append di AKHIR |
+| nilai_transfer | integer | nominal yang dimasukkan verifikator (harus > 0) — TIDAK WAJIB sama dengan `nominal` tagihan (dikonfirmasi Firdaus, direvisi dari validasi ketat: dunia nyata sering beda karena potongan biaya transfer antarbank atau kurang bayar). Inilah bentuk konkret "tanda sudah diverifikasi"; selisih dari `nominal` tetap terlihat di data untuk rekonsiliasi, TIDAK memblokir `LUNAS`. Di-append di AKHIR |
 
 Bukti setor (screenshot/foto transfer) → LAMPIRAN `ref_type=TAGIHAN`, `jenis=BUKTI_SETOR` — WAJIB
 ada sebelum verifikasi manapun (pertama atau kedua) boleh dilakukan.
@@ -269,9 +269,11 @@ peran): `tagihan.setor` bisa diisi role **SENAT/PEMBINA/ADMIN/PPK** — melampir
 transfer, status tetap `TERTAGIH`. Lalu `tagihan.verifikasi` (role SENAT/PEMBINA/ADMIN/PPK,
 payload `{tagihan_id, nilai_transfer}`) dipanggil **dua kali oleh dua orang berbeda** —
 peran boleh sama, yang wajib beda hanya `user_id`. Tanda "sudah diverifikasi" adalah
-memasukkan `nilai_transfer` yang harus sama dengan `nominal` tagihan (dicek ulang tiap
-panggilan). Panggilan pertama → set `verif_pembina_oleh` (verifikator 1), status TETAP
-`TERTAGIH`. Panggilan kedua — ditolak bila `user_id` sama dengan verifikator pertama —
+memasukkan `nilai_transfer` (> 0) — TIDAK WAJIB sama dengan `nominal` tagihan (dikonfirmasi
+Firdaus, direvisi: potongan biaya transfer/kurang bayar tetap bisa dilunaskan; selisih
+tetap tercatat untuk rekonsiliasi). Panggilan pertama → set `verif_pembina_oleh`
+(verifikator 1), status TETAP `TERTAGIH`. Panggilan kedua — ditolak bila `user_id` sama
+dengan verifikator pertama —
 → set `verif_2_oleh`, `status=LUNAS`, `diverifikasi_oleh` terisi. **Efek samping
 otomatis** saat `LUNAS`: SP mana pun milik tagihan ini yang `tgl_terbit` LEBIH BARU dari
 `tgl_setor` (taruna sudah bayar SEBELUM SP itu terbit — SP jadi tak berdasar) **DIHAPUS**

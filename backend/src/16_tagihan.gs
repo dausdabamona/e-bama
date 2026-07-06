@@ -182,8 +182,15 @@ function tagihanSetor(payload, session) {
  * berurutan Pembina→PPK/Admin: sekarang peran bebas, yang wajib cuma DUA
  * ORANG BERBEDA — dua staf Pembina berlainan orang pun sah). Tanda sudah
  * diverifikasi ADALAH memasukkan `nilai_transfer` (nominal yang ia lihat
- * masuk ke rekening Senat) — WAJIB sama dengan nominal tagihan, dicek
- * ulang tiap kali seseorang memverifikasi (dua kali cek independen).
+ * BENAR-BENAR masuk ke rekening Senat, dibaca dari mutasi bank).
+ *
+ * `nilai_transfer` TIDAK WAJIB sama dengan `nominal` tagihan (dikonfirmasi
+ * Firdaus, direvisi dari validasi ketat sebelumnya) — dunia nyata sering beda
+ * (potongan biaya transfer antarbank, taruna kurang bayar, dst). `nominal`
+ * tagihan (snapshot REKAP_BULANAN FINAL) TETAP TIDAK BERUBAH untuk keperluan
+ * pelaporan; `nilai_transfer` cuma mencatat realisasi transfer sesungguhnya
+ * — selisihnya tetap terlihat di data untuk rekonsiliasi, TIDAK memblokir
+ * pelunasan. Satu-satunya syarat nilai: harus > 0 (bilangan bulat).
  *
  * Verifikasi PERTAMA: catat sebagai verifikator 1 — kolom sheet lama
  * `verif_pembina_oleh` kini generik (lihat docs/skema-sheet.md §10), status
@@ -203,9 +210,7 @@ function tagihanVerifikasi(payload, session) {
   if (!bukti.length) throw _fail_('Belum ada bukti setor — verifikasi ditolak.');
 
   var nilai = _int_(payload && payload.nilai_transfer, 'nilai_transfer');
-  if (nilai !== Number(t.nominal)) {
-    throw _fail_('Nilai transferan (' + nilai + ') tidak sama dengan nominal tagihan (' + Number(t.nominal) + ').');
-  }
+  if (nilai <= 0) throw _fail_('Nilai transferan harus lebih dari 0.');
 
   var v1 = String(t.verif_pembina_oleh || '').trim();
   if (!v1) {
