@@ -36,7 +36,10 @@ export function HalamanTagihanList() {
         <div className="flex gap-2">
           <Link to="/tagihan/status-debet"><Button varian="garis">📊 Status Debet</Button></Link>
           {session?.role === 'PPK' && (
-            <Link to="/tagihan/gagal-debet"><Button>+ Gagal Debet</Button></Link>
+            <>
+              <Link to="/tagihan/impor-debet"><Button varian="garis">📥 Impor CSV</Button></Link>
+              <Link to="/tagihan/gagal-debet"><Button>+ Gagal Debet</Button></Link>
+            </>
           )}
         </div>
       </div>

@@ -12,9 +12,28 @@ import { api } from '../../lib/api';
 import { useListCache } from '../../lib/use-list-cache';
 
 interface BarisRekap { nit: string; status: string; nominal: number }
-interface Taruna { nit: string; nama: string }
+interface Taruna { nit: string; nama: string; bank?: string; prodi?: string }
+interface KelompokTaruna { bank: string; prodi: string; anggota: { nit: string; nama: string }[] }
 
 const SEBAB = ['GAGAL_DEBET', 'SALDO_KURANG', 'REKENING_BERMASALAH'];
+
+// Kelompokkan per bank lalu prodi, anggota diurutkan abjad — memudahkan PPK
+// menyisir daftar besar saat menandai gagal debet.
+function kelompokkanRekap(rekap: BarisRekap[], tarunaByNit: Map<string, Taruna>): KelompokTaruna[] {
+  const map = new Map<string, KelompokTaruna>();
+  for (const r of rekap) {
+    const t = tarunaByNit.get(r.nit);
+    const bank = t?.bank || 'Tanpa Bank';
+    const prodi = t?.prodi || 'Tanpa Prodi';
+    const key = `${bank}||${prodi}`;
+    if (!map.has(key)) map.set(key, { bank, prodi, anggota: [] });
+    map.get(key)!.anggota.push({ nit: r.nit, nama: t?.nama ?? r.nit });
+  }
+  const kelompok = Array.from(map.values());
+  kelompok.forEach((k) => k.anggota.sort((a, b) => a.nama.localeCompare(b.nama, 'id')));
+  kelompok.sort((a, b) => a.bank.localeCompare(b.bank, 'id') || a.prodi.localeCompare(b.prodi, 'id'));
+  return kelompok;
+}
 
 export function HalamanTagihanGagalDebet() {
   const nav = useNavigate();
@@ -27,8 +46,9 @@ export function HalamanTagihanGagalDebet() {
   const [proses, setProses] = useState(false);
   const [galat, setGalat] = useState('');
 
-  const namaByNit = new Map((tarunaQ.data?.taruna ?? []).map((t) => [t.nit, t.nama]));
+  const tarunaByNit = new Map((tarunaQ.data?.taruna ?? []).map((t) => [t.nit, t]));
   const rekap = rekapQ.data?.rekap ?? [];
+  const kelompok = kelompokkanRekap(rekap, tarunaByNit);
   // Angka beku HANYA saat FINAL (PPK finalkan, langkah terakhir). DISETUJUI_WADIR3
   // kini langkah awal (angka belum beku) → belum jadi dasar tagihan.
   const belumFinal = rekap.length > 0 && rekap[0].status !== 'FINAL';
@@ -81,12 +101,19 @@ export function HalamanTagihanGagalDebet() {
           </select>
 
           <p className="text-sm font-medium text-gray-700">Pilih Taruna</p>
-          <div className="flex flex-col gap-1 rounded-xl border border-gray-200 p-2">
-            {rekap.map((r) => (
-              <label key={r.nit} className="flex min-h-tap items-center gap-2 text-sm">
-                <input type="checkbox" className="h-5 w-5" checked={terpilih.has(r.nit)} onChange={() => toggle(r.nit)} />
-                {namaByNit.get(r.nit) ?? r.nit} ({r.nit})
-              </label>
+          <div className="flex flex-col gap-3 rounded-xl border border-gray-200 p-2">
+            {kelompok.map((k) => (
+              <div key={`${k.bank}||${k.prodi}`} className="flex flex-col gap-1">
+                <p className="rounded-lg bg-primary-light px-2 py-1 text-xs font-semibold text-primary-dark">
+                  {k.bank} · {k.prodi}
+                </p>
+                {k.anggota.map((a) => (
+                  <label key={a.nit} className="flex min-h-tap items-center gap-2 pl-1 text-sm">
+                    <input type="checkbox" className="h-5 w-5" checked={terpilih.has(a.nit)} onChange={() => toggle(a.nit)} />
+                    {a.nama} ({a.nit})
+                  </label>
+                ))}
+              </div>
             ))}
           </div>
 
