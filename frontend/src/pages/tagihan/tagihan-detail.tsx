@@ -133,14 +133,18 @@ export function HalamanTagihanDetail() {
         )}
       </Card>
 
-      {t.status === 'TERTAGIH' && t.tgl_setor && (
+      {t.status === 'TERTAGIH' && (
         <Card className="flex flex-col gap-1">
-          <p className="text-sm font-semibold text-gray-600">Status Verifikasi (ganda, wajib 2 pihak)</p>
+          <p className="text-sm font-semibold text-gray-600">Alur Pembayaran → Rekening Senat</p>
+          <p className="text-sm">
+            {t.tgl_setor ? '✅' : '⏳'} Setor Bukti Transfer (Senat/Pembina)
+            {t.tgl_setor ? ` — ${t.tgl_setor}` : ' — belum disetor'}
+          </p>
           <p className="text-sm">
             {t.verif_pembina_oleh ? '✅' : '⏳'} Verifikasi Pembina (1/2)
             {t.verif_pembina_oleh ? ` — ${t.verif_pembina_oleh}` : ' — menunggu'}
           </p>
-          <p className="text-sm">⏳ Verifikasi PPK/Admin (2/2) — menunggu</p>
+          <p className="text-sm">⏳ Verifikasi PPK/Admin (2/2) — menunggu, memicu LUNAS</p>
         </Card>
       )}
 
