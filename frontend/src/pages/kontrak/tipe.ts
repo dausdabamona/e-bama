@@ -10,8 +10,12 @@ export interface Penyedia {
 export interface Kontrak {
   kontrak_id: string;
   penyedia_id: string;
+  // harga_per_porsi/porsi_per_hari: legacy — porsi_per_hari tetap dipakai sbg info
+  // jumlah makan sehari, harga_per_porsi cuma fallback (lihat harga_per_hari_efektif).
   harga_per_porsi: number;
   porsi_per_hari: number;
+  harga_per_hari: number;
+  harga_per_hari_efektif?: number;
   tgl_mulai: string;
   tgl_akhir: string;
   status: 'DRAFT' | 'DISETUJUI_PPK';

@@ -110,7 +110,8 @@ function laporanResmi(payload, session) {
     kontrak: kontrakBulan ? {
       kontrak_id: kontrakBulan.kontrak_id,
       harga_per_porsi: _int_(kontrakBulan.harga_per_porsi, 'harga_per_porsi'),
-      porsi_per_hari: _int_(kontrakBulan.porsi_per_hari, 'porsi_per_hari')
+      porsi_per_hari: _int_(kontrakBulan.porsi_per_hari, 'porsi_per_hari'),
+      harga_per_hari_efektif: _hargaPerHariKontrak_(kontrakBulan)
     } : null,
     penerima: penerima,
     total_hari_makan: totalHariMakan,

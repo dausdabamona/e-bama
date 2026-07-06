@@ -46,9 +46,9 @@ Modul: `taruna.*` → `10_taruna.gs`; `penyedia.*`, `kontrak.*` & `menu.*` → `
 | `taruna.upsert` | ADMIN, BAAK | tolak `rek_mask` yang memuat >4 digit angka (indikasi rekening lengkap); BAAK (Biro Administrasi Akademik & Kemahasiswaan) berdampingan dengan Admin — sumber otoritatif data NIT/akademik |
 | `penyedia.list` | semua login | |
 | `penyedia.upsert` | ADMIN, PPK | |
-| `kontrak.list` | semua login | |
-| `kontrak.get` | semua login | `{kontrak_id}` → `{kontrak, lampiran}` |
-| `kontrak.upsert` | PPK | hanya boleh diubah selama `DRAFT`. Payload: `{penyedia_id, harga_per_porsi, porsi_per_hari, tgl_mulai, tgl_akhir, no_kontrak?, tgl_kontrak?, adendum?, rek_penyedia_bni?, rek_penyedia_bsi?}`. 5 field terakhir opsional; `rek_penyedia_*` = nomor rekening PENUH penyedia (payee, dipakai Form-07/09). |
+| `kontrak.list` | semua login | tiap baris kontrak disisipkan `harga_per_hari_efektif` (turunan, lihat `_hargaPerHariKontrak_`) |
+| `kontrak.get` | semua login | `{kontrak_id}` → `{kontrak, lampiran}` — `kontrak.harga_per_hari_efektif` idem `kontrak.list` |
+| `kontrak.upsert` | PPK | hanya boleh diubah selama `DRAFT`. Payload: `{penyedia_id, harga_per_hari, porsi_per_hari, tgl_mulai, tgl_akhir, harga_per_porsi?, no_kontrak?, tgl_kontrak?, adendum?, rek_penyedia_bni?, rek_penyedia_bsi?}`. **`harga_per_hari`** (rupiah/taruna/hari) WAJIB sejak migrasi harga per-porsi→per-hari (dikonfirmasi Firdaus) — tarif utama dipakai `rekap.update`/cetak Form-01/04/`penyedia.portal`/`laporan.resmi`. `harga_per_porsi` kini OPSIONAL (legacy — default 0 bila tak dikirim; frontend `ModalKontrak` sudah tidak menampilkan inputnya, tapi tetap kirim nilai lama pass-through saat edit supaya tak menimpa fallback kontrak lama jadi 0). `porsi_per_hari` tetap wajib (info jumlah makan sehari, bukan dipakai hitung uang lagi). 6 field terakhir opsional; `rek_penyedia_*` = nomor rekening PENUH penyedia (payee, dipakai Form-07/09). |
 | `kontrak.approve` | PPK | `DRAFT → DISETUJUI_PPK` (SOP no. 4) |
 | `kontrak.lampiran_upload` | PPK | `{kontrak_id, berkas:{base64,nama_file,jenis}}` — menu & nilai gizi (`jenis=MENU_GIZI`), BA penunjukan (`BA`), notulen (`NOTULEN`); boleh kapan saja |
 | `menu.list` | semua login | `{kontrak_id}` → `{menu: [...]}` urut Senin→Minggu |
@@ -106,7 +106,10 @@ Transisi ilegal → error eksplisit (mis. "Pesanan berstatus DRAFT, tidak bisa d
 > verifikasi lalu finalkan. Prinsipnya PPK di posisi TERAKHIR — menerima hasil
 > yang sudah disetujui untuk dinyatakan siap dibayar. Angka beku saat PPK finalkan.
 
-`rekapUpdate(tanggal)` internal (bukan action publik): incremental per hari, uang integer.
+`rekapUpdate(tanggal)` internal (bukan action publik): incremental per hari, uang integer —
+`nominal = hari_makan × harga_per_hari` (tarif kontrak aktif via `_hargaPerHariKontrak_`,
+`05_master.gs`; fallback `harga_per_porsi × porsi_per_hari` untuk kontrak lama yang belum
+diisi ulang sejak migrasi harga per-porsi → per-hari, dikonfirmasi Firdaus).
 
 ### Pembayaran (SOP no. 11–17) — mesin status `DIAJUKAN → SELESAI` (disederhanakan)
 
@@ -158,7 +161,7 @@ Transisi ilegal → error eksplisit (mis. "Pesanan berstatus DRAFT, tidak bisa d
 | Action | Role | Keterangan |
 |---|---|---|
 | `laporan.bulanan` | PPK, KPA, WADIR3, ADMIN | ringkasan rekap + realisasi + pembayaran + piutang per bulan (SOP 17–19); format menyesuaikan Laporan Bulanan BAMA |
-| `laporan.resmi` | PPK, KPA, WADIR3, ADMIN | data untuk format "Laporan Bulanan Pemantauan & Evaluasi Bantuan Biaya Makan" resmi (acuan Itjen/KKP) — HANYA bagian Dalam Kampus yang dilacak e-BAMA (info umum, data penerima, realisasi, penggunaan dana, sebagian permasalahan); bagian DIPA/SK/rencana anggaran/Pengusulan diisi manual di halaman cetak, TIDAK tersimpan di server |
+| `laporan.resmi` | PPK, KPA, WADIR3, ADMIN | data untuk format "Laporan Bulanan Pemantauan & Evaluasi Bantuan Biaya Makan" resmi (acuan Itjen/KKP) — HANYA bagian Dalam Kampus yang dilacak e-BAMA (info umum, data penerima, realisasi, penggunaan dana, sebagian permasalahan); bagian DIPA/SK/rencana anggaran/Pengusulan diisi manual di halaman cetak, TIDAK tersimpan di server. `kontrak` sub-objek += `harga_per_hari_efektif` (dipakai "Rencana Biaya per Orang per Hari"/"Standar Biaya per Hari"/"Besaran pendebetan per hari") |
 
 ### Bantuan Luar Kampus (PKL/Magang/KPA/PTB)
 
@@ -188,10 +191,10 @@ luar sistem; diajukan ke PPK untuk diinput. Catatan murni, tanpa alur status.
 
 | Action | Role | Payload → Data | Status |
 |---|---|---|---|
-| `cetak.form01` | SENAT, PEMBINA, PPK, ADMIN | `{tgl_makan}` → `{pesanan, kontrak, jml_status_harian, dibuat_oleh_nama, diverifikasi_oleh_nama, verif_at}` — Rencana & Persetujuan Pemesanan Harian (H-1) | ✅ diimplementasi |
+| `cetak.form01` | SENAT, PEMBINA, PPK, ADMIN | `{tgl_makan}` → `{pesanan, kontrak:{kontrak_id,harga_per_porsi,porsi_per_hari,harga_per_hari_efektif}, jml_status_harian, dibuat_oleh_nama, diverifikasi_oleh_nama, verif_at}` — Rencana & Persetujuan Pemesanan Harian (H-1); total biaya = `jml_taruna × harga_per_hari_efektif` | ✅ diimplementasi |
 | `cetak.form02` | PEMBINA, PPK, ADMIN | `{tanggal}` → `{tanggal, taruna:[{nit,nama,prodi,tingkat,kelas}], jml_taruna, realisasi}` — Daftar Hadir/Tanda Terima Makan; **tanpa presensi individual** (dikonfirmasi Firdaus) — ttd digital REALISASI jadi bukti | ✅ diimplementasi |
 | `cetak.form03` | PPK, ADMIN, PEMBINA | `{bulan}` → `{bulan, per_status:{...}, total}` — Rekap Taruna Tidak Menerima Makan | ✅ diimplementasi |
-| `cetak.form04` | SENAT, PEMBINA, PPK, ADMIN | `{bulan}` → `{bulan, baris:[{tanggal,taruna_aktif,total_porsi,jumlah_biaya,kontrak_ditemukan}], total_taruna_aktif, total_porsi, total_biaya, kontrak_ringkas}` — Rekapitulasi Bulanan Porsi Makan; **total porsi/hari agregat** (dikonfirmasi Firdaus), tanpa rincian Sarapan/Siang/Malam | ✅ diimplementasi |
+| `cetak.form04` | SENAT, PEMBINA, PPK, ADMIN | `{bulan}` → `{bulan, baris:[{tanggal,taruna_aktif,total_porsi,jumlah_biaya,kontrak_ditemukan}], total_taruna_aktif, total_porsi, total_biaya, kontrak_ringkas:[{kontrak_id,penyedia_nama,harga_per_porsi,harga_per_hari_efektif}]}` — Rekapitulasi Bulanan Porsi Makan; **total porsi/hari agregat** (dikonfirmasi Firdaus), tanpa rincian Sarapan/Siang/Malam; `jumlah_biaya` harian = `REALISASI.jml_taruna_makan × harga_per_hari_efektif` (headcount, bukan `porsi_diterima` — konsisten Form-05) | ✅ diimplementasi |
 | `cetak.form05` | PEMBINA, PPK, ADMIN | `{tanggal}` → `{titik1_taruna_berhak, titik2_total_pesanan, titik3_total_realisasi, selisih_titik1_titik2, selisih_titik2_titik3, cocok, cek_otomatis}` — BA Rekonsiliasi 3 Titik | ✅ diimplementasi |
 | `cetak.form06` | PPK, KPA, ADMIN | `{bulan}` → `{baris, total_taruna, total_hari_makan, total_nominal, nominal_terbilang, pejabat}` — Verifikasi & Rencana Pembayaran PPK; **ditolak bila REKAP_BULANAN bulan itu belum FINAL** | ✅ diimplementasi (`_terbilang_()` di `03_helpers.gs`) |
 | `cetak.form07` | **ADMIN, PPK SAJA** | `{bulan}` → `{pembayaran, baris:[{nit,nama,prodi,tingkat,bank,no_rekening_lengkap,nama_pemilik,nominal,hari_makan,rekening_lengkap_ada}], total_nominal, pejabat:{PPK,KPA,DIREKTUR,WADIR3}, rekening_senat:{BNI,BSI}, rekening_penyedia:{BNI,BSI}, rekening_senat_nama:{BNI,BSI}, rekening_penyedia_nama:{BNI,BSI}, kontrak:{no_kontrak,tgl_kontrak,adendum}}` — Permohonan Pemblokiran & Pendebetan Rekening Taruna; sumber PEMBAYARAN+REKAP_BULANAN+`TARUNA_REKENING`+KONTRAK; **rekening_penyedia diambil dari KONTRAK pembayaran (`rek_penyedia_bni/bsi`), fallback Script Property**; rekening_senat tetap Script Property; **ditolak bila belum ada PEMBAYARAN bulan itu**; setiap panggilan mencatat 1 baris AUDIT_LOG (NIT yang rekeningnya terbaca). Taruna bernilai **Rp0 dikecualikan** (tak perlu diblokir/didebet, rekeningnya pun tidak ikut terbaca/diaudit). **Alur surat (dikonfirmasi Firdaus):** setelah dana cair ke rekening masing-masing taruna, **Direktur + Ketua Senat + Wakil Direktur III** memohon ke bank untuk (1) blokir rekening taruna N hari (lama blokir = input manual di halaman cetak), (2) debet nilai per orang → **Rekening Senat**, (3) teruskan total → **rekening penyedia** — semua **terpisah per bank (BNI & BSI)** dengan **total per bank saja (TANPA total gabungan lintas bank)**. TTD taruna di kolom terakhir = kuasa mendebet (menggantikan lampiran Kuasa Blokir terpisah). Ditandatangani **Ketua Senat, Wakil Direktur III, Direktur** | ✅ diimplementasi |
@@ -236,7 +239,7 @@ luar sistem; diajukan ke PPK untuk diinput. Catatan murni, tanpa alur status.
 
 | Action | Role | Payload → Data | Keterangan |
 |---|---|---|---|
-| `penyedia.portal` | PENYEDIA | `{}` → `{penyedia:{nama,kontak,alamat,status}, kontrak:[{kontrak_id,harga_per_porsi,porsi_per_hari,tgl_mulai,tgl_akhir,status,menu:[{hari,menu_pagi,menu_siang,menu_malam}],lampiran:[{jenis,nama_file}]}], pesanan:[{tgl_makan,jml_taruna,menu,catatan,status}], realisasi:[{tanggal,porsi_diterima,jml_taruna_makan,ketidaksesuaian,tindak_lanjut}], pembayaran:[{bulan,nilai_total,no_spm,tgl_spm,no_sp2d,tgl_sp2d,status,invoice_dikonfirmasi}]}` | Semua data di-scope ke penyedia yang login (via `kontrak_id` miliknya). `pesanan` HANYA status final `DISETUJUI`/`TERKIRIM`, `tgl_makan ≥` hari ini − 7. **SENGAJA TANPA** data per-taruna (nama/NIT), rekening, geotag realisasi, identitas staf internal (created_by/verif_by/approved_by/uploaded_by), dan **TANPA bantuan makan luar kampus** (BANTUAN_LUAR_KAMPUS/SP2D — transfer tunai ke taruna, bukan lewat kontrak penyedia). READ-ONLY (tanpa audit). |
+| `penyedia.portal` | PENYEDIA | `{}` → `{penyedia:{nama,kontak,alamat,status}, kontrak:[{kontrak_id,harga_per_porsi,porsi_per_hari,harga_per_hari_efektif,tgl_mulai,tgl_akhir,status,menu:[{hari,menu_pagi,menu_siang,menu_malam}],lampiran:[{jenis,nama_file}]}], pesanan:[{tgl_makan,jml_taruna,menu,catatan,status}], realisasi:[{tanggal,porsi_diterima,jml_taruna_makan,ketidaksesuaian,tindak_lanjut}], pembayaran:[{bulan,nilai_total,no_spm,tgl_spm,no_sp2d,tgl_sp2d,status,invoice_dikonfirmasi}]}` | Semua data di-scope ke penyedia yang login (via `kontrak_id` miliknya). `pesanan` HANYA status final `DISETUJUI`/`TERKIRIM`, `tgl_makan ≥` hari ini − 7. **SENGAJA TANPA** data per-taruna (nama/NIT), rekening, geotag realisasi, identitas staf internal (created_by/verif_by/approved_by/uploaded_by), dan **TANPA bantuan makan luar kampus** (BANTUAN_LUAR_KAMPUS/SP2D — transfer tunai ke taruna, bukan lewat kontrak penyedia). READ-ONLY (tanpa audit). |
 
 ### Ketua Jurusan (`kajur.*`) — luar kampus, scope prodi
 

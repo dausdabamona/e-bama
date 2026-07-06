@@ -85,9 +85,20 @@ TANPA identitas staf internal).
 | adendum | string | catatan adendum kontrak; opsional |
 | rek_penyedia_bni | string | nomor rekening PENUH penyedia di BNI (payee); dipakai Form-07/09 (fallback Script Property) |
 | rek_penyedia_bsi | string | nomor rekening PENUH penyedia di BSI (payee); dipakai Form-07/09 (fallback Script Property) |
+| harga_per_hari | integer | rupiah/taruna/hari — **tarif utama** sejak revisi ini (dikonfirmasi Firdaus: harga kontrak dihitung per hari, bukan per porsi). Wajib diisi untuk kontrak baru; opsional untuk baca (lihat catatan fallback di bawah). |
 
-> 5 kolom terakhir di-**append di AKHIR** array skema supaya `setupDatabase()`
+> 6 kolom terakhir di-**append di AKHIR** array skema supaya `setupDatabase()`
 > (idempotent, tulis-ulang header) tidak menggeser data lama.
+
+**Migrasi harga per porsi → per hari** (dikonfirmasi Firdaus): `harga_per_porsi`
+dan `porsi_per_hari` TETAP ada di skema (tidak dihapus/diganti nama). Nominal
+`REKAP_BULANAN` kini dihitung dari `harga_per_hari`; kalau kosong (kontrak lama
+yang belum diedit), sistem fallback ke `harga_per_porsi × porsi_per_hari` (lihat
+`_hargaPerHariKontrak_` di `05_master.gs`) — nilai efektif kontrak yang sedang
+berjalan tidak berubah tiba-tiba. `porsi_per_hari` tetap dipakai sebagai info
+jumlah makan sehari (mis. "3× sehari"); `harga_per_porsi` sudah tidak dipakai
+untuk hitung uang kecuali sebagai fallback tersebut — form Tambah/Ubah Kontrak
+tidak lagi meminta `harga_per_porsi` (lihat `docs/kontrak-api.md`).
 
 Lampiran kontrak (menu & nilai gizi, BA penunjukan penyedia, notulen rapat) → LAMPIRAN `ref_type=KONTRAK`.
 

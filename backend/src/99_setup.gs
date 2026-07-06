@@ -69,7 +69,11 @@ function _skema_() {
       // = tanggal kontrak, adendum = catatan adendum, rek_penyedia_bni/bsi = nomor
       // rekening PENUH penyedia per bank (dipakai Form-07/09).
       ['no_kontrak','s'], ['tgl_kontrak','d'], ['adendum','s'],
-      ['rek_penyedia_bni','s'], ['rek_penyedia_bsi','s']
+      ['rek_penyedia_bni','s'], ['rek_penyedia_bsi','s'],
+      // harga_per_hari = tarif utama (rupiah/taruna/hari) sejak migrasi harga
+      // per-porsi → per-hari (dikonfirmasi Firdaus); harga_per_porsi/porsi_per_hari
+      // TETAP ada (fallback kontrak lama, lihat _hargaPerHariKontrak_ 05_master.gs).
+      ['harga_per_hari','i']
     ]],
     [SHEETS.MENU_KONTRAK, [
       ['menu_id','s'], ['kontrak_id','s'], ['hari', E.HARI],

@@ -14,7 +14,7 @@ import { formatRupiah } from '../tagihan/tipe';
 interface MenuHari { hari: string; menu_pagi: string; menu_siang: string; menu_malam: string }
 interface LampiranRingkas { jenis: string; nama_file: string }
 interface KontrakPortal {
-  kontrak_id: string; harga_per_porsi: number; porsi_per_hari: number;
+  kontrak_id: string; harga_per_porsi: number; porsi_per_hari: number; harga_per_hari_efektif: number;
   tgl_mulai: string; tgl_akhir: string; status: string;
   menu: MenuHari[]; lampiran: LampiranRingkas[];
 }
@@ -86,8 +86,8 @@ export function HalamanPenyediaPortal() {
               </div>
               <div className="flex gap-4 text-sm">
                 <div>
-                  <p className="text-xs text-gray-400">Harga/porsi</p>
-                  <p className="font-semibold">{formatRupiah(k.harga_per_porsi)}</p>
+                  <p className="text-xs text-gray-400">Harga/hari</p>
+                  <p className="font-semibold">{formatRupiah(k.harga_per_hari_efektif)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-400">Porsi/hari</p>

@@ -84,6 +84,22 @@ function _kontrakAktifPada_(tanggal) {
   return rows[0];
 }
 
+/**
+ * Tarif harian per taruna dari kontrak — utamakan `harga_per_hari` (model
+ * baru sejak migrasi harga per-porsi → per-hari, dikonfirmasi Firdaus);
+ * fallback ke `harga_per_porsi × porsi_per_hari` untuk kontrak lama yang
+ * belum diisi ulang. Satu sumber kebenaran — semua konsumer (rekap, cetak
+ * Form-01/04, portal Penyedia, Laporan Resmi) pakai helper ini/field
+ * `harga_per_hari_efektif` turunannya, tidak menghitung ulang sendiri.
+ */
+function _hargaPerHariKontrak_(kontrak) {
+  var hariRp = _int_(kontrak.harga_per_hari || 0, 'harga_per_hari');
+  if (hariRp > 0) return hariRp;
+  var harga = _int_(kontrak.harga_per_porsi || 0, 'harga_per_porsi');
+  var porsi = _int_(kontrak.porsi_per_hari || 0, 'porsi_per_hari');
+  return harga * porsi;
+}
+
 // ── Penyedia ────────────────────────────────────────────────────────────────
 
 /** Daftar penyedia. */
@@ -123,9 +139,14 @@ function penyediaUpsert(payload, session) {
 
 // ── Kontrak ─────────────────────────────────────────────────────────────────
 
+/** Sisipkan harga_per_hari_efektif (lihat _hargaPerHariKontrak_) ke baris kontrak. */
+function _kontrakDenganTarifEfektif_(k) {
+  return Object.assign({}, k, { harga_per_hari_efektif: _hargaPerHariKontrak_(k) });
+}
+
 /** Daftar kontrak. */
 function kontrakList(payload, session) {
-  return { kontrak: sheetRead(SHEETS.KONTRAK) };
+  return { kontrak: sheetRead(SHEETS.KONTRAK).map(_kontrakDenganTarifEfektif_) };
 }
 
 /** Detail kontrak + lampiran (menu & nilai gizi, BA penunjukan, notulen). */
@@ -133,7 +154,7 @@ function kontrakGet(payload, session) {
   var id = String((payload && payload.kontrak_id) || '').trim();
   var k = sheetRead(SHEETS.KONTRAK, function (r) { return String(r.kontrak_id) === id; })[0];
   if (!k) throw _fail_('Kontrak tidak ditemukan: ' + id);
-  return { kontrak: k, lampiran: lampiranList('KONTRAK', id) };
+  return { kontrak: _kontrakDenganTarifEfektif_(k), lampiran: lampiranList('KONTRAK', id) };
 }
 
 /** Tambah/ubah kontrak (hanya selama DRAFT). Baru → KTR-000001, status DRAFT. */
@@ -145,7 +166,13 @@ function kontrakUpsert(payload, session) {
 
   var obj = {
     penyedia_id: pid,
-    harga_per_porsi: _int_(payload.harga_per_porsi, 'harga_per_porsi'),
+    // harga_per_hari = tarif utama (rupiah/taruna/hari) sejak migrasi harga per-porsi
+    // → per-hari. harga_per_porsi sudah OPSIONAL (legacy/fallback, lihat
+    // _hargaPerHariKontrak_) — form Tambah/Ubah Kontrak tidak lagi memintanya, tapi
+    // TETAP dikirim (pass-through nilai lama) supaya kontrak lama yang masih
+    // mengandalkan fallback tidak tertimpa jadi 0 (sheetUpdate = patch per-kolom).
+    harga_per_hari: _int_(payload.harga_per_hari, 'harga_per_hari'),
+    harga_per_porsi: _int_(payload.harga_per_porsi || 0, 'harga_per_porsi'),
     porsi_per_hari: _int_(payload.porsi_per_hari, 'porsi_per_hari'),
     tgl_mulai: _wajibTgl_(payload.tgl_mulai, 'tgl_mulai'),
     tgl_akhir: _wajibTgl_(payload.tgl_akhir, 'tgl_akhir'),

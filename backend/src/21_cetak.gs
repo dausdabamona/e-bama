@@ -45,7 +45,8 @@ function cetakForm01(payload, session) {
     kontrak: kontrak ? {
       kontrak_id: kontrak.kontrak_id,
       harga_per_porsi: _int_(kontrak.harga_per_porsi, 'harga_per_porsi'),
-      porsi_per_hari: _int_(kontrak.porsi_per_hari, 'porsi_per_hari')
+      porsi_per_hari: _int_(kontrak.porsi_per_hari, 'porsi_per_hari'),
+      harga_per_hari_efektif: _hargaPerHariKontrak_(kontrak)
     } : null,
     jml_status_harian: statusHarianHari.length,
     dibuat_oleh_nama: namaPengguna[String(pesanan.created_by)] || pesanan.created_by || '',
@@ -138,6 +139,10 @@ function cetakForm03(payload, session) {
  * makan (Sarapan/Siang/Malam) — skema hanya simpan REALISASI.porsi_diterima
  * agregat per tanggal, sama seperti Form 01. Baris per tanggal yang ADA
  * REALISASI (bukan 1..31 buta), diurutkan tanggal, + baris JUMLAH TOTAL.
+ * Biaya harian = REALISASI.jml_taruna_makan × harga_per_hari_efektif kontrak
+ * (headcount, BUKAN porsi_diterima — konsisten dengan alasan Form-05: satuan
+ * biaya sudah per taruna/hari sejak migrasi harga per-porsi → per-hari, tak
+ * lagi terpengaruh porsi_per_hari).
  */
 function cetakForm04(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
@@ -157,7 +162,8 @@ function cetakForm04(payload, session) {
       var p = penyediaById[String(k.penyedia_id)] || {};
       kontrakRingkasById[k.kontrak_id] = {
         kontrak_id: k.kontrak_id, penyedia_nama: p.nama || '',
-        harga_per_porsi: _int_(k.harga_per_porsi, 'harga_per_porsi')
+        harga_per_porsi: _int_(k.harga_per_porsi, 'harga_per_porsi'),
+        harga_per_hari_efektif: _hargaPerHariKontrak_(k)
       };
     }
     return k;
@@ -169,9 +175,10 @@ function cetakForm04(payload, session) {
       var tgl = _tglStr_(r.tanggal);
       var tarunaAktif = _hitungJmlTaruna_(tgl);
       var porsi = _int_(r.porsi_diterima, 'porsi_diterima');
+      var jmlMakan = _int_(r.jml_taruna_makan || 0, 'jml_taruna_makan');
       var kontrak = kontrakPada(tgl);
-      var harga = kontrak ? _int_(kontrak.harga_per_porsi, 'harga_per_porsi') : 0;
-      var biaya = Math.round(porsi * harga);
+      var hargaPerHari = kontrak ? _hargaPerHariKontrak_(kontrak) : 0;
+      var biaya = Math.round(jmlMakan * hargaPerHari);
       totalTarunaAktif += tarunaAktif; totalPorsi += porsi; totalBiaya += biaya;
       return {
         tanggal: tgl, taruna_aktif: tarunaAktif, total_porsi: porsi,

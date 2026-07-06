@@ -53,6 +53,7 @@ function penyediaPortal(payload, session) {
       kontrak_id: k.kontrak_id,
       harga_per_porsi: _int_(k.harga_per_porsi || 0, 'harga_per_porsi'),
       porsi_per_hari: _int_(k.porsi_per_hari || 0, 'porsi_per_hari'),
+      harga_per_hari_efektif: _hargaPerHariKontrak_(k),
       tgl_mulai: _tglStr_(k.tgl_mulai),
       tgl_akhir: _tglStr_(k.tgl_akhir),
       status: k.status,

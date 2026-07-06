@@ -16,7 +16,7 @@ import { useListCache } from '../../lib/use-list-cache';
 import { formatRupiah } from '../tagihan/tipe';
 
 interface BarisForm04 { tanggal: string; taruna_aktif: number; total_porsi: number; jumlah_biaya: number; kontrak_ditemukan: boolean }
-interface KontrakRingkas { kontrak_id: string; penyedia_nama: string; harga_per_porsi: number }
+interface KontrakRingkas { kontrak_id: string; penyedia_nama: string; harga_per_porsi: number; harga_per_hari_efektif: number }
 interface Form04Data {
   bulan: string; baris: BarisForm04[]; total_taruna_aktif: number; total_porsi: number;
   total_biaya: number; kontrak_ringkas: KontrakRingkas[];
@@ -58,7 +58,7 @@ export function HalamanCetakForm04() {
             {data.kontrak_ringkas.map((k) => (
               <div key={k.kontrak_id} className="flex justify-between border-b border-gray-100 py-1 text-xs">
                 <span className="text-gray-500 print:text-black">Kontrak {k.kontrak_id} — {k.penyedia_nama || '-'}</span>
-                <span className="font-medium">{formatRupiah(k.harga_per_porsi)}/porsi</span>
+                <span className="font-medium">{formatRupiah(k.harga_per_hari_efektif)}/hari</span>
               </div>
             ))}
           </Card>

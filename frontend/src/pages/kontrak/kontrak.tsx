@@ -67,7 +67,7 @@ export function HalamanKontrak() {
               <div>
                 <p className="font-semibold">{namaPenyedia.get(k.penyedia_id) ?? k.penyedia_id}</p>
                 <p className="text-sm text-gray-500">
-                  {formatRupiah(k.harga_per_porsi)}/porsi · {k.porsi_per_hari}× sehari
+                  {formatRupiah(k.harga_per_hari_efektif ?? k.harga_per_hari)}/hari · {k.porsi_per_hari}× sehari
                 </p>
                 <p className="text-xs text-gray-400">{k.tgl_mulai} s.d. {k.tgl_akhir}</p>
                 {k.no_kontrak && (
@@ -203,7 +203,7 @@ function ModalKontrak({ awal, penyedia, onClose, onSukses }: {
 }) {
   const { toast } = useToast();
   const [penyediaId, setPenyediaId] = useState(awal?.penyedia_id ?? penyedia[0]?.penyedia_id ?? '');
-  const [harga, setHarga] = useState(awal ? String(awal.harga_per_porsi) : '');
+  const [hargaPerHari, setHargaPerHari] = useState(awal ? String(awal.harga_per_hari || '') : '');
   const [porsi, setPorsi] = useState(awal ? String(awal.porsi_per_hari) : '3');
   const [tglMulai, setTglMulai] = useState(awal?.tgl_mulai ?? '');
   const [tglAkhir, setTglAkhir] = useState(awal?.tgl_akhir ?? '');
@@ -217,12 +217,17 @@ function ModalKontrak({ awal, penyedia, onClose, onSukses }: {
 
   async function simpan() {
     if (!penyediaId) { setGalat('Pilih penyedia.'); return; }
-    if (!harga || !porsi || !tglMulai || !tglAkhir) { setGalat('Harga, porsi, dan periode wajib diisi.'); return; }
+    if (!hargaPerHari || !porsi || !tglMulai || !tglAkhir) { setGalat('Harga per hari, porsi, dan periode wajib diisi.'); return; }
     setProses(true); setGalat('');
     try {
       await api('kontrak.upsert', {
         kontrak_id: awal?.kontrak_id, penyedia_id: penyediaId,
-        harga_per_porsi: Number(harga), porsi_per_hari: Number(porsi),
+        harga_per_hari: Number(hargaPerHari),
+        // harga_per_porsi: legacy, tidak lagi diminta di form — kirim nilai lama apa
+        // adanya (pass-through) supaya kontrak lama yang masih andalkan fallback
+        // (lihat _hargaPerHariKontrak_) tidak tertimpa jadi 0.
+        harga_per_porsi: awal?.harga_per_porsi ?? 0,
+        porsi_per_hari: Number(porsi),
         tgl_mulai: tglMulai, tgl_akhir: tglAkhir,
         no_kontrak: noKontrak, tgl_kontrak: tglKontrak, adendum: adendum,
         rek_penyedia_bni: rekBni, rek_penyedia_bsi: rekBsi
@@ -247,8 +252,8 @@ function ModalKontrak({ awal, penyedia, onClose, onSukses }: {
             {penyedia.map((p) => <option key={p.penyedia_id} value={p.penyedia_id}>{p.nama}</option>)}
           </select>
         </div>
-        <Input label="Harga per Porsi (Rp)" type="number" value={harga} onChange={(e) => setHarga(e.target.value)} />
-        <Input label="Porsi per Hari" type="number" value={porsi} onChange={(e) => setPorsi(e.target.value)} />
+        <Input label="Harga per Hari (Rp/taruna/hari)" type="number" value={hargaPerHari} onChange={(e) => setHargaPerHari(e.target.value)} />
+        <Input label="Porsi per Hari (info — brp kali makan sehari)" type="number" value={porsi} onChange={(e) => setPorsi(e.target.value)} />
         <div className="flex gap-2">
           <Input label="Tgl Mulai" type="date" value={tglMulai} onChange={(e) => setTglMulai(e.target.value)} />
           <Input label="Tgl Akhir" type="date" value={tglAkhir} onChange={(e) => setTglAkhir(e.target.value)} />

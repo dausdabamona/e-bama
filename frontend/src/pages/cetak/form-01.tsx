@@ -17,7 +17,7 @@ import { formatRupiah } from '../tagihan/tipe';
 interface PesananRingkas {
   pesanan_id: string; tgl_makan: string; jml_taruna: number; menu: string; catatan: string; status: string;
 }
-interface KontrakRingkas { kontrak_id: string; harga_per_porsi: number; porsi_per_hari: number }
+interface KontrakRingkas { kontrak_id: string; harga_per_porsi: number; porsi_per_hari: number; harga_per_hari_efektif: number }
 interface Form01Data {
   pesanan: PesananRingkas; kontrak: KontrakRingkas | null; jml_status_harian: number;
   dibuat_oleh_nama: string; diverifikasi_oleh_nama: string; verif_at: string;
@@ -39,7 +39,7 @@ export function HalamanCetakForm01() {
   const { data, memuat, galat, refresh } = useListCache<Form01Data>('cetak.form01', { tgl_makan: tgl });
 
   const kontrak = data?.kontrak ?? null;
-  const totalBiaya = data && kontrak ? data.pesanan.jml_taruna * kontrak.harga_per_porsi * kontrak.porsi_per_hari : 0;
+  const totalBiaya = data && kontrak ? data.pesanan.jml_taruna * kontrak.harga_per_hari_efektif : 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -88,12 +88,12 @@ export function HalamanCetakForm01() {
 
           <Card className="overflow-x-auto print:border-0 print:p-0 print:shadow-none">
             <p className="mb-2 text-sm font-semibold text-gray-600 print:text-black">Rincian Jumlah &amp; Biaya</p>
-            <TabelCetak headers={['Uraian', 'Jumlah Taruna', 'Porsi/Hari', 'Harga/Porsi', 'Jumlah Biaya']}>
+            <TabelCetak headers={['Uraian', 'Jumlah Taruna', 'Porsi/Hari', 'Harga/Hari', 'Jumlah Biaya']}>
               <BarisCetak>
                 <SelCetak>Total Porsi Harian</SelCetak>
                 <SelCetak>{data.pesanan.jml_taruna}</SelCetak>
                 <SelCetak>{kontrak ? kontrak.porsi_per_hari : '-'}</SelCetak>
-                <SelCetak>{kontrak ? formatRupiah(kontrak.harga_per_porsi) : '-'}</SelCetak>
+                <SelCetak>{kontrak ? formatRupiah(kontrak.harga_per_hari_efektif) : '-'}</SelCetak>
                 <SelCetak>{formatRupiah(totalBiaya)}</SelCetak>
               </BarisCetak>
             </TabelCetak>

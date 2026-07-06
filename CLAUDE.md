@@ -67,7 +67,10 @@ e-bama/
 ## 3. Aturan Uang
 
 - **Semua nilai uang adalah integer rupiah. TIDAK ADA float.**
-- Perkalian nominal (`hari_makan × harga_per_porsi × porsi_per_hari`) dan
+- Perkalian nominal (`hari_makan × harga_per_hari` — tarif kontrak per taruna
+  per hari, lihat `_hargaPerHariKontrak_` di `05_master.gs`; **fallback**
+  `harga_per_porsi × porsi_per_hari` untuk kontrak lama yang belum diisi
+  ulang sejak migrasi harga per-porsi → per-hari, dikonfirmasi Firdaus) dan
   penjumlahan total selalu menghasilkan/di-`Math.round` ke integer.
 - Jangan pernah menyimpan atau menampilkan pecahan rupiah.
 

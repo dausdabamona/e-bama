@@ -7,7 +7,9 @@
  *         rekap.input_historis (PPK, Admin) — migrasi bulan pra-aplikasi
  * INTERNAL: rekapUpdate(tanggal) — dipanggil realisasi.ttd, BUKAN action publik.
  *
- * Uang selalu integer rupiah: nominal = hari_makan × harga_per_porsi × porsi_per_hari.
+ * Uang selalu integer rupiah: nominal = hari_makan × harga_per_hari (tarif
+ * kontrak, lihat _hargaPerHariKontrak_ di 05_master.gs — fallback ke
+ * harga_per_porsi × porsi_per_hari untuk kontrak lama yang belum diisi ulang).
  * Setelah FINAL semua update bulan tsb DITOLAK.
  */
 
@@ -20,8 +22,7 @@
 function rekapUpdate(tanggal) {
   var bulan = _bulanStr_(tanggal);
   var kontrak = _kontrakAktifPada_(tanggal);
-  var harga = _int_(kontrak.harga_per_porsi, 'harga_per_porsi');
-  var porsi = _int_(kontrak.porsi_per_hari, 'porsi_per_hari');
+  var hargaPerHari = _hargaPerHariKontrak_(kontrak);
 
   // Hari-hari realisasi sah pada bulan tsb
   var hariSah = {};
@@ -69,7 +70,7 @@ function rekapUpdate(tanggal) {
       var tidak = 0;
       for (var tgl in st) if (hariSah[tgl]) tidak++;
       var makan = jmlHariSah - tidak;
-      var nominal = Math.round(makan * harga * porsi); // integer rupiah
+      var nominal = Math.round(makan * hargaPerHari); // integer rupiah
 
       var nilai = {};
       nilai.bulan = bulan; nilai.nit = nit;
@@ -89,7 +90,7 @@ function rekapUpdate(tanggal) {
     }
 
     auditLog(null, 'rekap.update', 'REKAP_BULANAN', bulan, null,
-      { hari_sah: jmlHariSah, taruna: tarunaAktif.length, harga: harga, porsi: porsi });
+      { hari_sah: jmlHariSah, taruna: tarunaAktif.length, harga_per_hari: hargaPerHari });
     return { bulan: bulan, hari_sah: jmlHariSah, taruna: tarunaAktif.length };
   });
 }
