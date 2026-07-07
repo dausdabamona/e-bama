@@ -2,6 +2,8 @@
 // + bottom-nav 4–5 item BERBEDA per role.
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth, type Role } from '../auth/auth-context';
+import { SidebarPpkDesktop } from './sidebar-ppk-desktop';
+import { TopbarPpkDesktop } from './topbar-ppk-desktop';
 import { BadgeAntrianSinkron, TitikStatusOnline, useSyncStatus } from './ui/sync-badge';
 
 interface ItemNav {
@@ -85,36 +87,44 @@ export function Layout() {
   const { online, nAntrian } = useSyncStatus();
 
   const nav = session ? NAV_PER_ROLE[session.role] : [];
+  // Desktop khusus PPK (design_handoff_ebama_kokpit): sidebar gelap + topbar
+  // sendiri, HANYA ≥1024px. Mobile & role lain tetap memakai shell lama.
+  const ppkDesktop = session?.role === 'PPK';
 
   return (
     <div className="flex min-h-dvh w-full bg-ivory lg:flex-row">
       {/* Sidebar — desktop (≥1024px) saja */}
-      <aside className="hidden lg:sticky lg:top-0 lg:flex lg:h-dvh lg:w-64 lg:shrink-0 lg:flex-col lg:border-r lg:border-gray-200 lg:bg-white lg:px-3 lg:py-6">
-        <div className="mb-6 flex items-center gap-2 px-3">
-          <span className="text-xl font-bold text-primary-dark">e-BAMA</span>
-          <TitikStatusOnline online={online} />
-        </div>
-        <nav className="flex flex-col gap-1">
-          {nav.map((item) => (
-            <NavLink
-              key={item.ke}
-              to={item.ke}
-              className={({ isActive }) =>
-                `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm ${
-                  isActive ? 'bg-primary-light font-bold text-primary-dark' : 'text-gray-600 hover:bg-gray-100'
-                }`
-              }
-            >
-              <span className="text-lg" aria-hidden>{item.ikon}</span>
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-      </aside>
+      {ppkDesktop ? (
+        <SidebarPpkDesktop />
+      ) : (
+        <aside className="hidden lg:sticky lg:top-0 lg:flex lg:h-dvh lg:w-64 lg:shrink-0 lg:flex-col lg:border-r lg:border-gray-200 lg:bg-white lg:px-3 lg:py-6">
+          <div className="mb-6 flex items-center gap-2 px-3">
+            <span className="text-xl font-bold text-primary-dark">e-BAMA</span>
+            <TitikStatusOnline online={online} />
+          </div>
+          <nav className="flex flex-col gap-1">
+            {nav.map((item) => (
+              <NavLink
+                key={item.ke}
+                to={item.ke}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm ${
+                    isActive ? 'bg-primary-light font-bold text-primary-dark' : 'text-gray-600 hover:bg-gray-100'
+                  }`
+                }
+              >
+                <span className="text-lg" aria-hidden>{item.ikon}</span>
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+        </aside>
+      )}
 
       <div className="mx-auto flex w-full max-w-lg flex-1 flex-col lg:mx-0 lg:max-w-none">
+        {ppkDesktop && session && <TopbarPpkDesktop session={session} />}
         {/* Header */}
-        <header className="sticky top-0 z-40 flex items-center justify-between bg-primary px-4 py-3 text-white shadow lg:border-b lg:border-gray-200 lg:bg-white lg:px-8 lg:py-4 lg:text-gray-800 lg:shadow-none">
+        <header className={`sticky top-0 z-40 flex items-center justify-between bg-primary px-4 py-3 text-white shadow lg:border-b lg:border-gray-200 lg:bg-white lg:px-8 lg:py-4 lg:text-gray-800 lg:shadow-none ${ppkDesktop ? 'lg:hidden' : ''}`}>
           <div className="flex items-center gap-2 lg:hidden">
             <span className="text-lg font-bold">e-BAMA</span>
             <TitikStatusOnline online={online} />
