@@ -3,6 +3,7 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, WajibLogin, useAuth } from './auth/auth-context';
 import { Layout, NAV_PER_ROLE } from './components/layout';
 import { ToastProvider } from './components/ui/toast';
+import { UndoSnackbarProvider } from './components/ui/undo-snackbar';
 import { HalamanAkun } from './pages/akun';
 import { HalamanAntrian } from './pages/antrian';
 import { HalamanAudit } from './pages/audit/audit';
@@ -63,6 +64,7 @@ export default function App() {
   return (
     <AuthProvider>
       <ToastProvider>
+      <UndoSnackbarProvider>
         <HashRouter>
           <Routes>
             <Route path="/login" element={<HalamanLogin />} />
@@ -140,6 +142,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </HashRouter>
+      </UndoSnackbarProvider>
       </ToastProvider>
     </AuthProvider>
   );
