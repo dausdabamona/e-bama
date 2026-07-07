@@ -22,7 +22,7 @@
 |---|---|---|
 | user_id | string | kunci; kode singkat, mis. `ppk01`, `senat01` |
 | nama | string | |
-| role | enum | `KPA` / `PPK` / `SENAT` / `PEMBINA` / `ADMIN` / `WADIR3` / `BAAK` / `PENYEDIA` / `KETUA_JURUSAN` |
+| role | enum | `KPA` / `PPK` / `SENAT` / `PEMBINA` / `ADMIN` / `WADIR3` / `BAAK` / `PENYEDIA` / `KETUA_JURUSAN` / `OPERATOR_SAKTI` |
 | pin_hash | string | SHA-256(kata_sandi + SALT); SALT di Script Properties. Nama kolom dipertahankan (`pin_hash`) walau kredensialnya kini kata sandi bebas min 6 karakter (bukan PIN 6 digit) — hash sama, tak perlu migrasi |
 | token | string | token sesi aktif (UUID) |
 | token_exp | datetime | kadaluarsa 24 jam sejak login |
@@ -42,6 +42,18 @@ mengizinkan akun `PENYEDIA` memanggil action yang ada di allowlist eksplisit
 `penyedia.portal` di-scope ke `session.penyedia_id` dan hanya memuat field
 non-sensitif (TANPA data per-taruna, TANPA rekening, TANPA geotag realisasi,
 TANPA identitas staf internal).
+
+**Role `OPERATOR_SAKTI` — pagar akses seketat `PENYEDIA`.** Staf yang menyalin
+nomor SPM ke aplikasi SAKTI (Kemenkeu) — TIDAK butuh akses menu lain, dan
+SENGAJA TIDAK diberi akses rekening penuh (lihat § 7 CLAUDE.md). Router hanya
+mengizinkan akun ini memanggil action di allowlist eksplisit
+(`OPERATOR_SAKTI_ACTIONS` di `01_router.gs`): `cetak.form06` (Verifikasi &
+Rencana Pembayaran PPK), `cetak.form09` (Pendebetan Rekening Senat →
+Penyedia), `auth.logout`, `auth.change_pin`. Tidak tunduk semantik `roles:[]`.
+Form-10 (Rencana Pengajuan SPM per Suplier) SENGAJA tidak diberikan ke role
+ini karena berisi rekening taruna PENUH (`_hanyaAdminPPK_`, ADMIN/PPK saja) —
+dikonfirmasi Firdaus. Tidak ada kolom tambahan di PENGGUNA untuk role ini
+(tanpa scope FK, beda dari `PENYEDIA`/`KETUA_JURUSAN`).
 
 ### 2. TARUNA
 

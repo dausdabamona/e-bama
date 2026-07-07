@@ -49,13 +49,14 @@ var ROLES = {
   WADIR3:   'WADIR3',
   BAAK:     'BAAK',
   PENYEDIA: 'PENYEDIA',       // rekanan katering eksternal — akses portal terbatas (lihat 01_router.gs PENYEDIA_ACTIONS)
-  KETUA_JURUSAN: 'KETUA_JURUSAN' // ketua jurusan/prodi — input absen luar kampus + approve rekap prodinya (scope prodi; lihat 01_router.gs KETUA_JURUSAN_ACTIONS)
+  KETUA_JURUSAN: 'KETUA_JURUSAN', // ketua jurusan/prodi — input absen luar kampus + approve rekap prodinya (scope prodi; lihat 01_router.gs KETUA_JURUSAN_ACTIONS)
+  OPERATOR_SAKTI: 'OPERATOR_SAKTI' // operator input SPM ke SAKTI — read-only cetak.form06/form09 saja (lihat 01_router.gs OPERATOR_SAKTI_ACTIONS)
 };
 
 // ── Nilai enum per kolom (rujukan validasi dropdown & pengecekan handler) ────
 var ENUM = {
   AKTIF_STATUS:      ['AKTIF', 'NONAKTIF'],                 // PENGGUNA/TARUNA/PENYEDIA.status
-  ROLE:              ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK', 'PENYEDIA', 'KETUA_JURUSAN'],
+  ROLE:              ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK', 'PENYEDIA', 'KETUA_JURUSAN', 'OPERATOR_SAKTI'],
   BANK:              ['BNI', 'BSI'],                        // TARUNA.bank
   KONTRAK_STATUS:    ['DRAFT', 'DISETUJUI_PPK'],
   BLK_STATUS:        ['DRAFT', 'DISETUJUI_KAJUR'],          // BANTUAN_LUAR_KAMPUS.status (persetujuan Ketua Jurusan)

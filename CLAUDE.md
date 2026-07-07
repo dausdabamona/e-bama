@@ -87,6 +87,10 @@ e-bama/
   tautannya. `KETUA_JURUSAN`: input absen luar kampus (STATUS_HARIAN luar kampus,
   boleh tanggal lampau) + approve rekap prodinya (BANTUAN_LUAR_KAMPUS
   `DRAFT→DISETUJUI_KAJUR`) + lihat rekap TANPA rekening (`25_ketua_jurusan.gs`).
+  `OPERATOR_SAKTI` (staf input SPM ke SAKTI Kemenkeu) sama semangatnya — TIDAK
+  ikut `roles:[]`, dibatasi allowlist `OPERATOR_SAKTI_ACTIONS` HANYA ke
+  `cetak.form06`/`cetak.form09` (read-only, tanpa rekening penuh); tanpa tautan
+  FK karena tidak ada data untuk di-scope (beda dari dua role di atas).
 - **Rekening taruna hanya 4 digit terakhir** (`rek_mask`, pola `••••1234`) di
   sheet TARUNA dan di **SEMUA** action/tampilan lain — validasi menolak input
   yang terlihat seperti nomor rekening penuh lewat `taruna.upsert` maupun impor

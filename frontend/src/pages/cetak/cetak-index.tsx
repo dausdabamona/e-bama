@@ -4,6 +4,7 @@
 // Bagian "Pratinjau Komponen Cetak" membuktikan KopSurat/BlokTtd/TabelCetak
 // bisa diimpor & dirender tanpa error (KopSurat hanya tampak saat print).
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../auth/auth-context';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
@@ -30,7 +31,17 @@ const DAFTAR_FORM: DaftarForm[] = [
   { nomor: '10', nama: 'Rencana Pengajuan SPM per Suplier (prodi/tingkat/angkatan)', rute: '/cetak/form-10' }
 ];
 
+// OPERATOR_SAKTI hanya berwenang Form-06/09 (lihat 01_router.gs OPERATOR_SAKTI_ACTIONS)
+// — role lain TIDAK difilter di sini (tetap lihat semua 10, ditolak per-route bila
+// tak berwenang), supaya tidak mengubah perilaku yang sudah ada untuk role lain.
+const RUTE_OPERATOR_SAKTI = new Set(['/cetak/form-06', '/cetak/form-09']);
+
 export function HalamanCetakIndex() {
+  const { session } = useAuth();
+  const daftar = session?.role === 'OPERATOR_SAKTI'
+    ? DAFTAR_FORM.filter((f) => f.rute && RUTE_OPERATOR_SAKTI.has(f.rute))
+    : DAFTAR_FORM;
+
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-xl font-bold text-primary-dark">Cetak Form Manual SOP</h1>
@@ -41,7 +52,7 @@ export function HalamanCetakIndex() {
       </Card>
 
       <div className="flex flex-col gap-2">
-        {DAFTAR_FORM.map((f) => (
+        {daftar.map((f) => (
           <Card key={f.nomor} className="flex items-center justify-between">
             <div>
               <p className="font-semibold">Form {f.nomor}</p>

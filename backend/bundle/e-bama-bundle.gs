@@ -59,13 +59,14 @@ var ROLES = {
   WADIR3:   'WADIR3',
   BAAK:     'BAAK',
   PENYEDIA: 'PENYEDIA',       // rekanan katering eksternal — akses portal terbatas (lihat 01_router.gs PENYEDIA_ACTIONS)
-  KETUA_JURUSAN: 'KETUA_JURUSAN' // ketua jurusan/prodi — input absen luar kampus + approve rekap prodinya (scope prodi; lihat 01_router.gs KETUA_JURUSAN_ACTIONS)
+  KETUA_JURUSAN: 'KETUA_JURUSAN', // ketua jurusan/prodi — input absen luar kampus + approve rekap prodinya (scope prodi; lihat 01_router.gs KETUA_JURUSAN_ACTIONS)
+  OPERATOR_SAKTI: 'OPERATOR_SAKTI' // operator input SPM ke SAKTI — read-only cetak.form06/form09 saja (lihat 01_router.gs OPERATOR_SAKTI_ACTIONS)
 };
 
 // ── Nilai enum per kolom (rujukan validasi dropdown & pengecekan handler) ────
 var ENUM = {
   AKTIF_STATUS:      ['AKTIF', 'NONAKTIF'],                 // PENGGUNA/TARUNA/PENYEDIA.status
-  ROLE:              ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK', 'PENYEDIA', 'KETUA_JURUSAN'],
+  ROLE:              ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK', 'PENYEDIA', 'KETUA_JURUSAN', 'OPERATOR_SAKTI'],
   BANK:              ['BNI', 'BSI'],                        // TARUNA.bank
   KONTRAK_STATUS:    ['DRAFT', 'DISETUJUI_PPK'],
   BLK_STATUS:        ['DRAFT', 'DISETUJUI_KAJUR'],          // BANTUAN_LUAR_KAMPUS.status (persetujuan Ketua Jurusan)
@@ -583,10 +584,10 @@ var ACTION_MAP = {
   'cetak.form03':     { handler: cetakForm03, roles: ['PPK', 'ADMIN', 'PEMBINA'] },
   'cetak.form04':     { handler: cetakForm04, roles: ['SENAT', 'PEMBINA', 'PPK', 'ADMIN'] },
   'cetak.form05':     { handler: cetakForm05, roles: ['PEMBINA', 'PPK', 'ADMIN'] },
-  'cetak.form06':     { handler: cetakForm06, roles: ['PPK', 'KPA', 'ADMIN'] },
+  'cetak.form06':     { handler: cetakForm06, roles: ['PPK', 'KPA', 'ADMIN', 'OPERATOR_SAKTI'] },
   'cetak.form07':     { handler: cetakForm07, roles: ['ADMIN', 'PPK'] },
   'cetak.form08':     { handler: cetakForm08, roles: ['ADMIN', 'PPK'] },
-  'cetak.form09':     { handler: cetakForm09, roles: ['SENAT', 'PPK', 'ADMIN'] },
+  'cetak.form09':     { handler: cetakForm09, roles: ['SENAT', 'PPK', 'ADMIN', 'OPERATOR_SAKTI'] },
   'cetak.form10':     { handler: cetakForm10, roles: ['ADMIN', 'PPK'] },
 
   // Rekening lengkap (TARUNA_REKENING) — TAHAP SENSITIF, lihat CLAUDE.md § 4/§ 7
@@ -642,6 +643,19 @@ var KETUA_JURUSAN_ACTIONS = {
   'auth.change_pin':    true
 };
 
+/**
+ * Allowlist role OPERATOR_SAKTI — sama semangatnya dengan PENYEDIA_ACTIONS/
+ * KETUA_JURUSAN_ACTIONS: operator input SPM ke SAKTI HANYA boleh baca dua
+ * dokumen cetak ini (tidak ada rekening penuh di keduanya), TIDAK ikut
+ * semantik roles:[] yang mengekspos data seluruh sistem.
+ */
+var OPERATOR_SAKTI_ACTIONS = {
+  'cetak.form06':    true,
+  'cetak.form09':    true,
+  'auth.logout':     true,
+  'auth.change_pin': true
+};
+
 /** Health check. */
 function doGet(e) {
   return _json_({ ok: true, data: { app: APP_INFO.nama, version: APP_INFO.versi } });
@@ -670,6 +684,10 @@ function doPost(e) {
       }
       // Pagar khusus KETUA_JURUSAN: HANYA action di allowlist (scope prodi di handler).
       if (session.role === ROLES.KETUA_JURUSAN && !KETUA_JURUSAN_ACTIONS[action]) {
+        return _json_({ ok: false, error: 'Anda tidak berwenang melakukan aksi ini.' });
+      }
+      // Pagar khusus OPERATOR_SAKTI: HANYA action di allowlist (Form-06/Form-09 saja).
+      if (session.role === ROLES.OPERATOR_SAKTI && !OPERATOR_SAKTI_ACTIONS[action]) {
         return _json_({ ok: false, error: 'Anda tidak berwenang melakukan aksi ini.' });
       }
       if (def.roles && def.roles.length > 0 && def.roles.indexOf(session.role) < 0) {

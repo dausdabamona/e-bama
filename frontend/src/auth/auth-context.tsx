@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { Navigate, useLocation } from 'react-router-dom';
 import { api } from '../lib/api';
 
-export type Role = 'KPA' | 'PPK' | 'SENAT' | 'PEMBINA' | 'ADMIN' | 'WADIR3' | 'BAAK' | 'PENYEDIA' | 'KETUA_JURUSAN';
+export type Role = 'KPA' | 'PPK' | 'SENAT' | 'PEMBINA' | 'ADMIN' | 'WADIR3' | 'BAAK' | 'PENYEDIA' | 'KETUA_JURUSAN' | 'OPERATOR_SAKTI';
 
 export interface Session {
   token: string;

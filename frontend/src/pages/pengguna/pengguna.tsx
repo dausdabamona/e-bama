@@ -18,7 +18,7 @@ interface Pengguna { user_id: string; nama: string; role: string; status: string
 interface Penyedia { penyedia_id: string; nama: string }
 interface TarunaProdi { prodi: string }
 
-const ROLES = ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK', 'PENYEDIA', 'KETUA_JURUSAN'];
+const ROLES = ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK', 'PENYEDIA', 'KETUA_JURUSAN', 'OPERATOR_SAKTI'];
 
 export function HalamanPengguna() {
   const { toast } = useToast();
