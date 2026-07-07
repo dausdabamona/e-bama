@@ -113,7 +113,11 @@ function _skema_() {
       ['tagihan_id','s'], ['bulan','s'], ['nit','s'], ['nominal','i'],
       ['sebab', E.TAGIHAN_SEBAB], ['status', E.TAGIHAN_STATUS], ['tgl_setor','d'],
       ['diverifikasi_oleh','s'], ['catatan_hapus','s'], ['verif_pembina_oleh','s'],
-      ['verif_2_oleh','s'], ['nilai_transfer','i']
+      ['verif_2_oleh','s'], ['nilai_transfer','i'],
+      // Penerusan dana LUNAS ke penyedia — TERPISAH dari SP2D/SPM, lihat
+      // tagihan.teruskan_penyedia (16_tagihan.gs). Di-append di AKHIR
+      // (migrasi idempotent). Kosong = belum diteruskan.
+      ['tgl_diteruskan_penyedia','d']
     ]],
     [SHEETS.SURAT_PERINGATAN, [
       ['sp_id','s'], ['tagihan_id','s'], ['level','i'], ['no_surat','s'],

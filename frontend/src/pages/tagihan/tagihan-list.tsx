@@ -22,9 +22,14 @@ function labelLevel(level: number): string {
   return '';
 }
 
+interface RekapNilai { jumlah: number; nominal: number }
+
 interface Ringkasan {
-  per_level: Record<string, { jumlah: number; nominal: number }>;
+  per_level: Record<string, RekapNilai>;
   total_outstanding: number;
+  verifikasi_1x: RekapNilai;
+  lunas_belum_diteruskan: RekapNilai;
+  lunas_sudah_diteruskan: RekapNilai;
 }
 
 export function HalamanTagihanList() {
@@ -64,6 +69,9 @@ export function HalamanTagihanList() {
         <h1 className="text-xl font-bold text-primary-dark">Tagihan</h1>
         <div className="flex gap-2">
           <Link to="/tagihan/status-debet"><Button varian="garis">📊 Status Debet</Button></Link>
+          {(session?.role === 'SENAT' || session?.role === 'PEMBINA' || session?.role === 'ADMIN' || session?.role === 'PPK') && (
+            <Link to="/tagihan/teruskan-penyedia"><Button varian="garis">📤 Teruskan ke Penyedia</Button></Link>
+          )}
           {session?.role === 'PPK' && (
             <>
               <Link to="/tagihan/impor-debet"><Button varian="garis">📥 Impor CSV</Button></Link>
@@ -89,6 +97,20 @@ export function HalamanTagihanList() {
             </div>
           </div>
           <p className="mt-2 text-sm">Total Outstanding: <span className="font-bold">{formatRupiah(ringkasanQ.data!.total_outstanding)}</span></p>
+          <div className="mt-3 flex flex-col gap-1 border-t border-gray-200 pt-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500">Verifikasi 1x (menunggu verifikator kedua)</span>
+              <span className="font-semibold">{ringkasanQ.data!.verifikasi_1x?.jumlah ?? 0} · {formatRupiah(ringkasanQ.data!.verifikasi_1x?.nominal ?? 0)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-amber-700">Lunas, belum diteruskan ke Penyedia</span>
+              <span className="font-semibold text-amber-700">{ringkasanQ.data!.lunas_belum_diteruskan?.jumlah ?? 0} · {formatRupiah(ringkasanQ.data!.lunas_belum_diteruskan?.nominal ?? 0)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-green-700">Lunas, sudah diteruskan ke Penyedia</span>
+              <span className="font-semibold text-green-700">{ringkasanQ.data!.lunas_sudah_diteruskan?.jumlah ?? 0} · {formatRupiah(ringkasanQ.data!.lunas_sudah_diteruskan?.nominal ?? 0)}</span>
+            </div>
+          </div>
         </Card>
       )}
 

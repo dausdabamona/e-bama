@@ -126,6 +126,9 @@ var ACTION_MAP = {
   'tagihan.verifikasi': { handler: tagihanVerifikasi, roles: ['SENAT', 'PEMBINA', 'ADMIN', 'PPK'] },
   'tagihan.waive':    { handler: tagihanWaive,   roles: ['PPK'] },
   'tagihan.regenerate_sp': { handler: tagihanRegenerateSp, roles: ['PPK'] },
+  // Tandai batch tagihan LUNAS yang dananya sudah diteruskan ke penyedia —
+  // TERPISAH dari jalur SP2D/SPM. Akses sama seperti tagihan.setor/verifikasi.
+  'tagihan.teruskan_penyedia': { handler: tagihanTeruskanPenyedia, roles: ['SENAT', 'PEMBINA', 'ADMIN', 'PPK'] },
 
   // Surat peringatan (TAHAP 4B)
   'sp.list':          { handler: spList,         roles: [] },

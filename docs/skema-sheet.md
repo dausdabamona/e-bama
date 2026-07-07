@@ -297,6 +297,7 @@ Status: `TERTAGIH → LUNAS | DIHAPUSKAN | ESKALASI_MANUAL`.
 | verif_pembina_oleh | FK → PENGGUNA | **verifikator PERTAMA** — nama kolom historis ("pembina") tapi SEKARANG GENERIK: siapa pun di antara Senat/Pembina/Admin/PPK (dikonfirmasi Firdaus, direvisi dari alur berurutan Pembina→PPK/Admin — kini peran bebas). Kosong = belum ada verifikator pertama. Di-append di AKHIR (migrasi idempotent) |
 | verif_2_oleh | FK → PENGGUNA | **verifikator KEDUA** — WAJIB user_id berbeda dari `verif_pembina_oleh` (peran boleh sama, mis. dua staf Pembina berlainan orang). Terisi bersamaan dengan transisi ke `LUNAS`. Di-append di AKHIR |
 | nilai_transfer | integer | nominal yang dimasukkan verifikator (harus > 0) — TIDAK WAJIB sama dengan `nominal` tagihan (dikonfirmasi Firdaus, direvisi dari validasi ketat: dunia nyata sering beda karena potongan biaya transfer antarbank atau kurang bayar). Inilah bentuk konkret "tanda sudah diverifikasi"; selisih dari `nominal` tetap terlihat di data untuk rekonsiliasi, TIDAK memblokir `LUNAS`. Di-append di AKHIR |
+| tgl_diteruskan_penyedia | date | tanggal dana hasil tagih-ulang (yang sudah `LUNAS` disetor taruna ke rekening Senat) DITERUSKAN ke rekening penyedia — jalur ini TERPISAH dari SP2D/SPM (pembayaran LS utama). Kosong = belum diteruskan; inilah "utang Poltek ke penyedia" dari sisi tagih-ulang. Diisi via `tagihan.teruskan_penyedia` (batch, role Senat/Pembina/Admin/PPK), bukti transfer WAJIB (LAMPIRAN `jenis=BUKTI_TERUSKAN_PENYEDIA`, satu bukti per batch ditautkan ke tagihan pertama). Di-append di AKHIR |
 
 Bukti setor (screenshot/foto transfer) → LAMPIRAN `ref_type=TAGIHAN`, `jenis=BUKTI_SETOR` — WAJIB
 ada sebelum verifikasi manapun (pertama atau kedua) boleh dilakukan.
@@ -355,7 +356,7 @@ PDF surat → LAMPIRAN `ref_type=SP`.
 | lamp_id | string | kunci; `LMP-000001` |
 | ref_type | enum | `KONTRAK` / `STATUS_HARIAN` / `PESANAN` / `REALISASI` / `PEMBAYARAN` / `TAGIHAN` / `SP` |
 | ref_id | string | ID baris pada sheet ref_type |
-| jenis | enum | `FOTO` / `SURAT` / `BA` / `INVOICE` / `BUKTI_SETOR` / `BUKTI_DEBET` / `MENU_GIZI` / `NOTULEN` / `LAINNYA` |
+| jenis | enum | `FOTO` / `SURAT` / `BA` / `INVOICE` / `BUKTI_SETOR` / `BUKTI_DEBET` / `MENU_GIZI` / `NOTULEN` / `BUKTI_TERUSKAN_PENYEDIA` / `LAINNYA` |
 | drive_file_id | string | file di folder Drive e-BAMA/LAMPIRAN (PDF SP di e-BAMA/SURAT_PERINGATAN) |
 | nama_file | string | |
 | uploaded_by | FK → PENGGUNA | |

@@ -84,7 +84,7 @@ var ENUM = {
   LAMPIRAN_REFTYPE:  ['KONTRAK', 'STATUS_HARIAN', 'PESANAN', 'REALISASI',
                       'PEMBAYARAN', 'TAGIHAN', 'SP'],
   LAMPIRAN_JENIS:    ['FOTO', 'SURAT', 'BA', 'INVOICE', 'BUKTI_SETOR',
-                      'BUKTI_DEBET', 'MENU_GIZI', 'NOTULEN', 'LAINNYA'],
+                      'BUKTI_DEBET', 'MENU_GIZI', 'NOTULEN', 'BUKTI_TERUSKAN_PENYEDIA', 'LAINNYA'],
   SP2D_KATEGORI:     ['DALAM_KAMPUS', 'LUAR_KAMPUS'],        // SP2D_MONITORING.kategori
   // SPM (§18 skema-sheet.md) — header kelompok authored (beda dari SP2D_MONITORING
   // yang imported). Nilai kategori SENGAJA sama persis dengan SP2D_KATEGORI (dua

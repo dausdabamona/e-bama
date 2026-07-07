@@ -5,7 +5,9 @@
  * ACTION: tagihan.create (Senat, PPK), tagihan.list (semua login),
  *         tagihan.summary (PPK, KPA), tagihan.setor (Senat/Pembina/Admin/PPK),
  *         tagihan.verifikasi (Senat/Pembina/Admin/PPK — verifikasi 1 & 2),
- *         tagihan.waive (PPK)
+ *         tagihan.waive (PPK), tagihan.teruskan_penyedia (Senat/Pembina/Admin/PPK
+ *         — tandai batch LUNAS yang dananya sudah diteruskan ke penyedia,
+ *         TERPISAH dari jalur SP2D/SPM)
  *
  * nominal = SNAPSHOT dari REKAP_BULANAN FINAL. tagihan_id = TGH-{yyyymm}-{nit}.
  * Level SP aktif TIDAK disimpan — dibaca MAX(level) dari SURAT_PERINGATAN.
@@ -73,7 +75,12 @@ function _tagihanJoin_() {
       selisih_transfer: nominal - nilaiTransfer,
       bukti_setor_drive_file_id: bukti ? bukti.drive_file_id : '',
       level_aktif: sp ? sp.level : 0,
-      tenggat_aktif: sp ? sp.tenggat : ''
+      tenggat_aktif: sp ? sp.tenggat : '',
+      // Penerusan dana LUNAS ke penyedia — TERPISAH dari SP2D/SPM (jalur
+      // pembayaran utama). Uang tagih-ulang gagal debet ini dikumpulkan di
+      // rekening Senat lalu diteruskan manual (biasanya per-batch); kosong =
+      // belum diteruskan (lihat tagihan.teruskan_penyedia).
+      tgl_diteruskan_penyedia: _tglStr_(t.tgl_diteruskan_penyedia)
     };
   });
   try { cache.put(_CACHE_TAGIHAN_, JSON.stringify(rows), 60); } catch (e) { /* cache >100KB → lewati */ }
@@ -154,18 +161,78 @@ function tagihanList(payload, session) {
   return { tagihan: rows, kebijakan: getKebijakanTagihan() };
 }
 
-/** Dashboard piutang: {per_level: {0..3:{jumlah,nominal}}, total_outstanding}. */
+/**
+ * Dashboard piutang: {per_level: {0..3:{jumlah,nominal}}, total_outstanding,
+ * verifikasi_1x, lunas_belum_diteruskan, lunas_sudah_diteruskan}.
+ * `lunas_belum_diteruskan` = dana taruna yang SUDAH lunas ditagih tapi BELUM
+ * diteruskan ke penyedia — inilah angka "utang Poltek ke penyedia" dari
+ * jalur tagih-ulang ini (terpisah dari SP2D/SPM), lihat tagihan.teruskan_penyedia.
+ */
 function tagihanSummary(payload, session) {
   var per = { 0: { jumlah: 0, nominal: 0 }, 1: { jumlah: 0, nominal: 0 },
               2: { jumlah: 0, nominal: 0 }, 3: { jumlah: 0, nominal: 0 } };
   var total = 0;
+  var verif1 = { jumlah: 0, nominal: 0 };
+  var lunasBelumDiteruskan = { jumlah: 0, nominal: 0 };
+  var lunasSudahDiteruskan = { jumlah: 0, nominal: 0 };
+
   _tagihanJoin_().forEach(function (t) {
-    if (t.status !== 'TERTAGIH') return; // outstanding saja
-    var lv = Math.min(Math.max(t.level_aktif, 0), 3);
-    per[lv].jumlah++; per[lv].nominal += t.nominal;
-    total += t.nominal;
+    if (t.status === 'TERTAGIH') {
+      var lv = Math.min(Math.max(t.level_aktif, 0), 3);
+      per[lv].jumlah++; per[lv].nominal += t.nominal;
+      total += t.nominal;
+      if (t.verif_1_oleh) { verif1.jumlah++; verif1.nominal += t.nominal; }
+    } else if (t.status === 'LUNAS') {
+      var nilai = t.nilai_transfer || t.nominal;
+      if (t.tgl_diteruskan_penyedia) { lunasSudahDiteruskan.jumlah++; lunasSudahDiteruskan.nominal += nilai; }
+      else { lunasBelumDiteruskan.jumlah++; lunasBelumDiteruskan.nominal += nilai; }
+    }
   });
-  return { per_level: per, total_outstanding: total };
+
+  return {
+    per_level: per, total_outstanding: total,
+    verifikasi_1x: verif1, lunas_belum_diteruskan: lunasBelumDiteruskan, lunas_sudah_diteruskan: lunasSudahDiteruskan
+  };
+}
+
+/**
+ * tagihan.teruskan_penyedia {tagihan_id_list:[], berkas:{base64,nama_file}}
+ * — tandai tagihan LUNAS yang dananya SUDAH diteruskan dari rekening Senat
+ * ke penyedia. TERPISAH dari SP2D/SPM (jalur pembayaran utama LS) — ini
+ * khusus dana hasil tagih-ulang gagal debet, biasanya diteruskan sekaligus
+ * per-batch (mis. akhir bulan). Bukti transfer WAJIB, satu lampiran
+ * ditautkan ke entri PERTAMA (pola sama seperti statusBatch,
+ * 11_status_harian.gs) — bukan satu bukti per taruna.
+ * Role sama seperti aksi tagihan lain (Senat/Pembina/Admin/PPK).
+ */
+function tagihanTeruskanPenyedia(payload, session) {
+  var daftar = (payload && payload.tagihan_id_list) || [];
+  if (!daftar.length) throw _fail_('tagihan_id_list wajib diisi minimal 1.');
+  if (!payload.berkas || !payload.berkas.base64) throw _fail_('Bukti transfer ke penyedia wajib dilampirkan (berkas.base64).');
+
+  return withLock(function () {
+    var baris = daftar.map(function (id) { return _tagihan_(id); });
+    var invalid = baris.filter(function (t) {
+      return t.status !== 'LUNAS' || _tglStr_(t.tgl_diteruskan_penyedia);
+    });
+    if (invalid.length) {
+      throw _fail_('Hanya tagihan berstatus LUNAS dan belum pernah diteruskan yang bisa dipilih — cek ulang: ' +
+        invalid.map(function (t) { return t.tagihan_id; }).join(', '));
+    }
+
+    var tgl = _todayStr_();
+    var total = 0;
+    baris.forEach(function (t) {
+      sheetUpdate(SHEETS.TAGIHAN, 'tagihan_id', t.tagihan_id, { tgl_diteruskan_penyedia: tgl });
+      auditLog(session, 'tagihan.teruskan_penyedia', 'TAGIHAN', t.tagihan_id,
+        { tgl_diteruskan_penyedia: '' }, { tgl_diteruskan_penyedia: tgl });
+      total += Number(t.nilai_transfer) || Number(t.nominal) || 0;
+    });
+    lampiranSave(session, 'TAGIHAN', baris[0].tagihan_id, 'BUKTI_TERUSKAN_PENYEDIA',
+      payload.berkas.base64, payload.berkas.nama_file || ('teruskan-penyedia-' + tgl + '.jpg'));
+    _tagihanCacheClear_();
+    return { jml_diteruskan: baris.length, total_nominal: total, tgl_diteruskan_penyedia: tgl };
+  });
 }
 
 /**

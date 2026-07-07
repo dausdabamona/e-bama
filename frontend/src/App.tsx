@@ -48,6 +48,7 @@ import { HalamanStatusDebet } from './pages/tagihan/status-debet';
 import { HalamanTagihanDetail } from './pages/tagihan/tagihan-detail';
 import { HalamanTagihanGagalDebet } from './pages/tagihan/tagihan-gagal-debet';
 import { HalamanTagihanImporDebet } from './pages/tagihan/impor-debet';
+import { HalamanTagihanTeruskanPenyedia } from './pages/tagihan/teruskan-penyedia';
 import { HalamanTarunaList } from './pages/taruna/taruna-list';
 import { HalamanTarunaImpor } from './pages/taruna/taruna-import';
 import { HalamanRekapHarianTaruna } from './pages/taruna/rekap-harian';
@@ -96,6 +97,7 @@ export default function App() {
               <Route path="/tagihan/gagal-debet" element={<WajibLogin roles={['PPK']}><HalamanTagihanGagalDebet /></WajibLogin>} />
               <Route path="/tagihan/impor-debet" element={<WajibLogin roles={['PPK']}><HalamanTagihanImporDebet /></WajibLogin>} />
               <Route path="/tagihan/status-debet" element={<WajibLogin roles={['SENAT', 'PPK', 'KPA', 'WADIR3']}><HalamanStatusDebet /></WajibLogin>} />
+              <Route path="/tagihan/teruskan-penyedia" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'ADMIN', 'PPK']}><HalamanTagihanTeruskanPenyedia /></WajibLogin>} />
               <Route path="/tagihan/:id" element={<WajibLogin roles={['SENAT', 'PPK', 'KPA', 'WADIR3', 'PEMBINA', 'ADMIN']}><HalamanTagihanDetail /></WajibLogin>} />
               {/* PPK + KPA + Wadir3 */}
               <Route path="/laporan" element={<WajibLogin roles={['PPK', 'KPA', 'WADIR3', 'ADMIN']}><HalamanLaporan /></WajibLogin>} />

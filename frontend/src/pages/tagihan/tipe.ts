@@ -15,6 +15,7 @@ export interface Tagihan {
   bukti_setor_drive_file_id: string;
   level_aktif: number;
   tenggat_aktif: string;
+  tgl_diteruskan_penyedia: string;
 }
 
 export interface KebijakanTagihan {
