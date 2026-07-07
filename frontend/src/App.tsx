@@ -20,6 +20,7 @@ import { HalamanCetakForm07 } from './pages/cetak/form-07';
 import { HalamanCetakForm08 } from './pages/cetak/form-08';
 import { HalamanCetakForm09 } from './pages/cetak/form-09';
 import { HalamanCetakForm10 } from './pages/cetak/form-10';
+import { HalamanFormatSerahTerima } from './pages/cetak/format-serah-terima';
 import { HalamanDashboardKpa } from './pages/dashboard-kpa/dashboard-kpa';
 import { HalamanKokpitPpk } from './pages/kokpit-ppk/kokpit-ppk';
 import { HalamanKontrak } from './pages/kontrak/kontrak';
@@ -121,6 +122,7 @@ export default function App() {
               <Route path="/cetak" element={<HalamanCetakIndex />} />
               <Route path="/cetak/form-01" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm01 /></WajibLogin>} />
               <Route path="/cetak/form-01/:tgl" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm01 /></WajibLogin>} />
+              <Route path="/cetak/format-serah-terima" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'ADMIN']}><HalamanFormatSerahTerima /></WajibLogin>} />
               <Route path="/cetak/surat-pesanan/:id" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakSuratPesanan /></WajibLogin>} />
               <Route path="/cetak/form-02" element={<WajibLogin roles={['PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm02 /></WajibLogin>} />
               <Route path="/cetak/form-02/:tgl" element={<WajibLogin roles={['PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm02 /></WajibLogin>} />

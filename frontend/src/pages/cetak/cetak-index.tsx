@@ -65,6 +65,19 @@ export function HalamanCetakIndex() {
         ))}
       </div>
 
+      {session?.role !== 'OPERATOR_SAKTI' && (
+        <>
+          <h2 className="text-sm font-semibold text-gray-600">Alat Bantu Cetak (bukan bagian 10 Form SOP)</h2>
+          <Card className="flex items-center justify-between">
+            <div>
+              <p className="font-semibold">Format Serah Terima Makanan</p>
+              <p className="text-sm text-gray-500">Format kosong 7 lembar (Senin–Minggu) untuk serah-terima harian dari penyedia</p>
+            </div>
+            <Link to="/cetak/format-serah-terima"><Button varian="garis">Buka</Button></Link>
+          </Card>
+        </>
+      )}
+
       <Card className="flex flex-col gap-3">
         <p className="text-sm font-semibold text-gray-600">Pratinjau Komponen Cetak</p>
         <p className="text-xs text-gray-400">
