@@ -33,7 +33,7 @@ interface Ringkasan {
 function useBadgeTagihan(): number {
   const { data } = useListCache<Ringkasan>('tagihan.summary', {});
   if (!data) return 0;
-  return ['0', '1', '2', '3'].reduce((s, lv) => s + (data.per_level[lv]?.jumlah ?? 0), 0);
+  return ['0', '1', '2', '3'].reduce((s, lv) => s + (data.per_level?.[lv]?.jumlah ?? 0), 0);
 }
 
 function IkonNav({ children }: { children: React.ReactNode }) {
