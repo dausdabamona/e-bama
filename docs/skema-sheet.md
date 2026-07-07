@@ -230,7 +230,7 @@ kontrak ke PENYEDIA (lihat `realisasi.rekap_kepatuhan`, tahap lanjutan),
 bukan menghukum taruna.
 
 **Penerimaan Barang Senat** (dikonfirmasi Firdaus): checklist kelengkapan +
-jumlah komponen menu NYATA (Nasi/Sayur/Ikan/dst, `getKebijakanKomponenMenu()`)
+jumlah komponen menu NYATA (Nasi/Sayur/Lauk/Buah/Minuman/dst, `getKebijakanKomponenMenu()`)
 per waktu makan, diisi Senat/Pembina/Admin di titik SERAH-TERIMA barang —
 BEDA momen & aktor dari checklist piket (`piket_*`, di titik MAKAN, kategori
 GIZI bukan item menu). Keduanya melengkapi `porsi_diterima`/`jml_taruna_makan`/
