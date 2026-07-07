@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/auth-context';
+import { labelBulan } from '../../components/bulan-picker';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
@@ -44,11 +45,17 @@ export function HalamanTagihanList() {
       .sort((a, b) => b.bulan.localeCompare(a.bulan));
   }, [data, cari, tarunaQ.data]);
 
-  const kelompok = useMemo(() => {
-    const map = new Map<TahapBayar, Tagihan[]>();
-    URUTAN_TAHAP.forEach((k) => map.set(k, []));
-    daftar.forEach((t) => map.get(tahapBayar(t, session?.user_id))!.push(t));
-    return URUTAN_TAHAP.map((tahap) => ({ tahap, baris: map.get(tahap)! })).filter((g) => g.baris.length > 0);
+  // Grup UTAMA per bulan (terbaru dulu), sub-grup per tahap pembayaran di dalamnya.
+  const kelompokBulan = useMemo(() => {
+    const bulanUrut = Array.from(new Set(daftar.map((t) => t.bulan))).sort((a, b) => b.localeCompare(a));
+    return bulanUrut.map((bulan) => {
+      const barisBulan = daftar.filter((t) => t.bulan === bulan);
+      const map = new Map<TahapBayar, Tagihan[]>();
+      URUTAN_TAHAP.forEach((k) => map.set(k, []));
+      barisBulan.forEach((t) => map.get(tahapBayar(t, session?.user_id))!.push(t));
+      const tahap = URUTAN_TAHAP.map((tp) => ({ tahap: tp, baris: map.get(tp)! })).filter((g) => g.baris.length > 0);
+      return { bulan, jumlah: barisBulan.length, tahap };
+    });
   }, [daftar, session?.user_id]);
 
   return (
@@ -102,40 +109,47 @@ export function HalamanTagihanList() {
         <EmptyState pesan="Tidak ada tagihan yang cocok dengan pencarian." />
       )}
 
-      <div className="flex flex-col gap-4">
-        {kelompok.map((g) => (
-          <div key={g.tahap} className="flex flex-col gap-2">
-            <p className="text-xs font-semibold text-gray-500">{INFO_TAHAP[g.tahap].label} ({g.baris.length})</p>
-            <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-4 xl:grid-cols-3">
-              {g.baris.map((t) => (
-                <Link key={t.tagihan_id} to={`/tagihan/${t.tagihan_id}`}>
-                  <Card className={`flex items-center justify-between active:bg-primary-light/30 ${INFO_TAHAP[g.tahap].kartu}`}>
-                    <div>
-                      <p className="font-semibold">{namaByNit.get(t.nit) ?? t.nit}</p>
-                      <p className="text-xs text-gray-400">{t.nit} · {t.bulan}</p>
-                      <p className="text-sm text-gray-500">{formatRupiah(t.nominal)}</p>
-                      <p className="text-xs text-gray-400">{t.sebab.replace(/_/g, ' ')}</p>
-                      {INFO_TAHAP[g.tahap].catatan && (
-                        <p className="text-xs font-medium text-purple-700">{INFO_TAHAP[g.tahap].catatan}</p>
-                      )}
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge status={t.status} />
-                      {t.status === 'TERTAGIH' && t.level_aktif > 0 && (
-                        <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
-                          {labelLevel(t.level_aktif)}
-                        </span>
-                      )}
-                      {t.status === 'LUNAS' && t.selisih_transfer > toleransi && (
-                        <span className="rounded-full bg-amber-500 px-2 py-0.5 text-xs font-bold text-white">
-                          Kurang {formatRupiah(t.selisih_transfer)}
-                        </span>
-                      )}
-                    </div>
-                  </Card>
-                </Link>
-              ))}
-            </div>
+      <div className="flex flex-col gap-6">
+        {kelompokBulan.map((gb) => (
+          <div key={gb.bulan} className="flex flex-col gap-3">
+            <h2 className="border-b border-gray-200 pb-1 text-sm font-bold text-primary-dark">
+              {labelBulan(gb.bulan)} ({gb.jumlah})
+            </h2>
+            {gb.tahap.map((g) => (
+              <div key={g.tahap} className="flex flex-col gap-2">
+                <p className="text-xs font-semibold text-gray-500">{INFO_TAHAP[g.tahap].label} ({g.baris.length})</p>
+                <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-4 xl:grid-cols-3">
+                  {g.baris.map((t) => (
+                    <Link key={t.tagihan_id} to={`/tagihan/${t.tagihan_id}`}>
+                      <Card className={`flex items-center justify-between active:bg-primary-light/30 ${INFO_TAHAP[g.tahap].kartu}`}>
+                        <div>
+                          <p className="font-semibold">{namaByNit.get(t.nit) ?? t.nit}</p>
+                          <p className="text-xs text-gray-400">{t.nit}</p>
+                          <p className="text-sm text-gray-500">{formatRupiah(t.nominal)}</p>
+                          <p className="text-xs text-gray-400">{t.sebab.replace(/_/g, ' ')}</p>
+                          {INFO_TAHAP[g.tahap].catatan && (
+                            <p className="text-xs font-medium text-purple-700">{INFO_TAHAP[g.tahap].catatan}</p>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <Badge status={t.status} />
+                          {t.status === 'TERTAGIH' && t.level_aktif > 0 && (
+                            <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
+                              {labelLevel(t.level_aktif)}
+                            </span>
+                          )}
+                          {t.status === 'LUNAS' && t.selisih_transfer > toleransi && (
+                            <span className="rounded-full bg-amber-500 px-2 py-0.5 text-xs font-bold text-white">
+                              Kurang {formatRupiah(t.selisih_transfer)}
+                            </span>
+                          )}
+                        </div>
+                      </Card>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         ))}
       </div>
