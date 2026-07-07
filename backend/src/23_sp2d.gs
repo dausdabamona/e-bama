@@ -193,7 +193,8 @@ function sp2dImport(payload, session) {
     sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaValid[String(t.nit)] = true; });
 
     var ditambah = 0, dilewati = 0;
-    var bulanDalamKampusTersentuh = {}; // dipakai sinkronisasi PEMBAYARAN di bawah
+    var bulanDalamKampusTersentuh = {}; // dipakai sinkronisasi PEMBAYARAN legacy di bawah
+    var bulanTersentuh = {}; // dipakai auto-isi SPM (kedua kategori) di bawah
     baris.forEach(function (b) {
       var noSpm = String((b && b.no_spm) || '').trim();
       if (!noSpm) throw _fail_('no_spm wajib diisi pada setiap baris.');
@@ -228,6 +229,7 @@ function sp2dImport(payload, session) {
       if (kunciNit) adaNitSp2d[kunciNit] = true;
       ditambah++;
       if (kategori === 'DALAM_KAMPUS' && !hasil.gagal && !salahKategori && hasil.bulan) bulanDalamKampusTersentuh[hasil.bulan] = true;
+      if (!hasil.gagal && !salahKategori && hasil.bulan) bulanTersentuh[hasil.bulan] = true;
     });
 
     auditLog(session, 'sp2d.import', 'SP2D_MONITORING', null, null,
@@ -239,6 +241,14 @@ function sp2dImport(payload, session) {
     // perlu ketik ulang satu nomor SPM/SP2D "wakil" secara manual).
     Object.keys(bulanDalamKampusTersentuh).forEach(function (bln) {
       _sinkronkanPembayaranDariSp2d_(bln, session, 'AUTO_IMPOR');
+    });
+
+    // Auto-isi no_spm/tgl_spm/no_sp2d/tgl_sp2d SPM (§18) dari data yang baru
+    // masuk — kedua kategori, hanya kelompok yang tak ambigu (lihat catatan
+    // _autoIsiSpmDariSp2d_ di 15_pembayaran.gs). Silent, bukan bagian syarat
+    // sukses impor.
+    Object.keys(bulanTersentuh).forEach(function (bln) {
+      _autoIsiSpmDariSp2d_(bln, session, 'AUTO_IMPOR');
     });
 
     return { ditambah: ditambah, dilewati: dilewati };

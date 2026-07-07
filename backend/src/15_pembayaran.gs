@@ -330,6 +330,104 @@ function _cekSelesaikanPembayaranDariSpm_(bayarId, session) {
     { status: b.status }, { status: 'SELESAI', sumber: 'SPM_LENGKAP' });
 }
 
+/**
+ * Auto-isi no_spm/tgl_spm/no_sp2d/tgl_sp2d pada baris SPM dari data
+ * SP2D_MONITORING yang baru diimpor (`sp2d.import`, 23_sp2d.gs) — dipanggil
+ * OTOMATIS tiap impor selesai (kedua kategori), supaya PPK tidak perlu ketik
+ * ulang nomor SPM yang sebenarnya sudah ada di file Monitoring SPP/SPM/SP2D
+ * (OM-SPAN). Matching TANPA AMBIGU saja — kalau tidak ketemu/ambigu,
+ * DILEWATI (silent) dan tetap bisa diisi manual lewat spm.update/spm.set_sp2d:
+ * - DALAM_KAMPUS: kunci (bulan, prodi, tingkat) — satu suplier SELALU
+ *   melayani satu kelompok prodi+tingkat utuh (dikonfirmasi Firdaus), jadi
+ *   kelompok = tepat SATU SPM/SP2D (§18 skema-sheet.md). Baris agregat
+ *   Monitoring utk kunci itu harus PERSIS SATU (0 atau >1 = ambigu/re-impor
+ *   ganda → dilewati).
+ * - LUAR_KAMPUS: kunci (bulan, prodi, tingkat, kegiatan) TAPI hanya bila
+ *   kunci itu JUGA punya PERSIS SATU baris SPM (`pembayaran_ke`/tahap tidak
+ *   bisa dibedakan dari teks Uraian Monitoring) — kalau >1 SPM berbagi kunci
+ *   yang sama, dilewati (dikonfirmasi Firdaus).
+ * SPM berstatus SP2D_TERBIT (beku) TIDAK disentuh. Mengikuti mesin status
+ * spmUpdate/spmSetSp2d (DRAFT→DIAJUKAN saat no_spm terisi, DIAJUKAN→
+ * SP2D_TERBIT saat no_sp2d terisi) + trigger _cekSelesaikanPembayaranDariSpm_
+ * yang sama. SENGAJA silent/tidak melempar — kegagalan cocok BUKAN kegagalan
+ * impor. withLock sendiri (reentrant-safe, 03_helpers.gs).
+ */
+function _autoIsiSpmDariSp2d_(bulan, session, sumber) {
+  var bln = _bulanStr_(bulan);
+  return withLock(function () {
+    var spmBulan = sheetRead(SHEETS.SPM, function (r) {
+      return _bulanStr_(r.bulan) === bln && r.status !== 'SP2D_TERBIT';
+    });
+    if (!spmBulan.length) return { jml_diisi: 0 };
+
+    var monBulan = sheetRead(SHEETS.SP2D_MONITORING, function (r) {
+      return _bulanStr_(r.bulan) === bln && !r.nit && r.perlu_cek_manual !== 'YA';
+    });
+
+    var dalamPerKunci = {};
+    monBulan.filter(function (r) { return r.kategori === 'DALAM_KAMPUS'; }).forEach(function (r) {
+      var k = String(r.prodi) + '|' + String(r.tingkat);
+      (dalamPerKunci[k] = dalamPerKunci[k] || []).push(r);
+    });
+
+    var luarPerKunci = {};
+    monBulan.filter(function (r) { return r.kategori === 'LUAR_KAMPUS'; }).forEach(function (r) {
+      var k = String(r.prodi) + '|' + String(r.tingkat) + '|' + String(r.kegiatan);
+      (luarPerKunci[k] = luarPerKunci[k] || []).push(r);
+    });
+    var jmlSpmLuarPerKunci = {};
+    spmBulan.filter(function (r) { return r.kategori === 'LUAR_KAMPUS'; }).forEach(function (r) {
+      var k = String(r.prodi) + '|' + String(r.tingkat) + '|' + String(r.kegiatan);
+      jmlSpmLuarPerKunci[k] = (jmlSpmLuarPerKunci[k] || 0) + 1;
+    });
+
+    var jmlDiisi = 0;
+    spmBulan.forEach(function (s) {
+      var kandidat = null;
+      if (s.kategori === 'DALAM_KAMPUS') {
+        var arrD = dalamPerKunci[String(s.prodi) + '|' + String(s.tingkat)];
+        if (arrD && arrD.length === 1) kandidat = arrD[0];
+      } else if (s.kategori === 'LUAR_KAMPUS') {
+        var kL = String(s.prodi) + '|' + String(s.tingkat) + '|' + String(s.kegiatan);
+        var arrL = luarPerKunci[kL];
+        if (arrL && arrL.length === 1 && jmlSpmLuarPerKunci[kL] === 1) kandidat = arrL[0];
+      }
+      if (!kandidat) return;
+
+      var noSpmBaru = String(kandidat.no_spm || '').trim();
+      var tglSpmBaru = _tglStr_(kandidat.tgl_spm || '');
+      var noSp2dBaru = String(kandidat.no_sp2d || '').trim();
+      var tglSp2dBaru = _tglStr_(kandidat.tgl_sp2d || '');
+
+      var patch = {};
+      if (noSpmBaru && noSpmBaru !== String(s.no_spm || '')) patch.no_spm = noSpmBaru;
+      if (tglSpmBaru && tglSpmBaru !== _tglStr_(s.tgl_spm || '')) patch.tgl_spm = tglSpmBaru;
+      if (noSp2dBaru && noSp2dBaru !== String(s.no_sp2d || '')) patch.no_sp2d = noSp2dBaru;
+      if (tglSp2dBaru && tglSp2dBaru !== _tglStr_(s.tgl_sp2d || '')) patch.tgl_sp2d = tglSp2dBaru;
+
+      var statusBaru = s.status;
+      if (statusBaru === 'DRAFT' && (patch.no_spm || s.no_spm)) statusBaru = 'DIAJUKAN';
+      if (statusBaru === 'DIAJUKAN' && (patch.no_sp2d || s.no_sp2d)) statusBaru = 'SP2D_TERBIT';
+      if (statusBaru !== s.status) patch.status = statusBaru;
+
+      if (!Object.keys(patch).length) return;
+
+      sheetUpdate(SHEETS.SPM, 'spm_id', s.spm_id, patch);
+      auditLog(session, 'spm.auto_isi', 'SPM', s.spm_id,
+        { no_spm: s.no_spm, tgl_spm: s.tgl_spm, no_sp2d: s.no_sp2d, tgl_sp2d: s.tgl_sp2d, status: s.status },
+        { no_spm: patch.no_spm, tgl_spm: patch.tgl_spm, no_sp2d: patch.no_sp2d, tgl_sp2d: patch.tgl_sp2d,
+          status: patch.status, sumber: sumber || 'AUTO_IMPOR' });
+      jmlDiisi++;
+
+      if (statusBaru === 'SP2D_TERBIT' && s.kategori === 'DALAM_KAMPUS' && s.bayar_id) {
+        _cekSelesaikanPembayaranDariSpm_(s.bayar_id, session);
+      }
+    });
+
+    return { jml_diisi: jmlDiisi };
+  });
+}
+
 /** spm.list {bulan?, bayar_id?, kategori?} — daftar SPM (kedua kategori). */
 function spmList(payload, session) {
   var f = payload || {};

@@ -678,14 +678,21 @@ kunci kelompok beku). `spm.set_sp2d` isi hasil SP2D → `SP2D_TERBIT`; untuk
 otomatis `SELESAI` (+ audit). `spm.regenerate` re-derive dari sumber, hanya
 boleh selama SEMUA SPM grup itu masih `DRAFT`.
 
-**Auto-isi dari impor SP2D (`sp2d.import`, §17):** `DALAM_KAMPUS` dicocokkan
-lewat (prodi, tingkat, bulan) — selalu tak ambigu (satu kelompok = satu SPM,
-lihat di atas). `LUAR_KAMPUS` dicocokkan lewat (prodi, tingkat, kegiatan,
-bulan) TAPI hanya bila grup itu punya PERSIS SATU baris SPM — kalau ada
-beberapa `pembayaran_ke` untuk kombinasi yang sama (SP2D_MONITORING tidak
-mem-parse tahap pembayaran dari teks Uraian), auto-isi DILEWATI dan PPK
-memasangkan manual lewat `spm.set_sp2d` (pakai `periode`/nominal sebagai
-pembeda). Rekonsiliasi tingkat-grup tetap sah walau tanpa auto-isi per SPM:
+**Auto-isi dari impor SP2D (`sp2d.import`, §17 → `_autoIsiSpmDariSp2d_`,
+`15_pembayaran.gs`) — dijalankan OTOMATIS tiap impor selesai:** `DALAM_KAMPUS`
+dicocokkan lewat (prodi, tingkat, bulan) — selalu tak ambigu (satu kelompok =
+satu SPM, lihat di atas), TAPI tetap dijaga: kalau baris agregat Monitoring
+utk kunci itu bukan PERSIS SATU (mis. re-impor ganda), auto-isi DILEWATI.
+`LUAR_KAMPUS` dicocokkan lewat (prodi, tingkat, kegiatan, bulan) TAPI hanya
+bila grup itu punya PERSIS SATU baris SPM — kalau ada beberapa `pembayaran_ke`
+untuk kombinasi yang sama (SP2D_MONITORING tidak mem-parse tahap pembayaran
+dari teks Uraian), auto-isi DILEWATI dan PPK memasangkan manual lewat
+`spm.update`/`spm.set_sp2d` (pakai `periode`/nominal sebagai pembeda). Mengisi
+`no_spm`/`tgl_spm` (DRAFT→DIAJUKAN) dan/atau `no_sp2d`/`tgl_sp2d`
+(DIAJUKAN→SP2D_TERBIT) sekaligus bila keduanya sudah ada di data Monitoring;
+SPM `SP2D_TERBIT` (beku) tidak disentuh. Audit `spm.auto_isi` per baris
+(sumber `AUTO_IMPOR`), terpisah dari audit manual `spm.update`/`spm.set_sp2d`.
+Rekonsiliasi tingkat-grup tetap sah walau tanpa auto-isi per SPM:
 SUM seluruh tahap SPM grup itu harus = SUM SP2D grup itu.
 
 **Provenance terpisah dari SP2D_MONITORING (§17):** `SPM` = authored (dibuat
