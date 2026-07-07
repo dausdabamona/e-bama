@@ -6,6 +6,7 @@
 // Rutin" (bulk, satu ketuk). Aksi Setujui/Kembalikan tetap sama untuk anomali.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../auth/auth-context';
 import { aksiTulis } from '../lib/sync';
 import { api } from '../lib/api';
 import { useListCache } from '../lib/use-list-cache';
@@ -19,6 +20,9 @@ import { LoadingSpinner } from '../components/ui/loading-spinner';
 import { Modal } from '../components/ui/modal';
 import { useToast } from '../components/ui/toast';
 import type { Pesanan } from './pesanan/tipe';
+import { formatRupiah, type Tagihan } from './tagihan/tipe';
+import { tahapBayar } from './tagihan/urutan';
+import type { Taruna } from './taruna/tipe';
 
 interface BarisAntrian extends Pesanan {
   anomali: boolean; label: string; alasan: string;
@@ -33,6 +37,7 @@ function warnaLabel(label: string): string {
 }
 
 export function HalamanVerifikasi() {
+  const { session } = useAuth();
   const { data, memuat, galat, refresh } = useListCache<AntrianData>('pesanan.antrian_verifikasi', {});
   const { toast } = useToast();
   const [proses, setProses] = useState<string | null>(null);
@@ -41,6 +46,17 @@ export function HalamanVerifikasi() {
 
   const antrian = data?.antrian ?? [];
   const jmlRutin = antrian.filter((p) => !p.anomali).length;
+
+  // Tagihan yang MASIH BISA ditindak (setor bukti / verifikasi) — ditaruh di
+  // halaman Verifikasi yang sama supaya Pembina tak perlu buka menu Tagihan
+  // terpisah untuk tahu ada yang perlu diverifikasi (dikonfirmasi Firdaus).
+  const tagihanQ = useListCache<{ tagihan: Tagihan[] }>('tagihan.list', {});
+  const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', {});
+  const namaByNit = new Map((tarunaQ.data?.taruna ?? []).map((t) => [t.nit, t.nama]));
+  const tagihanPerluVerifikasi = (tagihanQ.data?.tagihan ?? []).filter((t) => {
+    const tahap = tahapBayar(t, session?.user_id);
+    return tahap === 'BELUM_SETOR' || tahap === 'MENUNGGU_VERIF_1' || tahap === 'PERLU_VERIFIKASI_ANDA';
+  });
 
   async function setujui(p: BarisAntrian) {
     setProses(p.pesanan_id);
@@ -70,7 +86,30 @@ export function HalamanVerifikasi() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-bold text-primary-dark">Verifikasi Pesanan</h1>
+      <h1 className="text-xl font-bold text-primary-dark">Verifikasi</h1>
+
+      {tagihanQ.data && (
+        <div className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold text-gray-600">
+            Tagihan Perlu Verifikasi {tagihanPerluVerifikasi.length > 0 && `(${tagihanPerluVerifikasi.length})`}
+          </h2>
+          {tagihanPerluVerifikasi.length === 0 && <EmptyState pesan="Tidak ada tagihan menunggu tindakan." />}
+          {tagihanPerluVerifikasi.map((t) => (
+            <Link key={t.tagihan_id} to={`/tagihan/${t.tagihan_id}`}>
+              <Card className="flex items-center justify-between active:bg-primary-light/30">
+                <div>
+                  <p className="font-semibold">{namaByNit.get(t.nit) ?? t.nit}</p>
+                  <p className="text-xs text-gray-400">{t.nit} · {t.bulan}</p>
+                  <p className="text-sm text-gray-500">{formatRupiah(t.nominal)}</p>
+                </div>
+                <Badge status={t.status} />
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      <h2 className="text-sm font-semibold text-gray-600">Pesanan Perlu Verifikasi</h2>
 
       {memuat && !data && <LoadingSpinner label="Memuat antrian…" />}
       {galat && !data && <ErrorMessage pesan={galat} onRetry={refresh} />}
