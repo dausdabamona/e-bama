@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/auth-context';
-import { ambilFotoInput, kompresFotoBase64 } from '../../lib/foto';
+import { ambilBerkasInput, berkasKeBase64 } from '../../lib/berkas';
 import { aksiTulis } from '../../lib/sync';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
@@ -58,12 +58,18 @@ export function HalamanTagihanDetail() {
   const toleransi = tagihanQ.data?.kebijakan?.toleransiSelisihTransfer ?? 20000;
 
   async function pilihBerkas() {
-    // kameraSaja:false — bukti setor ADALAH screenshot transfer, wajib bisa
-    // dipilih dari galeri, bukan dipaksa buka kamera.
-    const file = await ambilFotoInput({ kameraSaja: false });
+    // Bukti setor boleh berupa foto/screenshot ATAU PDF (mis. bukti transfer
+    // yang diunduh langsung dari aplikasi bank) — dibaca mentah tanpa
+    // kompresi canvas (yang hanya berlaku utk gambar), sama seperti lampiran
+    // kontrak (lib/berkas.ts).
+    const file = await ambilBerkasInput();
     if (!file) return;
-    setFotoNama(file.name);
-    setFotoBase64(await kompresFotoBase64(file));
+    try {
+      setFotoNama(file.name);
+      setFotoBase64(await berkasKeBase64(file));
+    } catch (e) {
+      setGalat(e instanceof Error ? e.message : 'Gagal membaca berkas.');
+    }
   }
 
   async function kirimSetor() {
@@ -198,7 +204,7 @@ export function HalamanTagihanDetail() {
           <input type="date" value={tglSetor} onChange={(e) => setTglSetor(e.target.value)}
             className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2.5" />
           <Button varian="garis" onClick={() => void pilihBerkas()}>
-            {fotoNama ? `📎 ${fotoNama}` : '📷 Unggah Screenshot/Foto Bukti Transfer'}
+            {fotoNama ? `📎 ${fotoNama}` : '📎 Unggah Screenshot/Foto/PDF Bukti Transfer'}
           </Button>
           {galat && <p className="text-sm text-red-600">{galat}</p>}
           <Button onClick={() => void kirimSetor()} disabled={proses}>

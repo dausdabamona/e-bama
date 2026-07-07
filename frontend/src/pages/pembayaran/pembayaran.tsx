@@ -16,7 +16,7 @@ import { Input } from '../../components/ui/input';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
 import { useToast } from '../../components/ui/toast';
 import { api } from '../../lib/api';
-import { ambilFotoInput, kompresFotoBase64 } from '../../lib/foto';
+import { ambilBerkasInput, berkasKeBase64 } from '../../lib/berkas';
 import { useListCache } from '../../lib/use-list-cache';
 import { formatRupiah } from '../tagihan/tipe';
 import type { Pembayaran } from './tipe';
@@ -78,11 +78,13 @@ export function HalamanPembayaran() {
   }
 
   async function unggahLampiran(jenis: string) {
-    const file = await ambilFotoInput();
+    // Bukti Debet/Invoice/Surat Blokir lazimnya dokumen — boleh foto/scan
+    // ATAU PDF, dibaca mentah tanpa kompresi canvas (lib/berkas.ts).
+    const file = await ambilBerkasInput();
     if (!file) return;
-    const base64 = await kompresFotoBase64(file);
     setProses(true);
     try {
+      const base64 = await berkasKeBase64(file);
       await api('bayar.update', { bayar_id: b!.bayar_id, berkas: { base64, nama_file: file.name, jenis } });
       toast('Lampiran terunggah.', 'sukses');
       refresh();

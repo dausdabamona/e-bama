@@ -308,7 +308,7 @@ function pesananPembinaKirim(payload, session) {
   sheetAppend(SHEETS.PESANAN, obj);
   auditLog(session, 'pesanan.pembina_kirim', 'PESANAN', obj.pesanan_id, null,
     { tgl_makan: tgl, jml_taruna: jml, jml_otomatis: jmlAuto, kontrak_id: kontrak.kontrak_id });
-  return { pesanan: obj, jml_otomatis: jmlAuto };
+  return { pesanan_id: obj.pesanan_id, status: 'TERKIRIM', jml_otomatis: jmlAuto };
 }
 
 /** Transisi status generik dengan validasi. */
