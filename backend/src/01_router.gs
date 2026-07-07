@@ -86,6 +86,7 @@ var ACTION_MAP = {
   'rekap.verify':     { handler: rekapVerify,    roles: ['PPK'] },
   'rekap.final':      { handler: rekapFinal,     roles: ['PPK'] },
   'rekap.approve_wadir3': { handler: rekapApproveWadir3, roles: ['WADIR3'] },
+  'rekap.batal_wadir3': { handler: rekapBatalWadir3, roles: ['WADIR3'] },
   'rekap.input_historis': { handler: rekapInputHistoris, roles: ['PPK', 'ADMIN'] },
   // rekap.harian: rekonsiliasi 3 titik HARIAN per Prodi+Tingkat, read-only —
   // internal login mana pun (pola sama seperti taruna.list), TIDAK di

@@ -11,6 +11,7 @@ import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { EmptyState } from '../../components/ui/empty-state';
 import { ErrorMessage } from '../../components/ui/error-message';
+import { KartuStat } from '../../components/ui/kartu-stat';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
 import { useListCache } from '../../lib/use-list-cache';
 
@@ -162,18 +163,5 @@ export function HalamanRekapRingkas() {
         </>
       )}
     </div>
-  );
-}
-
-function KartuStat({ label, nilai, satuan, tekankan }: {
-  label: string; nilai: string; satuan?: string; tekankan?: boolean;
-}) {
-  return (
-    <Card className="flex flex-col gap-1">
-      <span className="text-xs text-gray-500">{label}</span>
-      <span className={tekankan ? 'text-lg font-bold text-primary-dark' : 'text-lg font-bold'}>
-        {nilai}{satuan && <span className="ml-1 text-xs font-normal text-gray-400">{satuan}</span>}
-      </span>
-    </Card>
   );
 }

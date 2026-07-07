@@ -519,6 +519,7 @@ var ACTION_MAP = {
   'rekap.verify':     { handler: rekapVerify,    roles: ['PPK'] },
   'rekap.final':      { handler: rekapFinal,     roles: ['PPK'] },
   'rekap.approve_wadir3': { handler: rekapApproveWadir3, roles: ['WADIR3'] },
+  'rekap.batal_wadir3': { handler: rekapBatalWadir3, roles: ['WADIR3'] },
   'rekap.input_historis': { handler: rekapInputHistoris, roles: ['PPK', 'ADMIN'] },
   // rekap.harian: rekonsiliasi 3 titik HARIAN per Prodi+Tingkat, read-only —
   // internal login mana pun (pola sama seperti taruna.list), TIDAK di
@@ -2491,6 +2492,7 @@ function realisasiTtd(payload, session) {
  *          → FINAL (PPK finalkan; beku, dasar SPM, siap dibayar)
  *
  * ACTION: rekap.get (PPK, KPA), rekap.verify (PPK), rekap.final (PPK),
+ *         rekap.approve_wadir3 / rekap.batal_wadir3 (WADIR3),
  *         rekap.input_historis (PPK, Admin) — migrasi bulan pra-aplikasi
  * INTERNAL: rekapUpdate(tanggal) — dipanggil realisasi.ttd, BUKAN action publik.
  *
@@ -2661,6 +2663,18 @@ function rekapFinal(payload, session) {
 function rekapApproveWadir3(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
   return _rekapSetStatus_(session, bulan, 'DRAFT', 'DISETUJUI_WADIR3', 'approve_wadir3');
+}
+
+/**
+ * DISETUJUI_WADIR3 → DRAFT (Wadir 3 batalkan persetujuan — mis. salah klik,
+ * atau ternyata ada koreksi hari makan yang perlu diperbaiki dulu sebelum
+ * disetujui ulang). HANYA bisa dibatalkan selama PPK BELUM memverifikasi
+ * (_rekapSetStatus_ menolak kalau status sudah bukan DISETUJUI_WADIR3, jadi
+ * TERVERIFIKASI_PPK/FINAL otomatis tertutup dari pembatalan ini).
+ */
+function rekapBatalWadir3(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  return _rekapSetStatus_(session, bulan, 'DISETUJUI_WADIR3', 'DRAFT', 'batal_wadir3');
 }
 
 /**

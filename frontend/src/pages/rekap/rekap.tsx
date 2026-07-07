@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { EmptyState } from '../../components/ui/empty-state';
 import { ErrorMessage } from '../../components/ui/error-message';
+import { KartuStat } from '../../components/ui/kartu-stat';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
 import { Modal } from '../../components/ui/modal';
 import { useToast } from '../../components/ui/toast';
@@ -59,6 +60,7 @@ export function HalamanRekap() {
     return [...peta.values()].sort((a, b) =>
       a.prodi.localeCompare(b.prodi) || a.tingkat.localeCompare(b.tingkat));
   })();
+  const totalHariMakan = kelompok.reduce((s, k) => s + k.hari_makan, 0);
 
   // Rincian per taruna, urut mengikuti tabel kelompok (prodi → tingkat → nama).
   const rincian = [...baris].sort((a, b) => {
@@ -116,6 +118,14 @@ export function HalamanRekap() {
       {rekapQ.data && baris.length === 0 && <EmptyState pesan="Belum ada rekap bulan ini." />}
 
       {baris.length > 0 && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <KartuStat label="Jumlah Taruna" nilai={String(baris.length)} satuan="taruna" />
+          <KartuStat label="Total Hari Makan" nilai={totalHariMakan.toLocaleString('id-ID')} satuan="hari" />
+          <KartuStat label="Total Nominal" nilai={formatRupiah(rekapQ.data?.total ?? 0)} tekankan />
+        </div>
+      )}
+
+      {baris.length > 0 && (
         <Card className="overflow-x-auto">
           <p className="mb-2 text-sm font-semibold text-gray-700">Rekap per Prodi &amp; Tingkat</p>
           <table className="w-full text-sm">
@@ -141,9 +151,7 @@ export function HalamanRekap() {
               <tr className="font-bold">
                 <td className="pt-2 pr-2">Total</td>
                 <td className="pt-2 pr-2 text-right">{baris.length}</td>
-                <td className="pt-2 pr-2 text-right">
-                  {kelompok.reduce((s, k) => s + k.hari_makan, 0).toLocaleString('id-ID')}
-                </td>
+                <td className="pt-2 pr-2 text-right">{totalHariMakan.toLocaleString('id-ID')}</td>
                 <td className="pt-2 text-right">{formatRupiah(rekapQ.data?.total ?? 0)}</td>
               </tr>
             </tfoot>
@@ -185,9 +193,7 @@ export function HalamanRekap() {
                 <tfoot>
                   <tr className="font-bold">
                     <td className="pt-2 pr-2" colSpan={3}>Total</td>
-                    <td className="pt-2 pr-2 text-right">
-                      {kelompok.reduce((s, k) => s + k.hari_makan, 0).toLocaleString('id-ID')}
-                    </td>
+                    <td className="pt-2 pr-2 text-right">{totalHariMakan.toLocaleString('id-ID')}</td>
                     <td className="pt-2 text-right">{formatRupiah(rekapQ.data?.total ?? 0)}</td>
                   </tr>
                 </tfoot>
