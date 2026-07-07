@@ -9,7 +9,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { BulanPicker, bulanIni, labelBulan } from '../../components/bulan-picker';
 import { BlokTtd2Kolom, BlokTtdTengah } from '../../components/cetak/blok-ttd';
 import { KopSurat } from '../../components/cetak/kop-surat';
-import { BarisCetak, SelCetak, TabelCetak } from '../../components/cetak/tabel-cetak';
+import { SelCetak } from '../../components/cetak/tabel-cetak';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { ErrorMessage } from '../../components/ui/error-message';
@@ -39,6 +39,21 @@ function kelompokBank(baris: BarisForm07[]): { bank: string; rows: BarisForm07[]
   return Array.from(map.entries())
     .sort((x, y) => urutBank(x[0]) - urutBank(y[0]))
     .map(([bank, rows]) => ({ bank, rows: rows.slice().sort(urutBaris) }));
+}
+/** Sub-kelompokkan baris (dalam satu bank) per Prodi/Tingkat — utk subtotal per grup. */
+function kelompokProdiTingkat(rows: BarisForm07[]): { prodi: string; tingkat: string; rows: BarisForm07[] }[] {
+  const map = new Map<string, BarisForm07[]>();
+  rows.forEach((b) => {
+    const k = `${b.tingkat}|${b.prodi}`;
+    if (!map.has(k)) map.set(k, []);
+    map.get(k)!.push(b);
+  });
+  return Array.from(map.entries())
+    .map(([k, rs]) => {
+      const [tingkat, prodi] = k.split('|');
+      return { prodi, tingkat, rows: rs.slice().sort(urutBaris) };
+    })
+    .sort((a, b) => (URUT_TINGKAT[a.tingkat] ?? 9) - (URUT_TINGKAT[b.tingkat] ?? 9) || a.prodi.localeCompare(b.prodi));
 }
 
 const SATUAN = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas'];
@@ -151,18 +166,42 @@ function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia,
         ({rekPenyedia || '…… belum diisi Admin'}{rekPenyediaNama ? ` a.n. ${rekPenyediaNama}` : ''}). Tanda tangan
         taruna pada kolom terakhir merupakan pemberian kuasa kepada bank untuk mendebet sesuai nilai tersebut.
       </p>
-      <TabelCetak headers={['No', 'NIT', 'Nama Taruna', 'No. Rekening', 'Nilai Debet (Rp)', 'Tanda Tangan Taruna (Kuasa Debet)']}>
-        {rows.map((b, i) => (
-          <BarisCetak key={b.nit}>
-            <SelCetak>{i + 1}</SelCetak>
-            <SelCetak>{b.nit}</SelCetak>
-            <SelCetak>{b.nama}</SelCetak>
-            <SelCetak>{b.rekening_lengkap_ada ? b.no_rekening_lengkap : 'Belum diisi Admin'}</SelCetak>
-            <SelCetak className="text-right">{formatRupiah(b.nominal)}</SelCetak>
-            <SelCetak />
-          </BarisCetak>
-        ))}
-      </TabelCetak>
+      <table className="w-full border-collapse text-xs">
+        <thead>
+          <tr>
+            {['No', 'NIT', 'Nama Taruna', 'No. Rekening', 'Nilai Debet (Rp)', 'Tanda Tangan Taruna (Kuasa Debet)'].map((h) => (
+              <th key={h} className="border border-gray-400 bg-[#D9E2F3] px-2 py-1 text-left font-semibold">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        {kelompokProdiTingkat(rows).map((pt) => {
+          const subtotalPt = pt.rows.reduce((s, b) => s + b.nominal, 0);
+          return (
+            <tbody key={`${pt.prodi}|${pt.tingkat}`}>
+              <tr className="bg-primary-light/30 print:bg-gray-100">
+                <td colSpan={6} className="border border-gray-300 px-2 py-1 font-semibold text-primary-dark print:text-black">
+                  {pt.prodi} / {pt.tingkat}
+                </td>
+              </tr>
+              {pt.rows.map((b, i) => (
+                <tr key={b.nit}>
+                  <SelCetak>{i + 1}</SelCetak>
+                  <SelCetak>{b.nit}</SelCetak>
+                  <SelCetak>{b.nama}</SelCetak>
+                  <SelCetak>{b.rekening_lengkap_ada ? b.no_rekening_lengkap : 'Belum diisi Admin'}</SelCetak>
+                  <SelCetak className="text-right">{formatRupiah(b.nominal)}</SelCetak>
+                  <SelCetak />
+                </tr>
+              ))}
+              <tr className="font-semibold">
+                <td colSpan={4} className="border border-gray-300 px-2 py-1">Subtotal {pt.prodi} / {pt.tingkat} ({pt.rows.length} taruna)</td>
+                <td className="border border-gray-300 px-2 py-1 text-right">{formatRupiah(subtotalPt)}</td>
+                <td className="border border-gray-300 px-2 py-1" />
+              </tr>
+            </tbody>
+          );
+        })}
+      </table>
       <div className="flex justify-between text-sm font-bold">
         <span>TOTAL BANK {labelBank} ({rows.length} taruna)</span>
         <span>{formatRupiah(total)}</span>
@@ -276,24 +315,47 @@ export function HalamanCetakForm07() {
             </p>
             {kelompokBank(barisBayar).map((g) => {
               const labelBank = g.bank === 'TANPA_REKENING' ? 'BELUM ADA REKENING' : g.bank;
-              const subtotal = g.rows.reduce((s, b) => s + b.nominal, 0);
+              const subtotalBank = g.rows.reduce((s, b) => s + b.nominal, 0);
               return (
                 <div key={g.bank} className="mb-3">
                   <p className="mb-1 text-xs font-semibold print:text-black">Bank {labelBank} — {g.rows.length} taruna</p>
-                  <TabelCetak headers={['No', 'NIT', 'Nama', 'No. Rekening', 'Jumlah']}>
-                    {g.rows.map((b, i) => (
-                      <BarisCetak key={b.nit}>
-                        <SelCetak>{i + 1}</SelCetak>
-                        <SelCetak>{b.nit}</SelCetak>
-                        <SelCetak>{b.nama}</SelCetak>
-                        <SelCetak>{b.rekening_lengkap_ada ? b.no_rekening_lengkap : 'Belum diisi Admin'}</SelCetak>
-                        <SelCetak className="text-right">{formatRupiah(b.nominal)}</SelCetak>
-                      </BarisCetak>
-                    ))}
-                  </TabelCetak>
+                  <table className="w-full border-collapse text-xs">
+                    <thead>
+                      <tr>
+                        {['No', 'NIT', 'Nama', 'No. Rekening', 'Jumlah'].map((h) => (
+                          <th key={h} className="border border-gray-400 bg-[#D9E2F3] px-2 py-1 text-left font-semibold">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    {kelompokProdiTingkat(g.rows).map((pt) => {
+                      const subtotalPt = pt.rows.reduce((s, b) => s + b.nominal, 0);
+                      return (
+                        <tbody key={`${pt.prodi}|${pt.tingkat}`}>
+                          <tr className="bg-primary-light/30 print:bg-gray-100">
+                            <td colSpan={5} className="border border-gray-300 px-2 py-1 font-semibold text-primary-dark print:text-black">
+                              {pt.prodi} / {pt.tingkat}
+                            </td>
+                          </tr>
+                          {pt.rows.map((b, i) => (
+                            <tr key={b.nit}>
+                              <SelCetak>{i + 1}</SelCetak>
+                              <SelCetak>{b.nit}</SelCetak>
+                              <SelCetak>{b.nama}</SelCetak>
+                              <SelCetak>{b.rekening_lengkap_ada ? b.no_rekening_lengkap : 'Belum diisi Admin'}</SelCetak>
+                              <SelCetak className="text-right">{formatRupiah(b.nominal)}</SelCetak>
+                            </tr>
+                          ))}
+                          <tr className="font-semibold">
+                            <td colSpan={4} className="border border-gray-300 px-2 py-1">Subtotal {pt.prodi} / {pt.tingkat} ({pt.rows.length} taruna)</td>
+                            <td className="border border-gray-300 px-2 py-1 text-right">{formatRupiah(subtotalPt)}</td>
+                          </tr>
+                        </tbody>
+                      );
+                    })}
+                  </table>
                   <div className="mt-1 flex justify-between text-xs font-semibold">
                     <span>Subtotal {labelBank}</span>
-                    <span>{formatRupiah(subtotal)}</span>
+                    <span>{formatRupiah(subtotalBank)}</span>
                   </div>
                 </div>
               );
