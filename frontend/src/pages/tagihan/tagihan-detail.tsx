@@ -16,6 +16,7 @@ import { api } from '../../lib/api';
 import { useListCache } from '../../lib/use-list-cache';
 import { urlDrive } from '../pesanan/tipe';
 import { formatRupiah, type KebijakanTagihan, type SuratPeringatan, type Tagihan } from './tipe';
+import { urutkanTagihan } from './urutan';
 import type { Taruna } from '../taruna/tipe';
 
 function hariIni(): string {
@@ -56,6 +57,12 @@ export function HalamanTagihanDetail() {
   const namaTaruna = tarunaQ.data?.taruna?.find((x) => x.nit === t.nit)?.nama;
   const nilaiTransferNum = Number(nilaiTransfer !== '' ? nilaiTransfer : t.nominal);
   const toleransi = tagihanQ.data?.kebijakan?.toleransiSelisihTransfer ?? 20000;
+
+  // Urutan sama seperti daftar /tagihan — "berikutnya" = baris setelah ini
+  // di urutan yang sama, supaya alur kerja bisa lanjut tanpa balik ke daftar.
+  const urutan = urutkanTagihan(tagihanQ.data?.tagihan ?? []);
+  const idxSekarang = urutan.findIndex((x) => x.tagihan_id === t.tagihan_id);
+  const berikutnya = idxSekarang >= 0 ? urutan[idxSekarang + 1] : undefined;
 
   async function pilihBerkas() {
     // Bukti setor boleh berupa foto/screenshot ATAU PDF (mis. bukti transfer
@@ -121,7 +128,14 @@ export function HalamanTagihanDetail() {
 
   return (
     <div className="flex flex-col gap-4">
-      <button className="text-sm text-primary" onClick={() => nav('/tagihan')}>← Kembali</button>
+      <div className="flex items-center justify-between">
+        <button className="text-sm text-primary" onClick={() => nav('/tagihan')}>← Kembali</button>
+        {berikutnya && (
+          <button className="text-sm font-semibold text-primary" onClick={() => nav(`/tagihan/${berikutnya.tagihan_id}`)}>
+            Transaksi Berikutnya →
+          </button>
+        )}
+      </div>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-primary-dark">{namaTaruna ?? t.nit}</h1>
