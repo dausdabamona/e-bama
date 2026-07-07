@@ -60,7 +60,7 @@ export function HalamanTagihanDetail() {
 
   // Urutan sama seperti daftar /tagihan — "berikutnya" = baris setelah ini
   // di urutan yang sama, supaya alur kerja bisa lanjut tanpa balik ke daftar.
-  const urutan = urutkanTagihan(tagihanQ.data?.tagihan ?? []);
+  const urutan = urutkanTagihan(tagihanQ.data?.tagihan ?? [], session?.user_id);
   const idxSekarang = urutan.findIndex((x) => x.tagihan_id === t.tagihan_id);
   const berikutnya = idxSekarang >= 0 ? urutan[idxSekarang + 1] : undefined;
 

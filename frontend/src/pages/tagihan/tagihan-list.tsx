@@ -47,9 +47,9 @@ export function HalamanTagihanList() {
   const kelompok = useMemo(() => {
     const map = new Map<TahapBayar, Tagihan[]>();
     URUTAN_TAHAP.forEach((k) => map.set(k, []));
-    daftar.forEach((t) => map.get(tahapBayar(t))!.push(t));
+    daftar.forEach((t) => map.get(tahapBayar(t, session?.user_id))!.push(t));
     return URUTAN_TAHAP.map((tahap) => ({ tahap, baris: map.get(tahap)! })).filter((g) => g.baris.length > 0);
-  }, [daftar]);
+  }, [daftar, session?.user_id]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -115,6 +115,9 @@ export function HalamanTagihanList() {
                       <p className="text-xs text-gray-400">{t.nit} · {t.bulan}</p>
                       <p className="text-sm text-gray-500">{formatRupiah(t.nominal)}</p>
                       <p className="text-xs text-gray-400">{t.sebab.replace(/_/g, ' ')}</p>
+                      {INFO_TAHAP[g.tahap].catatan && (
+                        <p className="text-xs font-medium text-purple-700">{INFO_TAHAP[g.tahap].catatan}</p>
+                      )}
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       <Badge status={t.status} />
