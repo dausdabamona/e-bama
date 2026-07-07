@@ -11,6 +11,7 @@ import { Card } from '../../components/ui/card';
 import { EmptyState } from '../../components/ui/empty-state';
 import { ErrorMessage } from '../../components/ui/error-message';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
+import { TombolTemplateCsv } from '../../components/ui/tombol-template-csv';
 import { useToast } from '../../components/ui/toast';
 import { api } from '../../lib/api';
 import { bacaFileTeks, deteksiPemisah, parseCsv } from '../../lib/csv';
@@ -138,6 +139,11 @@ export function HalamanBantuanLuarKampus() {
             Bulan otomatis dideteksi dari periode — kalau gagal, tambah kolom
             <code> bulan</code> (YYYY-MM) di CSV.
           </p>
+          <TombolTemplateCsv
+            namaFile="template-impor-blk.csv"
+            header={['NIT', 'Kegiatan', 'Periode Pembayaran', 'Total Hari', 'Nilai/Hari', 'Pembayaran_ke']}
+            contoh={[['2024010001', 'PKL', '01 s.d. 31 Juli 2026', '20', '50000', '1']]}
+          />
           {tarunaQ.memuat && !tarunaQ.data ? (
             <LoadingSpinner label="Memuat daftar Taruna dulu (perlu untuk cocokkan NIT)…" />
           ) : (

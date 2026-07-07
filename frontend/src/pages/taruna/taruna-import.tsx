@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
+import { TombolTemplateCsv } from '../../components/ui/tombol-template-csv';
 import { useToast } from '../../components/ui/toast';
 import { api } from '../../lib/api';
 import { bacaFileTeks, deteksiPemisah, parseCsv } from '../../lib/csv';
@@ -100,6 +101,11 @@ export function HalamanTarunaImpor() {
           Kolom wajib: <code>nit, nama, rek</code>. Opsional: <code>prodi, tingkat, kelas, bank, status</code>.
           Kolom <code>rek</code> HANYA boleh 4 digit terakhir — nomor rekening lengkap akan ditolak.
         </p>
+        <TombolTemplateCsv
+          namaFile="template-impor-taruna.csv"
+          header={['nit', 'nama', 'prodi', 'tingkat', 'kelas', 'bank', 'rek', 'status']}
+          contoh={[['2024010001', 'Contoh Nama Taruna', 'TPI', '1', 'A', 'BNI', '1234', 'AKTIF']]}
+        />
         <input type="file" accept=".csv,text/csv" onChange={(e) => void pilihFile(e)}
           className="min-h-tap rounded-xl border border-gray-300 px-3 py-2.5 text-sm" />
       </Card>

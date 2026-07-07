@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
+import { TombolTemplateCsv } from '../../components/ui/tombol-template-csv';
 import { useToast } from '../../components/ui/toast';
 import { api } from '../../lib/api';
 import { bacaFileTeks, deteksiPemisah, parseCsv } from '../../lib/csv';
@@ -184,6 +185,20 @@ export function HalamanTarunaImporRekening() {
           (+ <code>bank</code> opsional per baris), atau (2) hasil konversi laporan Autotran mentah
           (header: Rekening, Nominal, Status, Nama di Bank).
         </p>
+        <div className="flex flex-wrap gap-2">
+          <TombolTemplateCsv
+            namaFile="template-impor-rekening-dengan-nit.csv"
+            header={['nit', 'rekening', 'nominal', 'status', 'nama di bank', 'bank', 'penyedia_id']}
+            contoh={[['2024010001', '1234567890123', '500000', 'BERHASIL', 'Contoh Nama Taruna', 'BNI', '']]}
+            label="📥 Template (dengan NIT)"
+          />
+          <TombolTemplateCsv
+            namaFile="template-impor-rekening-autotran.csv"
+            header={['Rekening', 'Nominal', 'Status', 'Nama di Bank']}
+            contoh={[['1234567890123', '500000', 'BERHASIL', 'CONTOH NAMA TARUNA']]}
+            label="📥 Template (Autotran mentah, tanpa NIT)"
+          />
+        </div>
         {tarunaQ.memuat && !tarunaQ.data ? (
           <LoadingSpinner label="Memuat daftar Taruna dulu (perlu untuk cocokkan nama)…" />
         ) : (

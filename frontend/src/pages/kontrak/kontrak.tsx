@@ -9,6 +9,7 @@ import { ErrorMessage } from '../../components/ui/error-message';
 import { Input } from '../../components/ui/input';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
 import { Modal } from '../../components/ui/modal';
+import { TombolTemplateCsv } from '../../components/ui/tombol-template-csv';
 import { useToast } from '../../components/ui/toast';
 import { api } from '../../lib/api';
 import { ambilBerkasInput, berkasKeBase64 } from '../../lib/berkas';
@@ -447,6 +448,12 @@ function ModalMenu({ kontrakId, onClose }: { kontrakId: string; onClose: () => v
         <p className="text-xs text-gray-400">
           CSV: kolom <code>hari, menu_pagi, menu_siang, menu_malam</code> — satu item menu per baris di dalam sel.
         </p>
+        <TombolTemplateCsv
+          namaFile="template-menu-mingguan-kontrak.csv"
+          header={['hari', 'menu_pagi', 'menu_siang', 'menu_malam']}
+          contoh={HARI.map((h) => [h, MENU_SOP_DEFAULT[h].pagi, MENU_SOP_DEFAULT[h].siang, MENU_SOP_DEFAULT[h].malam])}
+          label="📥 Unduh Template CSV (terisi Menu SOP)"
+        />
 
         <div className="flex max-h-[55vh] flex-col gap-4 overflow-y-auto pr-1">
           {HARI.map((h) => (

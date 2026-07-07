@@ -11,6 +11,7 @@ import { Card } from '../../components/ui/card';
 import { ErrorMessage } from '../../components/ui/error-message';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
 import { Modal } from '../../components/ui/modal';
+import { TombolTemplateCsv } from '../../components/ui/tombol-template-csv';
 import { useToast } from '../../components/ui/toast';
 import { api } from '../../lib/api';
 import { bacaFileTeks, deteksiPemisah, parseCsv } from '../../lib/csv';
@@ -965,6 +966,20 @@ export function HalamanLaporan() {
                 memuat "Nama Penerima") — dicocokkan ke NIT di bawah sebelum disimpan. Hanya baris yang
                 BELUM pernah masuk yang ditambah.
               </p>
+              <div className="flex flex-wrap gap-2">
+                <TombolTemplateCsv
+                  namaFile="template-sp2d-agregat.csv"
+                  header={['No. SPP/SPM', 'Tanggal SPM', 'No. SP2D', 'Tanggal SP2D', 'Jumlah Pembayaran', 'Status SP2D', 'Uraian SPP/SPM']}
+                  contoh={[['00123/SPM/2026', '01-07-2026', '000456/SP2D/2026', '02-07-2026', '15000000', 'SP2D Terbit', 'Belanja Bantuan Uang Makan Taruna Prodi TPI Tk.1 Juli 2026']]}
+                  label="📥 Template Format Agregat"
+                />
+                <TombolTemplateCsv
+                  namaFile="template-sp2d-spanext.csv"
+                  header={['Nama Penerima', 'No SP2D', 'Nomor Referensi', 'Tanggal SP2D', 'Jumlah', 'Deskripsi', 'Status']}
+                  contoh={[['CONTOH NAMA TARUNA', '000456/SP2D/2026', '', '02-07-2026', 'Rp. 500.000', 'Bantuan Uang Makan', 'Berhasil']]}
+                  label="📥 Template Format SPANExt (per taruna)"
+                />
+              </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Kategori Sumber</label>
                 <select value={kategori} onChange={(e) => setKategori(e.target.value as 'DALAM_KAMPUS' | 'LUAR_KAMPUS')}

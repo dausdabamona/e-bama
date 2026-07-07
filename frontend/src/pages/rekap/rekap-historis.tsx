@@ -7,6 +7,7 @@ import { BulanPicker, bulanIni } from '../../components/bulan-picker';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
+import { TombolTemplateCsv } from '../../components/ui/tombol-template-csv';
 import { useToast } from '../../components/ui/toast';
 import { api } from '../../lib/api';
 import { bacaFileTeks, deteksiPemisah, parseCsv } from '../../lib/csv';
@@ -140,6 +141,11 @@ export function HalamanRekapHistoris() {
           Kolom wajib: <code>nit, hari_makan</code>. Opsional: <code>hari_tidak_makan</code> (default 0),{' '}
           <code>nominal</code> (dari dokumen kertas — dipakai validasi silang saja, tidak dikirim ke server).
         </p>
+        <TombolTemplateCsv
+          namaFile="template-rekap-historis.csv"
+          header={['nit', 'hari_makan', 'hari_tidak_makan', 'nominal']}
+          contoh={[['2024010001', '26', '4', '780000']]}
+        />
         <input key={bulan} type="file" accept=".csv,text/csv" onChange={(e) => void pilihFile(e)}
           className="min-h-tap rounded-xl border border-gray-300 px-3 py-2.5 text-sm" />
       </Card>

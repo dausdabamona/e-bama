@@ -13,6 +13,7 @@ import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { ErrorMessage } from '../../components/ui/error-message';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
+import { TombolTemplateCsv } from '../../components/ui/tombol-template-csv';
 import { useToast } from '../../components/ui/toast';
 import { api } from '../../lib/api';
 import { bacaFileTeks, deteksiPemisah, parseCsv } from '../../lib/csv';
@@ -257,6 +258,11 @@ export function HalamanTagihanImporDebet() {
           opsional <code>nominal</code>, <code>status</code>, <code>keterangan</code> (format hasil
           konversi laporan Autotran bank).
         </p>
+        <TombolTemplateCsv
+          namaFile="template-impor-debet.csv"
+          header={['rekening', 'nama', 'nominal', 'status', 'keterangan']}
+          contoh={[['1234567890123', 'CONTOH NAMA TARUNA', '500000', 'GAGAL', 'Saldo tidak cukup']]}
+        />
         {tarunaQ.memuat && !tarunaQ.data ? (
           <LoadingSpinner label="Memuat daftar Taruna dulu…" />
         ) : (
