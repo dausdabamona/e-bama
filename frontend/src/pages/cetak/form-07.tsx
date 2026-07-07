@@ -183,16 +183,23 @@ function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia,
                   {pt.prodi} / {pt.tingkat}
                 </td>
               </tr>
-              {pt.rows.map((b, i) => (
-                <tr key={b.nit}>
-                  <SelCetak>{i + 1}</SelCetak>
-                  <SelCetak>{b.nit}</SelCetak>
-                  <SelCetak>{b.nama}</SelCetak>
-                  <SelCetak>{b.rekening_lengkap_ada ? b.no_rekening_lengkap : 'Belum diisi Admin'}</SelCetak>
-                  <SelCetak className="text-right">{formatRupiah(b.nominal)}</SelCetak>
-                  <SelCetak />
-                </tr>
-              ))}
+              {pt.rows.map((b, i) => {
+                const num = i + 1;
+                // Baris disengaja lebih tinggi saat cetak (py-6) — ruang cukup utk
+                // tanda tangan basah. Nomor di kolom ttd (sama dgn kolom No) —
+                // penanda kecocokan ttd; ganjil rapat kiri, genap rata tengah,
+                // supaya mudah dicek per baris walau baris rapat/berdekatan.
+                return (
+                  <tr key={b.nit}>
+                    <SelCetak className="print:py-6">{num}</SelCetak>
+                    <SelCetak className="print:py-6">{b.nit}</SelCetak>
+                    <SelCetak className="print:py-6">{b.nama}</SelCetak>
+                    <SelCetak className="print:py-6">{b.rekening_lengkap_ada ? b.no_rekening_lengkap : 'Belum diisi Admin'}</SelCetak>
+                    <SelCetak className="text-right print:py-6">{formatRupiah(b.nominal)}</SelCetak>
+                    <SelCetak className={`print:py-6 ${num % 2 === 1 ? 'text-left' : 'text-center'}`}>{num}</SelCetak>
+                  </tr>
+                );
+              })}
               <tr className="font-semibold">
                 <td colSpan={4} className="border border-gray-300 px-2 py-1">Subtotal {pt.prodi} / {pt.tingkat} ({pt.rows.length} taruna)</td>
                 <td className="border border-gray-300 px-2 py-1 text-right">{formatRupiah(subtotalPt)}</td>
