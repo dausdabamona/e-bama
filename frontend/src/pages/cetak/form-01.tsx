@@ -12,7 +12,6 @@ import { Card } from '../../components/ui/card';
 import { ErrorMessage } from '../../components/ui/error-message';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
 import { useListCache } from '../../lib/use-list-cache';
-import { formatRupiah } from '../tagihan/tipe';
 
 interface PesananRingkas {
   pesanan_id: string; tgl_makan: string; jml_taruna: number; menu: string; catatan: string; status: string;
@@ -39,7 +38,6 @@ export function HalamanCetakForm01() {
   const { data, memuat, galat, refresh } = useListCache<Form01Data>('cetak.form01', { tgl_makan: tgl });
 
   const kontrak = data?.kontrak ?? null;
-  const totalBiaya = data && kontrak ? data.pesanan.jml_taruna * (kontrak.harga_per_hari_efektif ?? 0) : 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -87,20 +85,14 @@ export function HalamanCetakForm01() {
           </Card>
 
           <Card className="overflow-x-auto print:border-0 print:p-0 print:shadow-none">
-            <p className="mb-2 text-sm font-semibold text-gray-600 print:text-black">Rincian Jumlah &amp; Biaya</p>
-            <TabelCetak headers={['Uraian', 'Jumlah Taruna', 'Porsi/Hari', 'Harga/Hari', 'Jumlah Biaya']}>
+            <p className="mb-2 text-sm font-semibold text-gray-600 print:text-black">Rincian Jumlah Porsi</p>
+            <TabelCetak headers={['Uraian', 'Jumlah Taruna', 'Porsi/Hari']}>
               <BarisCetak>
                 <SelCetak>Total Porsi Harian</SelCetak>
                 <SelCetak>{data.pesanan.jml_taruna}</SelCetak>
                 <SelCetak>{kontrak ? kontrak.porsi_per_hari : '-'}</SelCetak>
-                <SelCetak>{kontrak ? formatRupiah(kontrak.harga_per_hari_efektif ?? 0) : '-'}</SelCetak>
-                <SelCetak>{formatRupiah(totalBiaya)}</SelCetak>
               </BarisCetak>
             </TabelCetak>
-            <div className="mt-2 flex justify-between text-sm font-bold">
-              <span>JUMLAH TOTAL</span>
-              <span>{formatRupiah(totalBiaya)}</span>
-            </div>
             <p className="mt-2 text-xs text-gray-400 print:text-black">
               Catatan: skema e-BAMA belum memisahkan porsi per waktu makan
               (Sarapan/Siang/Malam) — angka di atas adalah total porsi harian,
