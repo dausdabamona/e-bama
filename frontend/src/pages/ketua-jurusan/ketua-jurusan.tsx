@@ -13,6 +13,7 @@ import { LoadingSpinner } from '../../components/ui/loading-spinner';
 import { Modal } from '../../components/ui/modal';
 import { useToast } from '../../components/ui/toast';
 import { api } from '../../lib/api';
+import { urutTingkat } from '../../lib/kelompok-prodi-tingkat';
 import { useListCache } from '../../lib/use-list-cache';
 import { formatRupiah } from '../tagihan/tipe';
 
@@ -53,6 +54,18 @@ export function HalamanKetuaJurusan() {
 
   const prodi = rekapQ.data?.prodi || tarunaQ.data?.prodi || '';
   const baris = rekapQ.data?.baris ?? [];
+  // Sudah di-scope ke SATU prodi (akun Kajur) — kelompokkan per Tingkat saja.
+  const kelompokTingkat = (() => {
+    const map = new Map<string, BarisRekap[]>();
+    baris.forEach((b) => {
+      const t = b.tingkat || '?';
+      if (!map.has(t)) map.set(t, []);
+      map.get(t)!.push(b);
+    });
+    return Array.from(map.entries())
+      .map(([tingkat, rows]) => ({ tingkat, rows }))
+      .sort((a, b) => urutTingkat(a.tingkat) - urutTingkat(b.tingkat));
+  })();
   const daftarTaruna = tarunaQ.data?.taruna ?? [];
   const nitTerpilih = Object.keys(terpilih).filter((n) => terpilih[n]);
 
@@ -158,24 +171,37 @@ export function HalamanKetuaJurusan() {
                 <th className="py-1 pr-2 text-right">Nominal</th><th className="py-1">Status</th>
               </tr>
             </thead>
-            <tbody>
-              {baris.map((b) => (
-                <tr key={b.nit} className="border-b border-gray-100">
-                  <td className="py-1 pr-2">{b.nama || b.nit}</td>
-                  <td className="py-1 pr-2">{b.tingkat}</td>
-                  <td className="py-1 pr-2">{b.kegiatan || '-'}</td>
-                  <td className="py-1 pr-2 text-right">{b.hari_luar_kampus}</td>
-                  <td className="py-1 pr-2 text-right">{formatRupiah(b.nominal)}</td>
-                  <td className="py-1">
-                    {!b.ada_blk
-                      ? <span className="text-gray-400">belum ada tarif</span>
-                      : b.disetujui_kajur
-                        ? <span className="text-green-700">Disetujui</span>
-                        : <span className="text-amber-600">Belum disetujui</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+            {kelompokTingkat.map((kt) => {
+              const subtotal = kt.rows.reduce((s, b) => s + b.nominal, 0);
+              return (
+                <tbody key={kt.tingkat}>
+                  <tr className="bg-primary-light/30">
+                    <td colSpan={6} className="py-1 pr-2 font-semibold text-primary-dark">Tingkat {kt.tingkat}</td>
+                  </tr>
+                  {kt.rows.map((b) => (
+                    <tr key={b.nit} className="border-b border-gray-100">
+                      <td className="py-1 pr-2">{b.nama || b.nit}</td>
+                      <td className="py-1 pr-2">{b.tingkat}</td>
+                      <td className="py-1 pr-2">{b.kegiatan || '-'}</td>
+                      <td className="py-1 pr-2 text-right">{b.hari_luar_kampus}</td>
+                      <td className="py-1 pr-2 text-right">{formatRupiah(b.nominal)}</td>
+                      <td className="py-1">
+                        {!b.ada_blk
+                          ? <span className="text-gray-400">belum ada tarif</span>
+                          : b.disetujui_kajur
+                            ? <span className="text-green-700">Disetujui</span>
+                            : <span className="text-amber-600">Belum disetujui</span>}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="border-b-2 border-gray-300 font-semibold">
+                    <td className="py-1 pr-2" colSpan={4}>Subtotal ({kt.rows.length} taruna)</td>
+                    <td className="py-1 pr-2 text-right">{formatRupiah(subtotal)}</td>
+                    <td className="py-1" />
+                  </tr>
+                </tbody>
+              );
+            })}
             <tfoot>
               <tr className="font-bold">
                 <td className="pt-2" colSpan={4}>Total</td>

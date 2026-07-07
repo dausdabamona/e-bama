@@ -12,6 +12,7 @@ import { LoadingSpinner } from '../../components/ui/loading-spinner';
 import { Modal } from '../../components/ui/modal';
 import { Input } from '../../components/ui/input';
 import { useToast } from '../../components/ui/toast';
+import { kelompokProdiTingkat } from '../../lib/kelompok-prodi-tingkat';
 import { useListCache } from '../../lib/use-list-cache';
 import { urlDrive, type Lampiran, type Pesanan } from './tipe';
 
@@ -188,13 +189,23 @@ function DaftarPenerima({ tglMakan }: { tglMakan: string }) {
           <div className="mt-2 flex flex-col gap-2">
             <div className="max-h-72 overflow-y-auto rounded-xl border border-gray-100">
               {penerima.length === 0 && <p className="p-2 text-sm text-gray-400">Tidak ada penerima.</p>}
-              {penerima.map((t) => (
-                <div key={t.nit} className="border-b border-gray-50 px-3 py-2 text-sm last:border-0">
-                  <p>{t.nama}</p>
-                  <p className="text-xs text-gray-400">{t.nit} · {t.prodi} · Tk.{t.tingkat}</p>
+              {kelompokProdiTingkat(penerima, (t) => t.prodi, (t) => t.tingkat).map((pt) => (
+                <div key={`${pt.prodi}|${pt.tingkat}`}>
+                  <p className="bg-primary-light/30 px-3 py-1 text-xs font-semibold text-primary-dark">
+                    {pt.prodi} / {pt.tingkat} ({pt.rows.length})
+                  </p>
+                  {pt.rows.map((t) => (
+                    <div key={t.nit} className="border-b border-gray-50 px-3 py-2 text-sm last:border-0">
+                      <p>{t.nama}</p>
+                      <p className="text-xs text-gray-400">{t.nit} · {t.prodi} · Tk.{t.tingkat}</p>
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
+            {penerima.length > 0 && (
+              <p className="text-right text-xs font-semibold text-gray-500">Total: {penerima.length} taruna</p>
+            )}
             {tidakMenerima.length > 0 && (
               <details className="text-xs text-gray-500">
                 <summary className="cursor-pointer">{tidakMenerima.length} taruna tidak menerima (status)</summary>

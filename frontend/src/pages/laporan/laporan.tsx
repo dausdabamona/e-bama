@@ -14,6 +14,7 @@ import { Modal } from '../../components/ui/modal';
 import { useToast } from '../../components/ui/toast';
 import { api } from '../../lib/api';
 import { bacaFileTeks, deteksiPemisah, parseCsv } from '../../lib/csv';
+import { kelompokProdiTingkat } from '../../lib/kelompok-prodi-tingkat';
 import { useListCache } from '../../lib/use-list-cache';
 import { bacaXlsxSebagaiBaris } from '../../lib/xlsx-ringan';
 import type { Taruna } from '../taruna/tipe';
@@ -739,33 +740,51 @@ export function HalamanLaporan() {
                           <th className="py-1 pr-2 text-right">Selisih</th><th className="py-1">Status</th><th className="py-1"></th>
                         </tr>
                       </thead>
-                      <tbody>
-                        {rekonQ.data.dalam_kampus_per_taruna
-                          .filter((r) => !sembunyikanNolPerTaruna || !(r.sistem === 0 && r.sp2d === 0))
-                          .map((r) => (
-                          <tr key={r.nit} className={`border-b border-gray-100 ${r.cocok ? '' : 'bg-red-50'}`}>
-                            <td className="py-1 pr-2">{r.nit}</td>
-                            <td className="py-1 pr-2">{r.nama || r.nit}</td>
-                            <td className="py-1 pr-2">{r.prodi || '?'}/{r.tingkat || '?'}</td>
-                            <td className="py-1 pr-2 text-gray-500">{r.no_sp2d && r.no_sp2d.length > 0 ? r.no_sp2d.join(', ') : '—'}</td>
-                            <td className="py-1 pr-2 text-right">{formatRupiah(r.sistem)}</td>
-                            <td className="py-1 pr-2 text-right">{formatRupiah(r.sp2d)}</td>
-                            <td className="py-1 pr-2 text-right">{formatRupiah(r.selisih)}</td>
-                            <td className="py-1">{r.cocok ? <span className="text-green-700">Cocok</span> : <span className="text-red-600">Selisih</span>}</td>
-                            <td className="py-1">
-                              {!r.cocok && r.no_spm && r.no_spm.length > 0 && (
-                                <button className="text-primary underline"
-                                  onClick={() => setKoreksiPerTaruna({
-                                    judul: `Koreksi — ${r.nama || r.nit} (Dalam Kampus)`,
-                                    noSpm: r.no_spm!, kategoriAsal: 'DALAM_KAMPUS'
-                                  })}>
-                                  🔧 Koreksi
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
+                      {kelompokProdiTingkat(
+                        rekonQ.data.dalam_kampus_per_taruna.filter((r) => !sembunyikanNolPerTaruna || !(r.sistem === 0 && r.sp2d === 0)),
+                        (r) => r.prodi, (r) => r.tingkat
+                      ).map((pt) => {
+                        const subSistem = pt.rows.reduce((s, r) => s + r.sistem, 0);
+                        const subSp2d = pt.rows.reduce((s, r) => s + r.sp2d, 0);
+                        const subSelisih = pt.rows.reduce((s, r) => s + r.selisih, 0);
+                        return (
+                          <tbody key={`${pt.prodi}|${pt.tingkat}`}>
+                            <tr className="bg-primary-light/30">
+                              <td colSpan={9} className="py-1 pr-2 font-semibold text-primary-dark">{pt.prodi} / {pt.tingkat}</td>
+                            </tr>
+                            {pt.rows.map((r) => (
+                              <tr key={r.nit} className={`border-b border-gray-100 ${r.cocok ? '' : 'bg-red-50'}`}>
+                                <td className="py-1 pr-2">{r.nit}</td>
+                                <td className="py-1 pr-2">{r.nama || r.nit}</td>
+                                <td className="py-1 pr-2">{r.prodi || '?'}/{r.tingkat || '?'}</td>
+                                <td className="py-1 pr-2 text-gray-500">{r.no_sp2d && r.no_sp2d.length > 0 ? r.no_sp2d.join(', ') : '—'}</td>
+                                <td className="py-1 pr-2 text-right">{formatRupiah(r.sistem)}</td>
+                                <td className="py-1 pr-2 text-right">{formatRupiah(r.sp2d)}</td>
+                                <td className="py-1 pr-2 text-right">{formatRupiah(r.selisih)}</td>
+                                <td className="py-1">{r.cocok ? <span className="text-green-700">Cocok</span> : <span className="text-red-600">Selisih</span>}</td>
+                                <td className="py-1">
+                                  {!r.cocok && r.no_spm && r.no_spm.length > 0 && (
+                                    <button className="text-primary underline"
+                                      onClick={() => setKoreksiPerTaruna({
+                                        judul: `Koreksi — ${r.nama || r.nit} (Dalam Kampus)`,
+                                        noSpm: r.no_spm!, kategoriAsal: 'DALAM_KAMPUS'
+                                      })}>
+                                      🔧 Koreksi
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                            <tr className="border-b-2 border-gray-300 font-semibold">
+                              <td className="py-1 pr-2" colSpan={4}>Subtotal ({pt.rows.length} taruna)</td>
+                              <td className="py-1 pr-2 text-right">{formatRupiah(subSistem)}</td>
+                              <td className="py-1 pr-2 text-right">{formatRupiah(subSp2d)}</td>
+                              <td className="py-1 pr-2 text-right">{formatRupiah(subSelisih)}</td>
+                              <td className="py-1" colSpan={2} />
+                            </tr>
+                          </tbody>
+                        );
+                      })}
                     </table>
                   </div>
                 )}
@@ -781,32 +800,50 @@ export function HalamanLaporan() {
                           <th className="py-1 pr-2 text-right">Selisih</th><th className="py-1">Status</th><th className="py-1"></th>
                         </tr>
                       </thead>
-                      <tbody>
-                        {rekonQ.data.luar_kampus_per_taruna
-                          .filter((r) => !sembunyikanNolPerTaruna || !(r.sistem === 0 && r.sp2d === 0))
-                          .map((r, i) => (
-                          <tr key={`${r.nit}-${r.kegiatan}-${i}`} className={`border-b border-gray-100 ${r.cocok ? '' : 'bg-red-50'}`}>
-                            <td className="py-1 pr-2">{r.nama || r.nit}</td>
-                            <td className="py-1 pr-2">{r.kegiatan}</td>
-                            <td className="py-1 pr-2">{r.prodi || '?'}/{r.tingkat || '?'}</td>
-                            <td className="py-1 pr-2 text-right">{formatRupiah(r.sistem)}</td>
-                            <td className="py-1 pr-2 text-right">{formatRupiah(r.sp2d)}</td>
-                            <td className="py-1 pr-2 text-right">{formatRupiah(r.selisih)}</td>
-                            <td className="py-1">{r.cocok ? <span className="text-green-700">Cocok</span> : <span className="text-red-600">Selisih</span>}</td>
-                            <td className="py-1">
-                              {!r.cocok && r.no_spm && r.no_spm.length > 0 && (
-                                <button className="text-primary underline"
-                                  onClick={() => setKoreksiPerTaruna({
-                                    judul: `Koreksi — ${r.nama || r.nit} (Luar Kampus · ${r.kegiatan})`,
-                                    noSpm: r.no_spm!, kategoriAsal: 'LUAR_KAMPUS'
-                                  })}>
-                                  🔧 Koreksi
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
+                      {kelompokProdiTingkat(
+                        rekonQ.data.luar_kampus_per_taruna.filter((r) => !sembunyikanNolPerTaruna || !(r.sistem === 0 && r.sp2d === 0)),
+                        (r) => r.prodi, (r) => r.tingkat
+                      ).map((pt) => {
+                        const subSistem = pt.rows.reduce((s, r) => s + r.sistem, 0);
+                        const subSp2d = pt.rows.reduce((s, r) => s + r.sp2d, 0);
+                        const subSelisih = pt.rows.reduce((s, r) => s + r.selisih, 0);
+                        return (
+                          <tbody key={`${pt.prodi}|${pt.tingkat}`}>
+                            <tr className="bg-primary-light/30">
+                              <td colSpan={8} className="py-1 pr-2 font-semibold text-primary-dark">{pt.prodi} / {pt.tingkat}</td>
+                            </tr>
+                            {pt.rows.map((r, i) => (
+                              <tr key={`${r.nit}-${r.kegiatan}-${i}`} className={`border-b border-gray-100 ${r.cocok ? '' : 'bg-red-50'}`}>
+                                <td className="py-1 pr-2">{r.nama || r.nit}</td>
+                                <td className="py-1 pr-2">{r.kegiatan}</td>
+                                <td className="py-1 pr-2">{r.prodi || '?'}/{r.tingkat || '?'}</td>
+                                <td className="py-1 pr-2 text-right">{formatRupiah(r.sistem)}</td>
+                                <td className="py-1 pr-2 text-right">{formatRupiah(r.sp2d)}</td>
+                                <td className="py-1 pr-2 text-right">{formatRupiah(r.selisih)}</td>
+                                <td className="py-1">{r.cocok ? <span className="text-green-700">Cocok</span> : <span className="text-red-600">Selisih</span>}</td>
+                                <td className="py-1">
+                                  {!r.cocok && r.no_spm && r.no_spm.length > 0 && (
+                                    <button className="text-primary underline"
+                                      onClick={() => setKoreksiPerTaruna({
+                                        judul: `Koreksi — ${r.nama || r.nit} (Luar Kampus · ${r.kegiatan})`,
+                                        noSpm: r.no_spm!, kategoriAsal: 'LUAR_KAMPUS'
+                                      })}>
+                                      🔧 Koreksi
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                            <tr className="border-b-2 border-gray-300 font-semibold">
+                              <td className="py-1 pr-2" colSpan={3}>Subtotal ({pt.rows.length} taruna)</td>
+                              <td className="py-1 pr-2 text-right">{formatRupiah(subSistem)}</td>
+                              <td className="py-1 pr-2 text-right">{formatRupiah(subSp2d)}</td>
+                              <td className="py-1 pr-2 text-right">{formatRupiah(subSelisih)}</td>
+                              <td className="py-1" colSpan={2} />
+                            </tr>
+                          </tbody>
+                        );
+                      })}
                     </table>
                   </div>
                 )}

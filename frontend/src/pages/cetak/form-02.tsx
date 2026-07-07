@@ -7,11 +7,12 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { KopSurat } from '../../components/cetak/kop-surat';
-import { BarisCetak, SelCetak, TabelCetak } from '../../components/cetak/tabel-cetak';
+import { SelCetak } from '../../components/cetak/tabel-cetak';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { ErrorMessage } from '../../components/ui/error-message';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
+import { kelompokProdiTingkat } from '../../lib/kelompok-prodi-tingkat';
 import { useListCache } from '../../lib/use-list-cache';
 
 interface TarunaBerhak { nit: string; nama: string; prodi: string; tingkat: string; kelas: string }
@@ -56,17 +57,38 @@ export function HalamanCetakForm02() {
           </div>
 
           <Card className="overflow-x-auto print:border-0 print:p-0 print:shadow-none">
-            <TabelCetak headers={['No', 'NIT', 'Nama', 'Prodi/Tingkat', 'Status']}>
-              {data.taruna.map((t, i) => (
-                <BarisCetak key={t.nit}>
-                  <SelCetak>{i + 1}</SelCetak>
-                  <SelCetak>{t.nit}</SelCetak>
-                  <SelCetak>{t.nama}</SelCetak>
-                  <SelCetak>{t.prodi} · Tk.{t.tingkat} · {t.kelas}</SelCetak>
-                  <SelCetak>Hadir / berhak makan</SelCetak>
-                </BarisCetak>
+            <table className="w-full border-collapse text-xs">
+              <thead>
+                <tr>
+                  {['No', 'NIT', 'Nama', 'Prodi/Tingkat', 'Status'].map((h) => (
+                    <th key={h} className="border border-gray-400 bg-[#D9E2F3] px-2 py-1 text-left font-semibold">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              {kelompokProdiTingkat(data.taruna, (t) => t.prodi, (t) => t.tingkat).map((pt) => (
+                <tbody key={`${pt.prodi}|${pt.tingkat}`}>
+                  <tr className="bg-primary-light/30 print:bg-gray-100">
+                    <td colSpan={5} className="border border-gray-300 px-2 py-1 font-semibold text-primary-dark print:text-black">
+                      {pt.prodi} / {pt.tingkat}
+                    </td>
+                  </tr>
+                  {pt.rows.map((t, i) => (
+                    <tr key={t.nit}>
+                      <SelCetak>{i + 1}</SelCetak>
+                      <SelCetak>{t.nit}</SelCetak>
+                      <SelCetak>{t.nama}</SelCetak>
+                      <SelCetak>{t.prodi} · Tk.{t.tingkat} · {t.kelas}</SelCetak>
+                      <SelCetak>Hadir / berhak makan</SelCetak>
+                    </tr>
+                  ))}
+                  <tr className="font-semibold">
+                    <td colSpan={5} className="border border-gray-300 px-2 py-1">
+                      Subtotal {pt.prodi} / {pt.tingkat} ({pt.rows.length} taruna)
+                    </td>
+                  </tr>
+                </tbody>
               ))}
-            </TabelCetak>
+            </table>
             <p className="mt-2 text-sm font-semibold">Jumlah Taruna Berhak Makan: {data.jml_taruna} orang</p>
           </Card>
 

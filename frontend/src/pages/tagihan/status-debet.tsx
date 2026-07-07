@@ -10,6 +10,7 @@ import { Card } from '../../components/ui/card';
 import { EmptyState } from '../../components/ui/empty-state';
 import { ErrorMessage } from '../../components/ui/error-message';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
+import { kelompokProdiTingkat } from '../../lib/kelompok-prodi-tingkat';
 import { useListCache } from '../../lib/use-list-cache';
 import { formatRupiah } from './tipe';
 
@@ -29,6 +30,8 @@ export function HalamanStatusDebet() {
 
   const gagal = (data?.baris ?? []).filter((b) => b.status_debet === 'GAGAL');
   const berhasil = (data?.baris ?? []).filter((b) => b.status_debet === 'BERHASIL');
+  const totalNominalGagal = gagal.reduce((s, b) => s + b.nominal, 0);
+  const totalNominalBerhasil = berhasil.reduce((s, b) => s + b.nominal, 0);
 
   return (
     <div className="flex flex-col gap-4">
@@ -77,22 +80,44 @@ export function HalamanStatusDebet() {
                     <th className="py-1">Status</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {gagal.map((b) => (
-                    <tr key={b.nit} className="border-b border-gray-100">
-                      <td className="py-1 pr-2">{b.nit}</td>
-                      <td className="py-1 pr-2">{b.nama}</td>
-                      <td className="py-1 pr-2">{b.prodi} / {b.tingkat}</td>
-                      <td className="py-1 pr-2 text-right">{formatRupiah(b.nominal)}</td>
-                      <td className="py-1 pr-2 text-xs">{b.sebab.replace(/_/g, ' ')}</td>
-                      <td className="py-1">
-                        <Link to={`/tagihan/${b.tagihan_id}`} className="text-xs text-primary underline">
-                          {b.status_tagihan}
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
+                {kelompokProdiTingkat(gagal, (b) => b.prodi, (b) => b.tingkat).map((pt) => {
+                  const subtotal = pt.rows.reduce((s, b) => s + b.nominal, 0);
+                  return (
+                    <tbody key={`${pt.prodi}|${pt.tingkat}`}>
+                      <tr className="bg-primary-light/30">
+                        <td colSpan={6} className="py-1 pr-2 font-semibold text-primary-dark">
+                          {pt.prodi} / {pt.tingkat}
+                        </td>
+                      </tr>
+                      {pt.rows.map((b) => (
+                        <tr key={b.nit} className="border-b border-gray-100">
+                          <td className="py-1 pr-2">{b.nit}</td>
+                          <td className="py-1 pr-2">{b.nama}</td>
+                          <td className="py-1 pr-2">{b.prodi} / {b.tingkat}</td>
+                          <td className="py-1 pr-2 text-right">{formatRupiah(b.nominal)}</td>
+                          <td className="py-1 pr-2 text-xs">{b.sebab.replace(/_/g, ' ')}</td>
+                          <td className="py-1">
+                            <Link to={`/tagihan/${b.tagihan_id}`} className="text-xs text-primary underline">
+                              {b.status_tagihan}
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="border-b-2 border-gray-300 font-semibold">
+                        <td className="py-1 pr-2" colSpan={3}>Subtotal ({pt.rows.length} taruna)</td>
+                        <td className="py-1 pr-2 text-right">{formatRupiah(subtotal)}</td>
+                        <td className="py-1" colSpan={2} />
+                      </tr>
+                    </tbody>
+                  );
+                })}
+                <tfoot>
+                  <tr className="font-bold">
+                    <td className="pt-2 pr-2" colSpan={3}>Total</td>
+                    <td className="pt-2 pr-2 text-right">{formatRupiah(totalNominalGagal)}</td>
+                    <td className="pt-2" colSpan={2} />
+                  </tr>
+                </tfoot>
               </table>
             </Card>
           )}
@@ -112,16 +137,36 @@ export function HalamanStatusDebet() {
                       <th className="py-1 text-right">Nominal</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {berhasil.map((b) => (
-                      <tr key={b.nit} className="border-b border-gray-100">
-                        <td className="py-1 pr-2">{b.nit}</td>
-                        <td className="py-1 pr-2">{b.nama}</td>
-                        <td className="py-1 pr-2">{b.prodi} / {b.tingkat}</td>
-                        <td className="py-1 text-right">{formatRupiah(b.nominal)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
+                  {kelompokProdiTingkat(berhasil, (b) => b.prodi, (b) => b.tingkat).map((pt) => {
+                    const subtotal = pt.rows.reduce((s, b) => s + b.nominal, 0);
+                    return (
+                      <tbody key={`${pt.prodi}|${pt.tingkat}`}>
+                        <tr className="bg-primary-light/30">
+                          <td colSpan={4} className="py-1 pr-2 font-semibold text-primary-dark">
+                            {pt.prodi} / {pt.tingkat}
+                          </td>
+                        </tr>
+                        {pt.rows.map((b) => (
+                          <tr key={b.nit} className="border-b border-gray-100">
+                            <td className="py-1 pr-2">{b.nit}</td>
+                            <td className="py-1 pr-2">{b.nama}</td>
+                            <td className="py-1 pr-2">{b.prodi} / {b.tingkat}</td>
+                            <td className="py-1 text-right">{formatRupiah(b.nominal)}</td>
+                          </tr>
+                        ))}
+                        <tr className="border-b-2 border-gray-300 font-semibold">
+                          <td className="py-1 pr-2" colSpan={3}>Subtotal ({pt.rows.length} taruna)</td>
+                          <td className="py-1 text-right">{formatRupiah(subtotal)}</td>
+                        </tr>
+                      </tbody>
+                    );
+                  })}
+                  <tfoot>
+                    <tr className="font-bold">
+                      <td className="pt-2 pr-2" colSpan={3}>Total</td>
+                      <td className="pt-2 text-right">{formatRupiah(totalNominalBerhasil)}</td>
+                    </tr>
+                  </tfoot>
                 </table>
               </Card>
             </details>
