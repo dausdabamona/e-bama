@@ -70,6 +70,13 @@ export function HalamanRekap() {
       || (ta?.nama || a.nit).localeCompare(tb?.nama || b.nit);
   });
 
+  function anggotaKelompok(k: Kelompok): BarisRekap[] {
+    return rincian.filter((r) => {
+      const t = tarunaByNit.get(r.nit);
+      return (t?.prodi || 'Lainnya') === k.prodi && (t?.tingkat || '?') === k.tingkat;
+    });
+  }
+
   async function verifikasi() {
     setProses(true);
     try {
@@ -176,20 +183,32 @@ export function HalamanRekap() {
                     <th className="py-1 text-right">Nominal</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {rincian.map((r) => {
-                    const t = tarunaByNit.get(r.nit);
-                    return (
-                      <tr key={r.nit} className="border-b border-gray-100">
-                        <td className="py-1 pr-2">{r.nit}</td>
-                        <td className="py-1 pr-2">{t?.nama || '-'}</td>
-                        <td className="py-1 pr-2">{(t?.prodi || 'Lainnya')} / {(t?.tingkat || '?')}</td>
-                        <td className="py-1 pr-2 text-right">{r.hari_makan}</td>
-                        <td className="py-1 text-right">{formatRupiah(r.nominal)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
+                {kelompok.map((k) => (
+                  <tbody key={`${k.prodi}|${k.tingkat}`}>
+                    <tr className="bg-primary-light/30">
+                      <td colSpan={5} className="py-1 pr-2 font-semibold text-primary-dark">
+                        {k.prodi} / {k.tingkat}
+                      </td>
+                    </tr>
+                    {anggotaKelompok(k).map((r) => {
+                      const t = tarunaByNit.get(r.nit);
+                      return (
+                        <tr key={r.nit} className="border-b border-gray-100">
+                          <td className="py-1 pr-2">{r.nit}</td>
+                          <td className="py-1 pr-2">{t?.nama || '-'}</td>
+                          <td className="py-1 pr-2">{(t?.prodi || 'Lainnya')} / {(t?.tingkat || '?')}</td>
+                          <td className="py-1 pr-2 text-right">{r.hari_makan}</td>
+                          <td className="py-1 text-right">{formatRupiah(r.nominal)}</td>
+                        </tr>
+                      );
+                    })}
+                    <tr className="border-b-2 border-gray-300 font-semibold">
+                      <td className="py-1 pr-2" colSpan={3}>Subtotal ({k.jml_taruna} taruna)</td>
+                      <td className="py-1 pr-2 text-right">{k.hari_makan.toLocaleString('id-ID')}</td>
+                      <td className="py-1 text-right">{formatRupiah(k.nominal)}</td>
+                    </tr>
+                  </tbody>
+                ))}
                 <tfoot>
                   <tr className="font-bold">
                     <td className="pt-2 pr-2" colSpan={3}>Total</td>

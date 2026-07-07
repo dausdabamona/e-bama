@@ -23,7 +23,7 @@ interface Taruna { nit: string; nama: string; prodi: string; tingkat: string }
 
 interface Kelompok {
   prodi: string; tingkat: string;
-  jml_taruna: number; hari_makan: number;
+  jml_taruna: number; hari_makan: number; hari_tidak_makan: number;
 }
 
 export function HalamanRekapRingkas() {
@@ -51,9 +51,10 @@ export function HalamanRekapRingkas() {
       const tingkat = t?.tingkat || '?';
       const kunci = `${prodi}|${tingkat}`;
       let k = peta.get(kunci);
-      if (!k) { k = { prodi, tingkat, jml_taruna: 0, hari_makan: 0 }; peta.set(kunci, k); }
+      if (!k) { k = { prodi, tingkat, jml_taruna: 0, hari_makan: 0, hari_tidak_makan: 0 }; peta.set(kunci, k); }
       k.jml_taruna += 1;
       k.hari_makan += r.hari_makan || 0;
+      k.hari_tidak_makan += r.hari_tidak_makan || 0;
     });
     return [...peta.values()].sort((a, b) =>
       a.prodi.localeCompare(b.prodi) || a.tingkat.localeCompare(b.tingkat));
@@ -66,6 +67,13 @@ export function HalamanRekapRingkas() {
       || (ta?.tingkat || '?').localeCompare(tb?.tingkat || '?')
       || (ta?.nama || a.nit).localeCompare(tb?.nama || b.nit);
   });
+
+  function anggotaKelompok(k: Kelompok): BarisRekap[] {
+    return rincian.filter((r) => {
+      const t = tarunaByNit.get(r.nit);
+      return (t?.prodi || 'Lainnya') === k.prodi && (t?.tingkat || '?') === k.tingkat;
+    });
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -135,20 +143,32 @@ export function HalamanRekapRingkas() {
                       <th className="py-1 text-right">Tidak Makan</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {rincian.map((r) => {
-                      const t = tarunaByNit.get(r.nit);
-                      return (
-                        <tr key={r.nit} className="border-b border-gray-100">
-                          <td className="py-1 pr-2">{r.nit}</td>
-                          <td className="py-1 pr-2">{t?.nama || '-'}</td>
-                          <td className="py-1 pr-2">{(t?.prodi || 'Lainnya')} / {(t?.tingkat || '?')}</td>
-                          <td className="py-1 pr-2 text-right">{r.hari_makan}</td>
-                          <td className="py-1 text-right">{r.hari_tidak_makan}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
+                  {kelompok.map((k) => (
+                    <tbody key={`${k.prodi}|${k.tingkat}`}>
+                      <tr className="bg-primary-light/30">
+                        <td colSpan={5} className="py-1 pr-2 font-semibold text-primary-dark">
+                          {k.prodi} / {k.tingkat}
+                        </td>
+                      </tr>
+                      {anggotaKelompok(k).map((r) => {
+                        const t = tarunaByNit.get(r.nit);
+                        return (
+                          <tr key={r.nit} className="border-b border-gray-100">
+                            <td className="py-1 pr-2">{r.nit}</td>
+                            <td className="py-1 pr-2">{t?.nama || '-'}</td>
+                            <td className="py-1 pr-2">{(t?.prodi || 'Lainnya')} / {(t?.tingkat || '?')}</td>
+                            <td className="py-1 pr-2 text-right">{r.hari_makan}</td>
+                            <td className="py-1 text-right">{r.hari_tidak_makan}</td>
+                          </tr>
+                        );
+                      })}
+                      <tr className="border-b-2 border-gray-300 font-semibold">
+                        <td className="py-1 pr-2" colSpan={3}>Subtotal ({k.jml_taruna} taruna)</td>
+                        <td className="py-1 pr-2 text-right">{k.hari_makan.toLocaleString('id-ID')}</td>
+                        <td className="py-1 text-right">{k.hari_tidak_makan.toLocaleString('id-ID')}</td>
+                      </tr>
+                    </tbody>
+                  ))}
                   <tfoot>
                     <tr className="font-bold">
                       <td className="pt-2 pr-2" colSpan={3}>Total</td>
