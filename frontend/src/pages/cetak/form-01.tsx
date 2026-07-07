@@ -4,7 +4,7 @@
 // Sarapan/Siang/Malam, hanya total porsi harian (lihat catatan di halaman).
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { BlokTtd3Berjenjang } from '../../components/cetak/blok-ttd';
+import { BlokTtd2Kolom, BlokTtdTengah } from '../../components/cetak/blok-ttd';
 import { KopSurat } from '../../components/cetak/kop-surat';
 import { BarisCetak, SelCetak, TabelCetak } from '../../components/cetak/tabel-cetak';
 import { Button } from '../../components/ui/button';
@@ -129,10 +129,12 @@ export function HalamanCetakForm01() {
             sesuai Form-01, BUKAN indikasi bahwa sistem meminta persetujuan PPK per hari.
           </p>
 
-          <BlokTtd3Berjenjang
-            pihak1={{ label: 'Diajukan oleh,', jabatan: 'Senat', nama: data.dibuat_oleh_nama }}
-            pihak2={{ label: 'Diverifikasi oleh,', jabatan: 'Pembina', nama: data.diverifikasi_oleh_nama, tanggal: data.verif_at }}
-            pihak3={{ label: 'Mengetahui (administratif/arsip),', jabatan: 'Pejabat Pembuat Komitmen (PPK)' }}
+          <BlokTtd2Kolom
+            kiri={{ label: 'Diajukan oleh,', jabatan: 'Senat', nama: data.dibuat_oleh_nama }}
+            kanan={{ label: 'Diverifikasi oleh,', jabatan: 'Pembina', nama: data.diverifikasi_oleh_nama, tanggal: data.verif_at }}
+          />
+          <BlokTtdTengah
+            pihak={{ label: 'Mengetahui (administratif/arsip),', jabatan: 'Pejabat Pembuat Komitmen (PPK)' }}
           />
         </div>
       )}
