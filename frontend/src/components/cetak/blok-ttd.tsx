@@ -44,15 +44,21 @@ export function BlokTtdTengah({ pihak }: { pihak: TtdPihak }) {
   );
 }
 
-/** Berjenjang: tiap pihak menjorok makin ke kanan, mencerminkan urutan alur (mis. Senat → Pembina → PPK). */
+/**
+ * Berjenjang: tiap pihak menjorok makin ke kanan, mencerminkan urutan alur
+ * (mis. Senat → Pembina → PPK). `text-center` disamakan dengan BlokTtd2Kolom
+ * (nama/garis TTD rapi di tengah kolom, bukan rata kiri); indentasi dijaga
+ * kecil (ml-8/ml-16, bukan ml-16/ml-32) supaya kolom terakhir tidak mepet ke
+ * tepi layar sempit (mobile-first, tanpa overflow horizontal).
+ */
 export function BlokTtd3Berjenjang({ pihak1, pihak2, pihak3 }: {
   pihak1: TtdPihak; pihak2: TtdPihak; pihak3: TtdPihak;
 }) {
   return (
-    <div className="mt-8 flex flex-col gap-6 text-xs">
+    <div className="mt-8 flex flex-col gap-6 text-center text-xs">
       <div className="w-48"><TtdKolom pihak={pihak1} /></div>
-      <div className="ml-16 w-48"><TtdKolom pihak={pihak2} /></div>
-      <div className="ml-32 w-48"><TtdKolom pihak={pihak3} /></div>
+      <div className="ml-8 w-48"><TtdKolom pihak={pihak2} /></div>
+      <div className="ml-16 w-48"><TtdKolom pihak={pihak3} /></div>
     </div>
   );
 }
