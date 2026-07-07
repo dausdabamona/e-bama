@@ -88,12 +88,12 @@ export function HalamanTagihanList() {
             {['1', '2', '3'].map((lv) => (
               <div key={lv} className="rounded-xl bg-red-50 p-2">
                 <p className="text-xs text-red-700">SP-{lv}</p>
-                <p className="font-bold">{ringkasanQ.data!.per_level[lv]?.jumlah ?? 0}</p>
+                <p className="font-bold">{ringkasanQ.data!.per_level?.[lv]?.jumlah ?? 0}</p>
               </div>
             ))}
             <div className="rounded-xl bg-gray-100 p-2">
               <p className="text-xs text-gray-500">Belum SP</p>
-              <p className="font-bold">{ringkasanQ.data!.per_level['0']?.jumlah ?? 0}</p>
+              <p className="font-bold">{ringkasanQ.data!.per_level?.['0']?.jumlah ?? 0}</p>
             </div>
           </div>
           <p className="mt-2 text-sm">Total Outstanding: <span className="font-bold">{formatRupiah(ringkasanQ.data!.total_outstanding)}</span></p>

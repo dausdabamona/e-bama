@@ -126,22 +126,49 @@ export function HalamanTagihanDetail() {
     }
   }
 
+  // Header lokal (nama taruna + status) dibekukan tepat di bawah header app
+  // (offset diukur dari tinggi <header> yang aktif — beda shell PPK desktop
+  // vs shell umum, lihat komponen Layout/TopbarPpkDesktop) supaya tetap
+  // terlihat saat men-scroll kartu-kartu panjang di bawahnya.
+  const offsetHeader = session?.role === 'PPK' ? 'top-[68px] lg:top-[62px]' : 'top-[68px] lg:top-[77px]';
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <button className="text-sm text-primary" onClick={() => nav('/tagihan')}>← Kembali</button>
-        {berikutnya && (
-          <button className="text-sm font-semibold text-primary" onClick={() => nav(`/tagihan/${berikutnya.tagihan_id}`)}>
-            Transaksi Berikutnya →
-          </button>
-        )}
-      </div>
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-primary-dark">{namaTaruna ?? t.nit}</h1>
-          <p className="text-xs text-gray-400">{t.nit} · {t.bulan}</p>
+      {/* Tombol Kembali/Berikutnya mengambang di kiri-kanan layar (mobile) —
+          ikut posisi layar saat scroll, tidak perlu scroll ke atas dulu. */}
+      <button
+        className="fixed left-3 top-1/2 z-30 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white text-xl text-primary shadow-lg ring-1 ring-gray-200 lg:hidden"
+        onClick={() => nav('/tagihan')}
+        aria-label="Kembali ke daftar tagihan"
+      >
+        ←
+      </button>
+      {berikutnya && (
+        <button
+          className="fixed right-3 top-1/2 z-30 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-primary text-xl text-white shadow-lg lg:hidden"
+          onClick={() => nav(`/tagihan/${berikutnya.tagihan_id}`)}
+          aria-label="Transaksi berikutnya"
+        >
+          →
+        </button>
+      )}
+
+      <div className={`sticky z-30 -mx-4 flex items-center justify-between gap-3 bg-ivory px-4 py-3 lg:-mx-8 lg:px-8 ${offsetHeader}`}>
+        <div className="flex items-center gap-3">
+          <button className="hidden shrink-0 text-sm text-primary lg:inline" onClick={() => nav('/tagihan')}>← Kembali</button>
+          <div>
+            <h1 className="text-xl font-bold text-primary-dark">{namaTaruna ?? t.nit}</h1>
+            <p className="text-xs text-gray-400">{t.nit} · {t.bulan}</p>
+          </div>
         </div>
-        <Badge status={t.status} />
+        <div className="flex items-center gap-3">
+          {berikutnya && (
+            <button className="hidden shrink-0 text-sm font-semibold text-primary lg:inline" onClick={() => nav(`/tagihan/${berikutnya.tagihan_id}`)}>
+              Transaksi Berikutnya →
+            </button>
+          )}
+          <Badge status={t.status} />
+        </div>
       </div>
 
       <Card className="flex flex-col gap-2">

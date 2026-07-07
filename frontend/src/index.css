@@ -2,10 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Tema terang teal-ivory; mobile-first 320px; tanpa overflow horizontal */
+/* Tema terang teal-ivory; mobile-first 320px; tanpa overflow horizontal.
+   overflow-x HANYA di html (bukan juga di body) — memberi overflow-x pada
+   KEDUANYA membuat browser diam-diam menganggap overflow-y keduanya "auto"
+   (aturan CSS: overflow-x≠visible & overflow-y tak diset → overflow-y jadi
+   auto), menjadikan <body> "penampung scroll" versi CSS padahal scroll
+   sesungguhnya tetap terjadi di <html> — akibatnya SEMUA `position: sticky`
+   di seluruh app (header, sidebar, topbar PPK) berhenti menempel saat
+   di-scroll karena containing block-nya salah. */
+html {
+  overflow-x: hidden;
+}
 html, body {
   background-color: #FFFDF7;
-  overflow-x: hidden;
   -webkit-tap-highlight-color: transparent;
 }
 
