@@ -273,7 +273,7 @@ function rekapInputHistoris(payload, session) {
  * SATU tanggal, dikelompokkan Prodi+Tingkat supaya langsung terbaca per kelas
  * — pelengkap tampilan modul Taruna + dasar cetak "Rekapitulasi Harian Taruna".
  *
- * "Tidak makan" = STATUS_HARIAN ∈ {PESIAR, CUTI, SAKIT_RUMAH, PENUNDAAN_STUDI}.
+ * "Tidak makan" = STATUS_HARIAN ∈ {PESIAR, CUTI, SAKIT_RUMAH, PENUNDAAN_STUDI, TANPA_KETERANGAN}.
  * "Luar kampus" = STATUS_HARIAN ∈ STATUS_LUAR_KAMPUS (00_config.gs, berhak
  * BANTUAN_LUAR_KAMPUS, bukan makan di kampus). "Makan" = aktif − keduanya —
  * subset yang sama seperti _hitungJmlTaruna_ (12_pesanan.gs)/cetakForm02.

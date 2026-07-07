@@ -20,12 +20,13 @@ interface StatusHarian { status_id: string; tanggal: string; nit: string; status
 // Urutan tampil: alasan non-kegiatan dulu, lalu kegiatan luar kampus (PKL/KPA/
 // Magang/PTB), KEGIATAN_LUAR_KAMPUS sebagai catch-all "lainnya" di akhir.
 const ENUM_STATUS = [
-  'PESIAR', 'CUTI', 'SAKIT_RUMAH', 'PENUNDAAN_STUDI',
+  'PESIAR', 'CUTI', 'SAKIT_RUMAH', 'PENUNDAAN_STUDI', 'TANPA_KETERANGAN',
   'PKL_1', 'PKL_2', 'PKL_3', 'KPA', 'MAGANG', 'PTB', 'KEGIATAN_LUAR_KAMPUS'
 ];
 
 const LABEL_STATUS: Record<string, string> = {
   PESIAR: 'Pesiar', CUTI: 'Cuti', SAKIT_RUMAH: 'Sakit (Rumah)', PENUNDAAN_STUDI: 'Penundaan Studi',
+  TANPA_KETERANGAN: 'Tanpa Keterangan (Alpa)',
   PKL_1: 'PKL I', PKL_2: 'PKL II', PKL_3: 'PKL III', KPA: 'KPA', MAGANG: 'Magang', PTB: 'PTB',
   KEGIATAN_LUAR_KAMPUS: 'Kegiatan Luar Kampus (lainnya)'
 };

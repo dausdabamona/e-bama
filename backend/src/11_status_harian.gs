@@ -1,9 +1,14 @@
 /**
  * 11_status_harian.gs — Status harian taruna yang TIDAK berhak makan di kampus
  * (SOP: Peringatan no. 2). Enum: PESIAR / CUTI / SAKIT_RUMAH / PENUNDAAN_STUDI /
- * KEGIATAN_LUAR_KAMPUS / PKL_1 / PKL_2 / PKL_3 / KPA / MAGANG / PTB. Yang
- * tergolong kegiatan luar kampus (dapat bantuan makan luar kampus) ada di
- * STATUS_LUAR_KAMPUS (00_config.gs) — dipakai Form-08.
+ * TANPA_KETERANGAN / KEGIATAN_LUAR_KAMPUS / PKL_1 / PKL_2 / PKL_3 / KPA /
+ * MAGANG / PTB. Yang tergolong kegiatan luar kampus (dapat bantuan makan luar
+ * kampus) ada di STATUS_LUAR_KAMPUS (00_config.gs) — dipakai Form-08.
+ * TANPA_KETERANGAN (absen tanpa alasan resmi) TIDAK termasuk STATUS_LUAR_KAMPUS
+ * — tidak berhak bantuan apa pun, sama seperti Pesiar/Cuti/Sakit/Penundaan
+ * Studi. Tanpa mekanisme peringatan/eskalasi otomatis (dikonfirmasi Firdaus,
+ * berbeda dari SURAT_PERINGATAN §7 yang murni soal tagihan) — begitu taruna
+ * masuk kembali, cukup berhenti input status ini, tanpa aksi tambahan.
  *
  * ACTION: status.set (Admin, Pembina), status.batch (Admin, Pembina),
  *         status.list (semua login)

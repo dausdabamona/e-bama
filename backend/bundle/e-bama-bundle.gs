@@ -71,8 +71,8 @@ var ENUM = {
   KONTRAK_STATUS:    ['DRAFT', 'DISETUJUI_PPK'],
   BLK_STATUS:        ['DRAFT', 'DISETUJUI_KAJUR'],          // BANTUAN_LUAR_KAMPUS.status (persetujuan Ketua Jurusan)
   HARI:              ['SENIN', 'SELASA', 'RABU', 'KAMIS', 'JUMAT', 'SABTU', 'MINGGU'], // MENU_KONTRAK.hari
-  STATUS_HARIAN:     ['PESIAR', 'CUTI', 'SAKIT_RUMAH', 'PENUNDAAN_STUDI', 'KEGIATAN_LUAR_KAMPUS',
-                      'PKL_1', 'PKL_2', 'PKL_3', 'KPA', 'MAGANG', 'PTB'],
+  STATUS_HARIAN:     ['PESIAR', 'CUTI', 'SAKIT_RUMAH', 'PENUNDAAN_STUDI', 'TANPA_KETERANGAN',
+                      'KEGIATAN_LUAR_KAMPUS', 'PKL_1', 'PKL_2', 'PKL_3', 'KPA', 'MAGANG', 'PTB'],
   PESANAN_STATUS:    ['DRAFT', 'DIAJUKAN', 'DIKEMBALIKAN', 'DISETUJUI', 'TERKIRIM'],
   // Disederhanakan (dikonfirmasi Firdaus): No. SP2D terisi = dana SUDAH cair ke
   // rekening taruna → langsung SELESAI, tanpa konfirmasi Senat/tutup manual
@@ -1595,9 +1595,14 @@ function tarunaUpsert(payload, session) {
 /**
  * 11_status_harian.gs — Status harian taruna yang TIDAK berhak makan di kampus
  * (SOP: Peringatan no. 2). Enum: PESIAR / CUTI / SAKIT_RUMAH / PENUNDAAN_STUDI /
- * KEGIATAN_LUAR_KAMPUS / PKL_1 / PKL_2 / PKL_3 / KPA / MAGANG / PTB. Yang
- * tergolong kegiatan luar kampus (dapat bantuan makan luar kampus) ada di
- * STATUS_LUAR_KAMPUS (00_config.gs) — dipakai Form-08.
+ * TANPA_KETERANGAN / KEGIATAN_LUAR_KAMPUS / PKL_1 / PKL_2 / PKL_3 / KPA /
+ * MAGANG / PTB. Yang tergolong kegiatan luar kampus (dapat bantuan makan luar
+ * kampus) ada di STATUS_LUAR_KAMPUS (00_config.gs) — dipakai Form-08.
+ * TANPA_KETERANGAN (absen tanpa alasan resmi) TIDAK termasuk STATUS_LUAR_KAMPUS
+ * — tidak berhak bantuan apa pun, sama seperti Pesiar/Cuti/Sakit/Penundaan
+ * Studi. Tanpa mekanisme peringatan/eskalasi otomatis (dikonfirmasi Firdaus,
+ * berbeda dari SURAT_PERINGATAN §7 yang murni soal tagihan) — begitu taruna
+ * masuk kembali, cukup berhenti input status ini, tanpa aksi tambahan.
  *
  * ACTION: status.set (Admin, Pembina), status.batch (Admin, Pembina),
  *         status.list (semua login)
@@ -2810,7 +2815,7 @@ function rekapInputHistoris(payload, session) {
  * SATU tanggal, dikelompokkan Prodi+Tingkat supaya langsung terbaca per kelas
  * — pelengkap tampilan modul Taruna + dasar cetak "Rekapitulasi Harian Taruna".
  *
- * "Tidak makan" = STATUS_HARIAN ∈ {PESIAR, CUTI, SAKIT_RUMAH, PENUNDAAN_STUDI}.
+ * "Tidak makan" = STATUS_HARIAN ∈ {PESIAR, CUTI, SAKIT_RUMAH, PENUNDAAN_STUDI, TANPA_KETERANGAN}.
  * "Luar kampus" = STATUS_HARIAN ∈ STATUS_LUAR_KAMPUS (00_config.gs, berhak
  * BANTUAN_LUAR_KAMPUS, bukan makan di kampus). "Makan" = aktif − keduanya —
  * subset yang sama seperti _hitungJmlTaruna_ (12_pesanan.gs)/cetakForm02.
