@@ -2268,11 +2268,16 @@ function realisasiKebijakanPenerimaan(payload, session) {
 
 var _WAKTU_MAKAN_ = ['pagi', 'siang', 'malam'];
 
+var _KETERANGAN_PENERIMAAN_MAKS_ = 60;
+
 /**
  * Validasi & normalisasi struktur `penerimaan` → {pagi,siang,malam:
- * [{komponen,ada,jumlah}]}. `komponen` WAJIB ada di getKebijakanKomponenMenu()
- * (00_config.gs); `jumlah` bilangan bulat ≥ 0; kunci waktu di luar
- * pagi/siang/malam ditolak (cegah typo diam-diam kehilangan data).
+ * [{komponen,ada,jumlah,keterangan}]}. `komponen` WAJIB ada di
+ * getKebijakanKomponenMenu() (00_config.gs); `jumlah` bilangan bulat ≥ 0;
+ * kunci waktu di luar pagi/siang/malam ditolak (cegah typo diam-diam
+ * kehilangan data). `keterangan` OPSIONAL, bebas isi (mis. jenis lauk nyata:
+ * "Ikan"/"Ayam"/"Tempe"/"Kerupuk") — dipotong 60 karakter, TIDAK dikunci enum
+ * karena variasinya banyak & sengaja fleksibel per hari (dikonfirmasi Firdaus).
  */
 function _validasiPenerimaan_(input) {
   if (!input || typeof input !== 'object') throw _fail_('penerimaan wajib berupa objek {pagi, siang, malam}.');
@@ -2288,7 +2293,8 @@ function _validasiPenerimaan_(input) {
       var komponen = String((b && b.komponen) || '');
       if (komponenValid.indexOf(komponen) < 0) throw _fail_('Komponen tidak dikenal (' + waktu + '): ' + komponen);
       var jumlah = _int_((b && b.jumlah) || 0, 'jumlah (' + waktu + ' ' + komponen + ')');
-      return { komponen: komponen, ada: Boolean(b && b.ada), jumlah: jumlah };
+      var keterangan = String((b && b.keterangan) || '').trim().slice(0, _KETERANGAN_PENERIMAAN_MAKS_);
+      return { komponen: komponen, ada: Boolean(b && b.ada), jumlah: jumlah, keterangan: keterangan };
     });
   });
   return hasil;

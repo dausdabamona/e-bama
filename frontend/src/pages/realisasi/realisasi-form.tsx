@@ -26,8 +26,12 @@ const LABEL_KUALITAS: Record<'BAIK' | 'CUKUP' | 'KURANG', string> = {
 const WAKTU_MAKAN: WaktuMakan[] = ['pagi', 'siang', 'malam'];
 const LABEL_WAKTU: Record<WaktuMakan, string> = { pagi: 'Pagi', siang: 'Siang', malam: 'Malam' };
 
-interface BarisPenerimaan { ada: boolean; jumlah: string }
+interface BarisPenerimaan { ada: boolean; jumlah: string; keterangan: string }
 type StatePenerimaan = Record<WaktuMakan, Record<string, BarisPenerimaan>>;
+
+// Saran jenis Lauk nyata (dikonfirmasi Firdaus) — TIDAK dikunci, sekadar
+// datalist supaya Senat cepat pilih sambil tetap bisa isi manual.
+const SARAN_LAUK = ['Ikan', 'Ayam', 'Tempe', 'Tahu', 'Telur', 'Daging', 'Kerupuk'];
 
 function barisKosong(): StatePenerimaan {
   return { pagi: {}, siang: {}, malam: {} };
@@ -86,7 +90,7 @@ export function HalamanRealisasiBuat() {
   }
 
   function barisUntuk(waktu: WaktuMakan, komponen: string): BarisPenerimaan {
-    return penerimaan[waktu][komponen] ?? { ada: false, jumlah: '' };
+    return penerimaan[waktu][komponen] ?? { ada: false, jumlah: '', keterangan: '' };
   }
 
   function setBarisPenerimaan(waktu: WaktuMakan, komponen: string, patch: Partial<BarisPenerimaan>) {
@@ -105,7 +109,7 @@ export function HalamanRealisasiBuat() {
     WAKTU_MAKAN.forEach((w) => {
       hasil[w] = komponenMenu.map((k) => {
         const b = barisUntuk(w, k);
-        return { komponen: k, ada: b.ada, jumlah: b.ada ? Number(b.jumlah) || 0 : 0 };
+        return { komponen: k, ada: b.ada, jumlah: b.ada ? Number(b.jumlah) || 0 : 0, keterangan: b.ada ? b.keterangan.trim() : '' };
       });
     });
     return hasil;
@@ -253,25 +257,41 @@ export function HalamanRealisasiBuat() {
             </p>
           )}
 
+          <datalist id="saran-lauk">
+            {SARAN_LAUK.map((s) => <option key={s} value={s} />)}
+          </datalist>
           <div className="flex flex-col gap-2">
             {komponenMenu.map((k) => {
               const b = barisUntuk(tabWaktu, k);
               return (
-                <div key={k} className="flex items-center gap-2">
-                  <label className="flex min-h-tap flex-1 items-center gap-2 text-sm">
-                    <input type="checkbox" checked={b.ada}
-                      onChange={(e) => setBarisPenerimaan(tabWaktu, k, { ada: e.target.checked })}
-                      className="h-5 w-5" />
-                    {k}
-                  </label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    disabled={!b.ada}
-                    value={b.ada ? b.jumlah : '0'}
-                    onChange={(e) => setBarisPenerimaan(tabWaktu, k, { jumlah: e.target.value })}
-                    className="min-h-tap w-24 rounded-xl border border-gray-300 px-3 py-2 text-center text-lg font-semibold disabled:bg-gray-100 disabled:text-gray-400"
-                  />
+                <div key={k} className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <label className="flex min-h-tap flex-1 items-center gap-2 text-sm">
+                      <input type="checkbox" checked={b.ada}
+                        onChange={(e) => setBarisPenerimaan(tabWaktu, k, { ada: e.target.checked })}
+                        className="h-5 w-5" />
+                      {k}
+                    </label>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      disabled={!b.ada}
+                      value={b.ada ? b.jumlah : '0'}
+                      onChange={(e) => setBarisPenerimaan(tabWaktu, k, { jumlah: e.target.value })}
+                      className="min-h-tap w-24 rounded-xl border border-gray-300 px-3 py-2 text-center text-lg font-semibold disabled:bg-gray-100 disabled:text-gray-400"
+                    />
+                  </div>
+                  {k === 'Lauk' && b.ada && (
+                    <input
+                      type="text"
+                      list="saran-lauk"
+                      placeholder="Jenis lauk (pilih atau ketik: Ikan, Ayam, Tempe, dst.)"
+                      maxLength={60}
+                      value={b.keterangan}
+                      onChange={(e) => setBarisPenerimaan(tabWaktu, k, { keterangan: e.target.value })}
+                      className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                    />
+                  )}
                 </div>
               );
             })}

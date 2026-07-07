@@ -236,6 +236,11 @@ BEDA momen & aktor dari checklist piket (`piket_*`, di titik MAKAN, kategori
 GIZI bukan item menu). Keduanya melengkapi `porsi_diterima`/`jml_taruna_makan`/
 ttd yang sudah ada, TIDAK menggantikan. Kompak sebagai satu kolom JSON (1
 REALISASI = 1 antaran = 3 waktu) — bukan sheet anak, supaya tidak menambah baris.
+Tiap baris `{komponen, ada, jumlah}` boleh menambahkan `keterangan` OPSIONAL
+(bebas isi, maks 60 karakter, TIDAK dikunci enum) — dipakai terutama untuk
+komponen `Lauk` mencatat jenis nyatanya hari itu (Ikan/Ayam/Tempe/Kerupuk dst,
+bisa pilih dari saran umum atau isi manual), karena jenis lauk bervariasi
+setiap hari dan tidak layak dikunci enum tetap.
 
 ### 9. PEMBAYARAN
 

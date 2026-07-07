@@ -32,6 +32,7 @@ export interface PenerimaanBaris {
   komponen: string;
   ada: boolean;
   jumlah: number;
+  keterangan: string;
 }
 
 export type Penerimaan = Record<WaktuMakan, PenerimaanBaris[]>;
