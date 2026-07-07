@@ -472,6 +472,7 @@ var ACTION_MAP = {
   'status.set':       { handler: statusSet,      roles: ['ADMIN', 'PEMBINA', 'BAAK'] },
   'status.batch':     { handler: statusBatch,    roles: ['ADMIN', 'PEMBINA', 'BAAK'] },
   'status.list':      { handler: statusList,     roles: [] },
+  'status.tandai_kembali': { handler: statusTandaiKembali, roles: ['ADMIN', 'PEMBINA', 'BAAK'] },
 
   // Ketua Jurusan (luar kampus) — role KETUA_JURUSAN, scope prodi (25_ketua_jurusan.gs)
   'kajur.taruna_list':  { handler: kajurTarunaList,  roles: ['KETUA_JURUSAN'] },
@@ -1681,6 +1682,36 @@ function statusList(payload, session) {
   });
   rows.forEach(function (r) { r.tanggal = _tglStr_(r.tanggal); });
   return { status: rows };
+}
+
+/**
+ * Batalkan sisa hari status taruna sejak tanggal tertentu (default hari ini)
+ * — dipakai saat taruna KEMBALI LEBIH CEPAT dari `tgl_akhir` yang sudah
+ * diinput. `status.set`/`status.batch` menulis satu baris STATUS_HARIAN per
+ * hari di muka; tanpa aksi ini, sisa hari ke depan tetap tercatat "di luar"
+ * di rekap/dashboard walau taruna sudah kembali. Hanya menghapus baris ke
+ * DEPAN (>= tanggal_kembali) — riwayat yang sudah lewat TIDAK diubah.
+ * Payload {nit, tanggal_kembali?}.
+ */
+function statusTandaiKembali(payload, session) {
+  var nit = String((payload && payload.nit) || '').trim();
+  if (!nit) throw _fail_('nit wajib diisi.');
+  var tanggalKembali = (payload && payload.tanggal_kembali)
+    ? _wajibTgl_(payload.tanggal_kembali, 'tanggal_kembali') : _todayStr_();
+  if (tanggalKembali < _todayStr_()) {
+    throw _fail_('tanggal_kembali tidak boleh sebelum hari ini (riwayat tidak diubah).');
+  }
+
+  var target = sheetRead(SHEETS.STATUS_HARIAN, function (r) {
+    return String(r.nit) === nit && _tglStr_(r.tanggal) >= tanggalKembali;
+  });
+  if (!target.length) return { jml_dibatalkan: 0 };
+
+  var dihapus = sheetDeleteRows(SHEETS.STATUS_HARIAN, 'status_id', target.map(function (r) { return r.status_id; }));
+  auditLog(session, 'status.tandai_kembali', 'STATUS_HARIAN', nit,
+    { baris: dihapus.map(function (r) { return { tanggal: _tglStr_(r.tanggal), status: r.status }; }) },
+    { tanggal_kembali: tanggalKembali });
+  return { jml_dibatalkan: dihapus.length };
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

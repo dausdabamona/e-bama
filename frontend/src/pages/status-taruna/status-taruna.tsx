@@ -46,6 +46,14 @@ function jmlHari(dari: string, sampai: string): number {
   return Math.round((b.getTime() - a.getTime()) / 86400000) + 1;
 }
 
+function tambahHari(tgl: string, n: number): string {
+  const d = new Date(tgl + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+interface GrupMendatang { nit: string; status: string; sedangHariIni: boolean; tglAwal: string; tglAkhir: string }
+
 export function HalamanStatusTaruna() {
   const { toast } = useToast();
   const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', { status: 'AKTIF' });
@@ -53,6 +61,39 @@ export function HalamanStatusTaruna() {
     const d = new Date(); d.setDate(d.getDate() - 14); return d.toISOString().slice(0, 10);
   }, []);
   const statusQ = useListCache<{ status: StatusHarian[] }>('status.list', { dari, sampai: hariIni() });
+  const sampaiMendatang = useMemo(() => tambahHari(hariIni(), 186), []);
+  const mendatangQ = useListCache<{ status: StatusHarian[] }>('status.list', { dari: hariIni(), sampai: sampaiMendatang });
+  const [tglKembali, setTglKembali] = useState<Record<string, string>>({});
+  const [prosesKembali, setProsesKembali] = useState<string>('');
+
+  const grupMendatang = useMemo<GrupMendatang[]>(() => {
+    const per: Record<string, StatusHarian[]> = {};
+    (mendatangQ.data?.status ?? []).forEach((s) => { (per[s.nit] ??= []).push(s); });
+    return Object.entries(per).map(([nit, baris]) => {
+      const urut = baris.slice().sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+      return {
+        nit,
+        status: (urut.find((r) => r.tanggal === hariIni()) ?? urut[0]).status,
+        sedangHariIni: urut.some((r) => r.tanggal === hariIni()),
+        tglAwal: urut[0].tanggal,
+        tglAkhir: urut[urut.length - 1].tanggal
+      };
+    }).sort((a, b) => (b.sedangHariIni ? 1 : 0) - (a.sedangHariIni ? 1 : 0));
+  }, [mendatangQ.data]);
+
+  async function tandaiKembali(nit: string) {
+    setProsesKembali(nit);
+    try {
+      const r = await aksiTulis<{ jml_dibatalkan: number }>('status.tandai_kembali', { nit, tanggal_kembali: tglKembali[nit] || hariIni() });
+      toast(r.antri ? 'Disimpan lokal, akan dikirim otomatis.' : `${r.data?.jml_dibatalkan ?? 0} hari status dibatalkan.`, 'sukses');
+      mendatangQ.refresh();
+      statusQ.refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal menandai kembali.', 'galat');
+    } finally {
+      setProsesKembali('');
+    }
+  }
 
   const [mode, setMode] = useState<'individu' | 'massal'>('individu');
   const [tanggal, setTanggal] = useState(hariIni());
@@ -201,6 +242,41 @@ export function HalamanStatusTaruna() {
           {proses ? 'Menyimpan…' : 'Simpan'}
         </Button>
       </Card>
+
+      <h2 className="text-sm font-semibold text-gray-600">Sedang / Akan Berstatus ({grupMendatang.length})</h2>
+      <p className="-mt-2 text-xs text-gray-400">
+        Taruna dengan status ke depan (hari ini s.d. yang sudah diinput). Bila sudah kembali lebih cepat
+        dari tanggal yang diinput, tandai di sini agar tidak salah tercatat "di luar" di rekap.
+      </p>
+      {mendatangQ.memuat && !mendatangQ.data && <LoadingSpinner />}
+      {grupMendatang.length === 0 && !mendatangQ.memuat && <EmptyState pesan="Tidak ada taruna berstatus ke depan." />}
+      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:gap-4 xl:grid-cols-3">
+        {grupMendatang.map((g) => {
+          const t = daftarTaruna.find((x) => x.nit === g.nit);
+          return (
+            <Card key={g.nit} className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">{t?.nama ?? g.nit}</p>
+                  <p className="text-xs text-gray-400">
+                    {g.sedangHariIni ? 'Sedang di luar' : `Mulai ${g.tglAwal}`} · s.d. {g.tglAkhir}
+                  </p>
+                </div>
+                <Badge status="DIKEMBALIKAN">{labelStatus(g.status)}</Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                <input type="date" min={hariIni()} max={g.tglAkhir}
+                  value={tglKembali[g.nit] || hariIni()}
+                  onChange={(e) => setTglKembali((s) => ({ ...s, [g.nit]: e.target.value }))}
+                  className="min-h-tap flex-1 rounded-xl border border-gray-300 px-2 py-1.5 text-sm" />
+                <Button varian="garis" onClick={() => void tandaiKembali(g.nit)} disabled={prosesKembali === g.nit}>
+                  {prosesKembali === g.nit ? 'Memproses…' : 'Tandai Sudah Kembali'}
+                </Button>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
 
       <h2 className="text-sm font-semibold text-gray-600">Riwayat 14 Hari Terakhir</h2>
       {statusQ.memuat && !statusQ.data && <LoadingSpinner />}

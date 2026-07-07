@@ -68,6 +68,7 @@ Modul: `taruna.*` → `10_taruna.gs`; `penyedia.*`, `kontrak.*` & `menu.*` → `
 | `kajur.rekap` | KETUA_JURUSAN | `{bulan}` → `{bulan, prodi, baris:[{nit,nama,tingkat,kelas,kegiatan,hari_luar_kampus,nilai_per_hari,nominal,ada_blk,disetujui_kajur}], total_nominal}` — rekap luar kampus prodi, jml hari dari STATUS_HARIAN × tarif BANTUAN_LUAR_KAMPUS. **TANPA nomor rekening** |
 | `kajur.approve` | KETUA_JURUSAN | `{bulan}` → `{disetujui, prodi, bulan}` — set BANTUAN_LUAR_KAMPUS.status baris prodinya bulan itu `DRAFT→DISETUJUI_KAJUR` (withLock + audit) |
 | `status.list` | semua login | per rentang tanggal |
+| `status.tandai_kembali` | ADMIN, PEMBINA, BAAK | `{nit, tanggal_kembali?}` — batalkan sisa hari STATUS_HARIAN taruna sejak `tanggal_kembali` (default hari ini) ke depan. Dipakai saat taruna kembali LEBIH CEPAT dari `tgl_akhir` yang sudah diinput (`status.set`/`status.batch` menulis satu baris per hari di muka; tanpa aksi ini sisa hari ke depan tetap tercatat "di luar" di rekap). `tanggal_kembali` TIDAK boleh sebelum hari ini (riwayat tidak diubah). Hapus via `sheetDeleteRows`, balikan `{jml_dibatalkan}` |
 
 ### Pesanan (SOP no. 5–7) — mesin status `DRAFT → DIAJUKAN → (DIKEMBALIKAN | DISETUJUI) → TERKIRIM`
 
