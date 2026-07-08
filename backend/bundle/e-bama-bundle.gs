@@ -5234,6 +5234,18 @@ function cetakForm10(payload, session) {
       if (a.prodi !== b.prodi) return a.prodi < b.prodi ? -1 : 1;
       return (URUT_TINGKAT[a.tingkat] || 9) - (URUT_TINGKAT[b.tingkat] || 9);
     }
+    // Kelompok (prodi+tingkat) dgn taruna TERBANYAK dalam satu lembar suplier —
+    // dipakai sebagai wakil prodi/tingkat suplier itu utk urutan ANTAR-lembar
+    // (dikonfirmasi Firdaus: satu suplier praktiknya melayani satu prodi+tingkat+
+    // angkatan, jadi ini biasanya kelompok satu-satunya). kelompokArr sudah
+    // terurut prodi lalu tingkat, jadi seri (jml_taruna sama) jatuh ke yg
+    // alfabetis/tingkat lebih awal — deterministik.
+    function kelompokUtama(kelompokArr) {
+      if (!kelompokArr.length) return { prodi: '', tingkat: '' };
+      var utama = kelompokArr[0];
+      kelompokArr.forEach(function (k) { if (k.jml_taruna > utama.jml_taruna) utama = k; });
+      return utama;
+    }
     var perSuplierArr = Object.keys(perSuplier).map(function (kunciSup) {
       var s = perSuplier[kunciSup];
       var kelompokArr = Object.keys(s.kelompok).map(function (kk) { return s.kelompok[kk]; }).sort(urutKelompok);
@@ -5250,6 +5262,13 @@ function cetakForm10(payload, session) {
       // suplier belum terisi (penyedia_id kosong) selalu di paling bawah
       if (!a.penyedia_id && b.penyedia_id) return 1;
       if (a.penyedia_id && !b.penyedia_id) return -1;
+      // Urutan ANTAR lembar suplier: prodi dulu, lalu tingkat, baru nama suplier
+      // (dikonfirmasi Firdaus) — tetap SATU lembar/CSV per suplier (SOP SPM per
+      // kontrak), hanya urutan kemunculan lembarnya yang berubah.
+      var ka = kelompokUtama(a.kelompok), kb = kelompokUtama(b.kelompok);
+      if (ka.prodi !== kb.prodi) return ka.prodi < kb.prodi ? -1 : 1;
+      var ta = URUT_TINGKAT[ka.tingkat] || 9, tb = URUT_TINGKAT[kb.tingkat] || 9;
+      if (ta !== tb) return ta - tb;
       return (a.penyedia_nama || '').localeCompare(b.penyedia_nama || '');
     });
 
