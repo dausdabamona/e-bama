@@ -3843,7 +3843,13 @@ function tagihanList(payload, session) {
 /**
  * Dashboard piutang: {per_level: {0..3:{jumlah,nominal}}, total_outstanding,
  * belum_disetor, sudah_disetor_menunggu_verifikasi_1, verifikasi_1x,
- * lunas_belum_diteruskan, lunas_sudah_diteruskan, eskalasi_manual}.
+ * lunas_belum_diteruskan, lunas_sudah_diteruskan, eskalasi_manual,
+ * per_bulan: {'YYYY-MM': {ember sama persis di atas}}}.
+ *
+ * `per_bulan` = status gagal debet dipecah PER BULAN (ember yang sama:
+ * berapa lunas/belum lunas, verifikasi 1x, siap diteruskan ke penyedia,
+ * sudah diteruskan) — dipakai frontend menampilkan ringkasan mini di tiap
+ * grup bulan. Field top-level tetap agregat SEMUA bulan (tak berubah).
  *
  * `per_level` HANYA tagihan TERTAGIH (SP-1/2/3 murni, masih dalam proses SP
  * normal) — TIDAK termasuk ESKALASI_MANUAL (dipisah, lihat di bawah), supaya
@@ -3876,45 +3882,55 @@ function tagihanList(payload, session) {
  * — PPK bisa cross-check jumlah ini tanpa buka daftar detail.
  */
 function tagihanSummary(payload, session) {
-  var per = { 0: { jumlah: 0, nominal: 0 }, 1: { jumlah: 0, nominal: 0 },
-              2: { jumlah: 0, nominal: 0 }, 3: { jumlah: 0, nominal: 0 } };
-  var total = 0;
-  var belumDisetor = { jumlah: 0, nominal: 0 };
-  var sudahDisetorMenungguVerif1 = { jumlah: 0, nominal: 0 };
-  var verif1 = { jumlah: 0, nominal: 0 };
-  var lunasBelumDiteruskan = { jumlah: 0, nominal: 0 };
-  var lunasSudahDiteruskan = { jumlah: 0, nominal: 0 };
-  var eskalasiManual = { jumlah: 0, nominal: 0 };
-
-  _tagihanJoin_().forEach(function (t) {
+  // Satu set ember (bucket) kosong — dipakai untuk agregat global MAUPUN
+  // tiap bulan, supaya logika pengelompokan tidak diduplikasi.
+  function emberKosong() {
+    return {
+      per_level: { 0: { jumlah: 0, nominal: 0 }, 1: { jumlah: 0, nominal: 0 },
+                   2: { jumlah: 0, nominal: 0 }, 3: { jumlah: 0, nominal: 0 } },
+      total_outstanding: 0,
+      belum_disetor: { jumlah: 0, nominal: 0 },
+      sudah_disetor_menunggu_verifikasi_1: { jumlah: 0, nominal: 0 },
+      verifikasi_1x: { jumlah: 0, nominal: 0 },
+      lunas_belum_diteruskan: { jumlah: 0, nominal: 0 },
+      lunas_sudah_diteruskan: { jumlah: 0, nominal: 0 },
+      eskalasi_manual: { jumlah: 0, nominal: 0 }
+    };
+  }
+  // Masukkan satu tagihan ke tepat satu ember (lihat dok fungsi di atas).
+  function tambah(b, t) {
     if (t.status === 'TERTAGIH') {
       var lv = Math.min(Math.max(t.level_aktif, 0), 3);
-      per[lv].jumlah++; per[lv].nominal += t.nominal;
-      total += t.nominal;
+      b.per_level[lv].jumlah++; b.per_level[lv].nominal += t.nominal;
+      b.total_outstanding += t.nominal;
       if (t.verif_1_oleh) {
-        verif1.jumlah++; verif1.nominal += t.nominal;
+        b.verifikasi_1x.jumlah++; b.verifikasi_1x.nominal += t.nominal;
       } else if (t.tgl_setor) {
-        sudahDisetorMenungguVerif1.jumlah++; sudahDisetorMenungguVerif1.nominal += t.nominal;
+        b.sudah_disetor_menunggu_verifikasi_1.jumlah++; b.sudah_disetor_menunggu_verifikasi_1.nominal += t.nominal;
       } else {
-        belumDisetor.jumlah++; belumDisetor.nominal += t.nominal;
+        b.belum_disetor.jumlah++; b.belum_disetor.nominal += t.nominal;
       }
     } else if (t.status === 'ESKALASI_MANUAL') {
-      total += t.nominal;
-      eskalasiManual.jumlah++; eskalasiManual.nominal += t.nominal;
+      b.total_outstanding += t.nominal;
+      b.eskalasi_manual.jumlah++; b.eskalasi_manual.nominal += t.nominal;
     } else if (t.status === 'LUNAS') {
       var nilai = t.nilai_transfer || t.nominal;
-      if (t.tgl_diteruskan_penyedia) { lunasSudahDiteruskan.jumlah++; lunasSudahDiteruskan.nominal += nilai; }
-      else { lunasBelumDiteruskan.jumlah++; lunasBelumDiteruskan.nominal += nilai; }
+      if (t.tgl_diteruskan_penyedia) { b.lunas_sudah_diteruskan.jumlah++; b.lunas_sudah_diteruskan.nominal += nilai; }
+      else { b.lunas_belum_diteruskan.jumlah++; b.lunas_belum_diteruskan.nominal += nilai; }
     }
+  }
+
+  var global = emberKosong();
+  var perBulan = {}; // { '2026-07': ember, ... } — status gagal debet PER BULAN
+  _tagihanJoin_().forEach(function (t) {
+    tambah(global, t);
+    var bln = _bulanStr_(t.bulan);
+    if (!perBulan[bln]) perBulan[bln] = emberKosong();
+    tambah(perBulan[bln], t);
   });
 
-  return {
-    per_level: per, total_outstanding: total,
-    belum_disetor: belumDisetor,
-    sudah_disetor_menunggu_verifikasi_1: sudahDisetorMenungguVerif1,
-    verifikasi_1x: verif1, lunas_belum_diteruskan: lunasBelumDiteruskan, lunas_sudah_diteruskan: lunasSudahDiteruskan,
-    eskalasi_manual: eskalasiManual
-  };
+  global.per_bulan = perBulan;
+  return global;
 }
 
 /**

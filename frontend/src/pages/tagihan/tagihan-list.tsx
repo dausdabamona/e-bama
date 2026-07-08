@@ -33,6 +33,42 @@ interface Ringkasan {
   lunas_belum_diteruskan: RekapNilai;
   lunas_sudah_diteruskan: RekapNilai;
   eskalasi_manual: RekapNilai;
+  per_bulan?: Record<string, Ringkasan>;
+}
+
+// Ringkasan mini status gagal debet untuk SATU bulan (di bawah judul grup bulan).
+function RingkasanBulan({ r }: { r: Ringkasan }) {
+  const sudahLunas = {
+    jumlah: (r.lunas_belum_diteruskan?.jumlah ?? 0) + (r.lunas_sudah_diteruskan?.jumlah ?? 0),
+    nominal: (r.lunas_belum_diteruskan?.nominal ?? 0) + (r.lunas_sudah_diteruskan?.nominal ?? 0),
+  };
+  const belumLunas = {
+    jumlah:
+      (r.belum_disetor?.jumlah ?? 0) +
+      (r.sudah_disetor_menunggu_verifikasi_1?.jumlah ?? 0) +
+      (r.verifikasi_1x?.jumlah ?? 0) +
+      (r.eskalasi_manual?.jumlah ?? 0),
+    nominal: r.total_outstanding ?? 0,
+  };
+  const sel: { label: string; nilai: RekapNilai; warna: string }[] = [
+    { label: 'Sudah lunas', nilai: sudahLunas, warna: 'text-green-700' },
+    { label: 'Belum lunas', nilai: belumLunas, warna: 'text-gray-700' },
+    { label: 'Verifikasi 1x', nilai: r.verifikasi_1x ?? { jumlah: 0, nominal: 0 }, warna: 'text-gray-700' },
+    { label: 'Siap diteruskan ke Penyedia', nilai: r.lunas_belum_diteruskan ?? { jumlah: 0, nominal: 0 }, warna: 'text-amber-700' },
+    { label: 'Sudah diteruskan ke Penyedia', nilai: r.lunas_sudah_diteruskan ?? { jumlah: 0, nominal: 0 }, warna: 'text-green-700' },
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-2 rounded-xl border border-gray-200 bg-white/60 p-2 text-xs sm:grid-cols-3 lg:grid-cols-5">
+      {sel.map((s) => (
+        <div key={s.label} className="flex flex-col rounded-lg bg-gray-50 p-2">
+          <span className="text-gray-500">{s.label}</span>
+          <span className={`font-semibold ${s.warna}`}>
+            {s.nilai.jumlah} · {formatRupiah(s.nilai.nominal)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function HalamanTagihanList() {
@@ -154,6 +190,9 @@ export function HalamanTagihanList() {
             <h2 className="border-b border-gray-200 pb-1 text-sm font-bold text-primary-dark">
               {labelBulan(gb.bulan)} ({gb.jumlah})
             </h2>
+            {tampilRingkasan && ringkasanQ.data?.per_bulan?.[gb.bulan] && (
+              <RingkasanBulan r={ringkasanQ.data.per_bulan[gb.bulan]} />
+            )}
             {gb.tahap.map((g) => (
               <div key={g.tahap} className="flex flex-col gap-2">
                 <p className="text-xs font-semibold text-gray-500">{INFO_TAHAP[g.tahap].label} ({g.baris.length})</p>
