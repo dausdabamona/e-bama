@@ -22,6 +22,7 @@ import { HalamanCetakForm09 } from './pages/cetak/form-09';
 import { HalamanCetakForm10 } from './pages/cetak/form-10';
 import { HalamanFormatSerahTerima } from './pages/cetak/format-serah-terima';
 import { HalamanCetakSp1 } from './pages/cetak/sp1';
+import { HalamanCetakBlokirGagalDebet } from './pages/cetak/blokir-gagal-debet';
 import { HalamanDashboardKpa } from './pages/dashboard-kpa/dashboard-kpa';
 import { HalamanKokpitPpk } from './pages/kokpit-ppk/kokpit-ppk';
 import { HalamanKontrak } from './pages/kontrak/kontrak';
@@ -127,6 +128,7 @@ export default function App() {
               <Route path="/cetak/form-01/:tgl" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN']}><HalamanCetakForm01 /></WajibLogin>} />
               <Route path="/cetak/format-serah-terima" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN']}><HalamanFormatSerahTerima /></WajibLogin>} />
               <Route path="/cetak/sp1" element={<WajibLogin roles={['PPK', 'STAF_PPK', 'ADMIN']}><HalamanCetakSp1 /></WajibLogin>} />
+              <Route path="/cetak/blokir-gagal-debet" element={<WajibLogin roles={['ADMIN', 'PPK', 'STAF_PPK']}><HalamanCetakBlokirGagalDebet /></WajibLogin>} />
               <Route path="/cetak/surat-pesanan/:id" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN']}><HalamanCetakSuratPesanan /></WajibLogin>} />
               <Route path="/cetak/form-02" element={<WajibLogin roles={['PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN']}><HalamanCetakForm02 /></WajibLogin>} />
               <Route path="/cetak/form-02/:tgl" element={<WajibLogin roles={['PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN']}><HalamanCetakForm02 /></WajibLogin>} />

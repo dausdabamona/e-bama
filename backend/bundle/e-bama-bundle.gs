@@ -631,6 +631,7 @@ var ACTION_MAP = {
   'cetak.form05':     { handler: cetakForm05, roles: ['PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN'] },
   'cetak.form06':     { handler: cetakForm06, roles: ['PPK', 'STAF_PPK', 'KPA', 'ADMIN', 'OPERATOR_SAKTI'] },
   'cetak.form07':     { handler: cetakForm07, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
+  'cetak.blokir_gagal_debet': { handler: cetakBlokirGagalDebet, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'cetak.form08':     { handler: cetakForm08, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'cetak.form09':     { handler: cetakForm09, roles: ['SENAT', 'PPK', 'STAF_PPK', 'ADMIN', 'OPERATOR_SAKTI'] },
   'cetak.form10':     { handler: cetakForm10, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
@@ -5325,6 +5326,73 @@ function cetakForm07(payload, session) {
         tgl_kontrak: kontrak ? _tglStr_(kontrak.tgl_kontrak) : '',
         adendum: kontrak ? String(kontrak.adendum || '') : ''
       }
+    };
+  });
+}
+
+/**
+ * cetak.blokir_gagal_debet {bulan?} — Surat Permohonan Pemblokiran & Pendebetan
+ * ke bank untuk taruna yang GAGAL DEBET dan BELUM MENYETOR ke Senat (jalur
+ * TAGIHAN, terpisah dari Form-07 yang jalur SP2D/LS). Karena taruna tak
+ * kunjung menyetor tunggakan, Senat/PPK meminta bank memblokir & mendebet
+ * langsung rekening taruna ke rekening Senat. Menampilkan NOMOR REKENING PENUH
+ * → ADMIN/PPK/STAF_PPK saja (`_hanyaAdminPPK_`), WAJIB 1 baris AUDIT_LOG per
+ * panggilan (catat NIT yang terbaca, JANGAN nomornya). Dikelompokkan per bank
+ * di frontend (surat terpisah per bank, sama seperti Form-07). `bulan` opsional:
+ * kosong = semua tunggakan belum-setor; diisi = bulan itu saja.
+ *
+ * "Belum disetor" = TAGIHAN status TERTAGIH dgn `tgl_setor` kosong (identik
+ * definisi bucket `belum_disetor` di tagihanSummary, 16_tagihan.gs). Nilai
+ * debet = nominal tunggakan PENUH (bukan dikurangi biaya admin — ini penagihan
+ * utang, bukan mekanika LS Form-07).
+ */
+function cetakBlokirGagalDebet(payload, session) {
+  _hanyaAdminPPK_(session);
+  var bulanFilter = payload && payload.bulan ? _bulanStr_(payload.bulan) : '';
+
+  return withLock(function () {
+    var rows = _tagihanJoin_().filter(function (t) {
+      return t.status === 'TERTAGIH' && !t.tgl_setor && (!bulanFilter || t.bulan === bulanFilter);
+    });
+    if (!rows.length) {
+      throw _fail_('Tidak ada taruna "belum disetor ke Senat"' +
+        (bulanFilter ? (' untuk bulan ' + bulanFilter) : '') + '.');
+    }
+
+    var tarunaByNit = {};
+    sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+
+    var nitList = rows.map(function (t) { return String(t.nit); });
+    var rekeningByNit = {};
+    sheetRead(SHEETS.TARUNA_REKENING, function (r) { return nitList.indexOf(String(r.nit)) >= 0; })
+      .forEach(function (r) { rekeningByNit[String(r.nit)] = r; });
+
+    var totalNominal = 0;
+    var baris = rows.map(function (t) {
+      var nit = String(t.nit);
+      var tr = tarunaByNit[nit] || {};
+      var rek = rekeningByNit[nit];
+      totalNominal += t.nominal;
+      return {
+        nit: nit, nama: tr.nama || '', prodi: tr.prodi || '', tingkat: tr.tingkat || '',
+        bulan: t.bulan, sebab: t.sebab,
+        bank: rek ? rek.bank : '', no_rekening_lengkap: rek ? rek.no_rekening_lengkap : '',
+        nama_pemilik: rek ? rek.nama_pemilik : '',
+        nominal: t.nominal, nilai_debet: t.nominal, rekening_lengkap_ada: !!rek
+      };
+    });
+
+    // AUDIT: satu baris — siapa membaca rekening siapa & kapan (TANPA nomornya).
+    auditLog(session, 'cetak.blokir_gagal_debet', 'TARUNA_REKENING', nitList.join(','), null, { nit_list: nitList });
+
+    var rekInst = getRekeningInstansi();
+    return {
+      bulan_filter: bulanFilter,
+      baris: baris,
+      total_nominal: totalNominal,
+      pejabat: PEJABAT,
+      rekening_senat: rekInst.senat,
+      rekening_senat_nama: rekInst.senat_nama
     };
   });
 }
