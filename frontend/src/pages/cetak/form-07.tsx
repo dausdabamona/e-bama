@@ -11,7 +11,6 @@ import { BlokTtd2Kolom, BlokTtdTengah } from '../../components/cetak/blok-ttd';
 import { KopSurat } from '../../components/cetak/kop-surat';
 import { SelCetak } from '../../components/cetak/tabel-cetak';
 import { Button } from '../../components/ui/button';
-import { Card } from '../../components/ui/card';
 import { ErrorMessage } from '../../components/ui/error-message';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
 import { api } from '../../lib/api';
@@ -125,16 +124,16 @@ function useTanpaCache<T>(action: string, payload?: unknown) {
  * SPM per orang ke Rekening Senat, (3) teruskan total ke rekening penyedia.
  * Kolom Tanda Tangan taruna = pemberian kuasa mendebet.
  */
-function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia, rekSenatNama, rekPenyediaNama, lamaBlokir, noSurat, biayaAdminBank }: {
+function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia, rekSenatNama, rekPenyediaNama, lamaBlokir, noSurat, biayaAdminBank, kontrak, pembayaran, pisahHalaman }: {
   bank: string; rows: BarisForm07[]; bulan: string; pejabat: Form07Data['pejabat'];
   rekSenat?: string; rekPenyedia?: string; rekSenatNama?: string; rekPenyediaNama?: string; lamaBlokir: string; noSurat?: string;
-  biayaAdminBank: number;
+  biayaAdminBank: number; kontrak?: Form07Data['kontrak']; pembayaran: PembayaranRingkas; pisahHalaman: boolean;
 }) {
   const total = rows.reduce((s, b) => s + b.nilai_debet, 0);
   const labelBank = bank === 'TANPA_REKENING' ? 'BELUM ADA REKENING' : bank;
   const namaHari = lamaBlokir.trim() || '……';
   return (
-    <div className="break-before-page flex flex-col gap-2">
+    <div className={`${pisahHalaman ? 'break-before-page ' : ''}flex flex-col gap-2`}>
       <KopSurat />
       <div className="text-center">
         <h2 className="text-sm font-bold">PERMOHONAN PEMBLOKIRAN DAN PENDEBETAN REKENING TARUNA</h2>
@@ -151,6 +150,17 @@ function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia,
         ({rekPenyedia || '…… belum diisi Admin'}{rekPenyediaNama ? ` a.n. ${rekPenyediaNama}` : ''}). Tanda tangan
         taruna pada kolom terakhir merupakan pemberian kuasa kepada bank untuk mendebet sesuai nilai tersebut.
       </p>
+      <div className="flex flex-col gap-1 text-xs">
+        {kontrak?.no_kontrak && (
+          <div className="flex justify-between"><span>No. Kontrak</span><span>{kontrak.no_kontrak}{kontrak.tgl_kontrak ? ` · ${kontrak.tgl_kontrak}` : ''}</span></div>
+        )}
+        {kontrak?.adendum && (
+          <div className="flex justify-between"><span>Adendum</span><span>{kontrak.adendum}</span></div>
+        )}
+        <div className="flex justify-between"><span>No. SPM</span><span>{pembayaran.no_spm || '-'}</span></div>
+        <div className="flex justify-between"><span>No. SP2D</span><span>{pembayaran.no_sp2d || '-'}</span></div>
+        <div className="flex justify-between"><span>Tanggal SP2D</span><span>{pembayaran.tgl_sp2d || '-'}</span></div>
+      </div>
       <p className="text-xs italic">
         Nilai debet per taruna pada daftar di bawah adalah nilai SPM dikurangi biaya admin bank
         sebesar {formatRupiah(biayaAdminBank)} per rekening.
@@ -218,8 +228,6 @@ export function HalamanCetakForm07() {
   // Dua bank = dua surat terpisah = dua nomor surat.
   const [noSuratBNI, setNoSuratBNI] = useState('');
   const [noSuratBSI, setNoSuratBSI] = useState('');
-  // Surat blokir & pendebetan per bank (BSI/BNI dipisah) — tiap bank surat sendiri.
-  const [lampiranBank, setLampiranBank] = useState(true);
   // Lama blokir (hari) diisi manual — tidak dikirim ke server.
   const [lamaBlokir, setLamaBlokir] = useState('7');
 
@@ -244,10 +252,6 @@ export function HalamanCetakForm07() {
       )}
       <div className="flex flex-col gap-2 print:hidden">
         <label className="flex items-center gap-2 text-sm text-gray-700">
-          <input type="checkbox" checked={lampiranBank} onChange={(e) => setLampiranBank(e.target.checked)} />
-          Sertakan surat blokir &amp; pendebetan per bank (BSI/BNI dipisah)
-        </label>
-        <label className="flex items-center gap-2 text-sm text-gray-700">
           Lama blokir (hari):
           <input type="number" min={1} value={lamaBlokir} onChange={(e) => setLamaBlokir(e.target.value)}
             className="w-20 rounded border border-gray-300 px-2 py-1 text-sm" />
@@ -271,113 +275,24 @@ export function HalamanCetakForm07() {
 
       {data && (
         <div className="flex flex-col gap-4">
-          <KopSurat />
-          <div className="text-center">
-            <h2 className="text-base font-bold">PERMOHONAN PEMBLOKIRAN DAN PENDEBETAN REKENING TARUNA</h2>
-            <p className="text-sm">Bulan {labelBulan(data.bulan)}</p>
-            <p className="text-xs text-gray-500 print:hidden">
-              (Nomor surat diisi per bank di kolom kontrol di atas — muncul pada masing-masing surat bank di bawah)
+          {barisBayar.some((b) => !b.rekening_lengkap_ada) && (
+            <p className="text-xs text-red-600 print:hidden">
+              ⚠️ Ada taruna yang rekening lengkapnya belum diisi Admin — lengkapi dulu di
+              halaman Data Taruna sebelum surat ini diajukan ke bank.
             </p>
-          </div>
-
-          <Card className="print:border-0 print:p-0 print:shadow-none">
-            <p className="text-sm">
-              Setelah dana bantuan biaya makan taruna Politeknik Kelautan dan Perikanan Sorong
-              bulan {labelBulan(data.bulan)} <strong>cair ke rekening masing-masing taruna</strong>{' '}
-              melalui mekanisme pembayaran langsung (LS), dengan ini kami mengajukan permohonan kepada
-              bank penyalur untuk: <strong>(1)</strong> memblokir rekening taruna penerima sebagaimana
-              daftar terlampir selama <strong>{(lamaBlokir.trim() || '……')} hari</strong>;{' '}
-              <strong>(2)</strong> mendebet dana sesuai nilai per orang ke <strong>Rekening Senat Taruna</strong>;
-              dan <strong>(3)</strong> meneruskan total dana yang berhasil didebet ke{' '}
-              <strong>rekening penyedia jasa boga</strong>. Daftar nilai dan tanda tangan taruna sebagai
-              kuasa pendebetan terlampir.
-            </p>
-            <div className="mt-2 flex flex-col gap-1 text-xs">
-              {data.kontrak?.no_kontrak && (
-                <div className="flex justify-between"><span>No. Kontrak</span><span>{data.kontrak.no_kontrak}{data.kontrak.tgl_kontrak ? ` · ${data.kontrak.tgl_kontrak}` : ''}</span></div>
-              )}
-              {data.kontrak?.adendum && (
-                <div className="flex justify-between"><span>Adendum</span><span>{data.kontrak.adendum}</span></div>
-              )}
-              <div className="flex justify-between"><span>No. SPM</span><span>{data.pembayaran.no_spm || '-'}</span></div>
-              <div className="flex justify-between"><span>No. SP2D</span><span>{data.pembayaran.no_sp2d || '-'}</span></div>
-              <div className="flex justify-between"><span>Tanggal SP2D</span><span>{data.pembayaran.tgl_sp2d || '-'}</span></div>
-            </div>
-          </Card>
-
-          <Card className="overflow-x-auto print:border-0 print:p-0 print:shadow-none">
-            <p className="mb-2 text-sm font-semibold text-gray-600 print:text-black">
-              Lampiran: Daftar Taruna Penerima — <strong>dipisah per bank (BSI &amp; BNI)</strong>
-            </p>
-            <p className="mb-2 text-xs text-gray-500 print:text-black">
-              Kolom "Nilai Debet" sudah dikurangi biaya admin bank sebesar {formatRupiah(data.biaya_admin_bank)} per
-              rekening dari nilai SPM per taruna.
-            </p>
-            {kelompokBank(barisBayar).map((g) => {
-              const labelBank = g.bank === 'TANPA_REKENING' ? 'BELUM ADA REKENING' : g.bank;
-              const subtotalBank = g.rows.reduce((s, b) => s + b.nilai_debet, 0);
-              return (
-                <div key={g.bank} className="mb-3">
-                  <p className="mb-1 text-xs font-semibold print:text-black">Bank {labelBank} — {g.rows.length} taruna</p>
-                  <table className="w-full border-collapse text-xs">
-                    <thead>
-                      <tr>
-                        {['No', 'NIT', 'Nama', 'No. Rekening', 'Nilai Debet'].map((h) => (
-                          <th key={h} className="border border-gray-400 bg-[#D9E2F3] px-2 py-1 text-left font-semibold">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    {kelompokProdiTingkat(g.rows).map((pt) => {
-                      const subtotalPt = pt.rows.reduce((s, b) => s + b.nilai_debet, 0);
-                      return (
-                        <tbody key={`${pt.prodi}|${pt.tingkat}`}>
-                          <tr className="bg-primary-light/30 print:bg-gray-100">
-                            <td colSpan={5} className="border border-gray-300 px-2 py-1 font-semibold text-primary-dark print:text-black">
-                              {pt.prodi} / {pt.tingkat}
-                            </td>
-                          </tr>
-                          {pt.rows.map((b, i) => (
-                            <tr key={b.nit}>
-                              <SelCetak>{i + 1}</SelCetak>
-                              <SelCetak>{b.nit}</SelCetak>
-                              <SelCetak>{b.nama}</SelCetak>
-                              <SelCetak>{b.rekening_lengkap_ada ? b.no_rekening_lengkap : 'Belum diisi Admin'}</SelCetak>
-                              <SelCetak className="text-right">{formatRupiah(b.nilai_debet)}</SelCetak>
-                            </tr>
-                          ))}
-                          <tr className="font-semibold">
-                            <td colSpan={4} className="border border-gray-300 px-2 py-1">Subtotal {pt.prodi} / {pt.tingkat} ({pt.rows.length} taruna)</td>
-                            <td className="border border-gray-300 px-2 py-1 text-right">{formatRupiah(subtotalPt)}</td>
-                          </tr>
-                        </tbody>
-                      );
-                    })}
-                  </table>
-                  <div className="mt-1 flex justify-between text-xs font-semibold">
-                    <span>Subtotal {labelBank}</span>
-                    <span>{formatRupiah(subtotalBank)}</span>
-                  </div>
-                </div>
-              );
-            })}
-            <p className="mt-1 text-xs text-gray-500 print:text-black">
-              Total dibuat <strong>per bank</strong> (lihat surat blokir &amp; pendebetan masing-masing
-              bank di bawah) — tidak ada total gabungan lintas bank.
-            </p>
-            {barisBayar.some((b) => !b.rekening_lengkap_ada) && (
-              <p className="mt-2 text-xs text-red-600 print:hidden">
-                ⚠️ Ada taruna yang rekening lengkapnya belum diisi Admin — lengkapi dulu di
-                halaman Data Taruna sebelum surat ini diajukan ke bank.
-              </p>
-            )}
-          </Card>
-
-          <TtdSuratBank pejabat={data.pejabat} />
-
-          {/* Surat blokir & pendebetan per bank — masing-masing halaman cetak sendiri, diajukan ke bank terkait */}
-          {lampiranBank && kelompokBank(barisBayar).map((g) => (
+          )}
+          <p className="text-xs text-gray-500 print:hidden">
+            Tiap bank dicetak sebagai <strong>surat TERPISAH</strong> (BSI &amp; BNI tidak digabung) —
+            masing-masing surat lengkap sendiri: kop, daftar taruna, total, &amp; tanda tangan pejabat,
+            mulai di halaman baru.
+          </p>
+          {/* Satu bank = satu surat utuh sendiri (kop + daftar taruna + subtotal +
+              total + ttd), mulai halaman baru masing-masing. BSI & BNI TIDAK
+              digabung dalam satu dokumen (dikonfirmasi Firdaus). Bank pertama
+              tanpa break-before agar tak ada halaman kosong di depan. */}
+          {kelompokBank(barisBayar).map((g, i) => (
             <LampiranBlokirBank key={g.bank} bank={g.bank} rows={g.rows} bulan={data.bulan} pejabat={data.pejabat}
-              lamaBlokir={lamaBlokir}
+              lamaBlokir={lamaBlokir} kontrak={data.kontrak} pembayaran={data.pembayaran} pisahHalaman={i > 0}
               rekSenat={g.bank === 'BNI' ? data.rekening_senat?.BNI : g.bank === 'BSI' ? data.rekening_senat?.BSI : ''}
               rekPenyedia={g.bank === 'BNI' ? data.rekening_penyedia?.BNI : g.bank === 'BSI' ? data.rekening_penyedia?.BSI : ''}
               rekSenatNama={g.bank === 'BNI' ? data.rekening_senat_nama?.BNI : g.bank === 'BSI' ? data.rekening_senat_nama?.BSI : ''}
