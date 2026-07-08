@@ -527,14 +527,19 @@ function spmAnggota(payload, session) {
   var tarunaByNit = {};
   sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
+  // Normalkan bulan SPM → 'YYYY-MM'. Kolom bulan bisa terbaca sebagai Date
+  // (sel diformat tanggal) — kalau dibandingkan mentah, filter REKAP tak pernah
+  // cocok → daftar anggota kosong (0 taruna). spmList sudah menormalkan; di sini
+  // dulu belum, itulah sebab modal "Pisahkan Taruna" tampil kosong.
+  var blnSpm = _bulanStr_(s.bulan);
   var rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) {
-    return _bulanStr_(r.bulan) === s.bulan && _int_(r.nominal || 0, 'nominal') > 0;
+    return _bulanStr_(r.bulan) === blnSpm && _int_(r.nominal || 0, 'nominal') > 0;
   });
   var nominalByNit = {};
   rekapRows.forEach(function (r) { nominalByNit[String(r.nit)] = _int_(r.nominal || 0, 'nominal'); });
 
   var nitAnggota = String(s.nit_anggota || '').split(',').map(function (v) { return v.trim(); }).filter(Boolean);
-  var nitList = nitAnggota.length ? nitAnggota : _nitAlamiDalamKampus_(s.bulan, s.prodi, s.tingkat, s.penyedia_id, rekapRows, tarunaByNit);
+  var nitList = nitAnggota.length ? nitAnggota : _nitAlamiDalamKampus_(blnSpm, s.prodi, s.tingkat, s.penyedia_id, rekapRows, tarunaByNit);
 
   var anggota = nitList.map(function (nit) {
     var t = tarunaByNit[nit] || {};
@@ -555,6 +560,10 @@ function spmAnggota(payload, session) {
  * ulang oleh pemanggil yang sudah baca sheet-nya, hindari baca dobel).
  */
 function _nitAlamiDalamKampus_(bulan, prodi, tingkat, penyediaId, rekapRows, tarunaByNit) {
+  // Normalkan bulan → 'YYYY-MM' (bisa dipanggil dgn Date dari kolom sheet, mis.
+  // dari spmGabung yang meneruskan a.bulan mentah). _bulanStr_ pada 'YYYY-MM'
+  // mengembalikannya apa adanya, pada Date mengubahnya ke 'YYYY-MM'.
+  bulan = _bulanStr_(bulan);
   if (!rekapRows) {
     rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) {
       return _bulanStr_(r.bulan) === bulan && _int_(r.nominal || 0, 'nominal') > 0;
