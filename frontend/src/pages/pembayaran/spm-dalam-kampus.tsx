@@ -7,10 +7,11 @@
 //
 // Bulan yang BELUM punya baris SPM (dibuat sebelum Tahap 3 ada) tetap pakai
 // kartu lama — lihat pembayaran.tsx (dipilih berdasar panjang array `spm`).
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
+import { Modal } from '../../components/ui/modal';
 import { useToast } from '../../components/ui/toast';
 import { api } from '../../lib/api';
 import { useListCache } from '../../lib/use-list-cache';
@@ -31,6 +32,101 @@ export interface SpmBaris {
   no_sp2d: string;
   tgl_sp2d: string;
   status: 'DRAFT' | 'DIAJUKAN' | 'SP2D_TERBIT';
+  nit_anggota?: string;
+  induk_spm_id?: string;
+}
+
+interface AnggotaSpm { nit: string; nama: string; nominal: number }
+
+/** Kunci grup SPM (dipakai cari pasangan hasil split utk digabungkan lagi). */
+function kunciGrup(s: SpmBaris): string {
+  return [s.kategori, s.bayar_id, s.prodi, s.tingkat, s.penyedia_id].join('|');
+}
+
+/**
+ * Modal "Pisahkan Taruna" — checklist anggota (dari spm.anggota) dgn checkbox,
+ * total nominal terpilih real-time, kirim spm.split saat disetujui.
+ */
+function ModalPisahTaruna({ spmId, onClose, onSukses }: {
+  spmId: string; onClose: () => void; onSukses: () => void;
+}) {
+  const { toast } = useToast();
+  const [memuat, setMemuat] = useState(true);
+  const [anggota, setAnggota] = useState<AnggotaSpm[]>([]);
+  const [pilih, setPilih] = useState<Record<string, boolean>>({});
+  const [proses, setProses] = useState(false);
+
+  useEffect(() => {
+    let aktif = true;
+    (async () => {
+      try {
+        const hasil = await api<{ anggota: AnggotaSpm[] }>('spm.anggota', { spm_id: spmId });
+        if (aktif) setAnggota(hasil.anggota);
+      } catch (e) {
+        if (aktif) { toast(e instanceof Error ? e.message : 'Gagal memuat anggota.', 'galat'); onClose(); }
+      } finally {
+        if (aktif) setMemuat(false);
+      }
+    })();
+    return () => { aktif = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spmId]);
+
+  const terpilih = anggota.filter((a) => pilih[a.nit]);
+  const totalTerpilih = terpilih.reduce((s, a) => s + a.nominal, 0);
+  const semuaTerpilih = anggota.length > 0 && terpilih.length === anggota.length;
+
+  async function pisahkan() {
+    if (!terpilih.length || semuaTerpilih) return;
+    setProses(true);
+    try {
+      await api('spm.split', { spm_id: spmId, nit_list: terpilih.map((a) => a.nit) });
+      toast(`${terpilih.length} taruna dipisahkan jadi SPM tersendiri.`, 'sukses');
+      onSukses();
+      onClose();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
+    } finally {
+      setProses(false);
+    }
+  }
+
+  return (
+    <Modal judul="✂️ Pisahkan Taruna jadi SPM Tersendiri" onClose={onClose}>
+      {memuat ? (
+        <p className="text-sm text-gray-500">Memuat anggota…</p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <p className="text-xs text-gray-500">
+            Centang taruna yang mau dikeluarkan jadi SPM tersendiri — minimal 1 taruna harus tersisa di SPM asal.
+          </p>
+          <div className="max-h-72 overflow-y-auto rounded-lg border border-gray-200">
+            {anggota.map((a) => (
+              <label key={a.nit} className="flex min-h-tap items-center justify-between gap-2 border-b border-gray-100 px-3 py-2 text-sm last:border-b-0">
+                <span className="flex items-center gap-2">
+                  <input type="checkbox" checked={!!pilih[a.nit]}
+                    onChange={(e) => setPilih((p) => ({ ...p, [a.nit]: e.target.checked }))} />
+                  <span>
+                    <span className="block font-medium">{a.nama || a.nit}</span>
+                    <span className="block text-xs text-gray-400">{a.nit}</span>
+                  </span>
+                </span>
+                <span className="text-gray-600">{formatRupiah(a.nominal)}</span>
+              </label>
+            ))}
+          </div>
+          {semuaTerpilih && (
+            <p className="text-xs text-red-600">
+              Tidak bisa memisahkan SELURUH anggota — minimal 1 taruna harus tersisa di SPM asal.
+            </p>
+          )}
+          <Button onClick={() => void pisahkan()} disabled={proses || !terpilih.length || semuaTerpilih}>
+            Pisahkan ({terpilih.length} taruna · {formatRupiah(totalTerpilih)})
+          </Button>
+        </div>
+      )}
+    </Modal>
+  );
 }
 
 export function useSpmDalamKampus(bulan: string) {
@@ -77,21 +173,48 @@ export function KartuBuatRancanganSpm({ bayarId, refresh }: { bayarId: string; r
   );
 }
 
-function BarisSpm({ s, proses, onSimpanSpm, onSimpanSp2d }: {
-  s: SpmBaris; proses: boolean;
+function BarisSpm({ s, semuaSpm, proses, onSimpanSpm, onSimpanSp2d, onPisahkan, onGabungkan }: {
+  s: SpmBaris; semuaSpm: SpmBaris[]; proses: boolean;
   onSimpanSpm: (spmId: string, noSpm: string, tglSpm: string) => void;
   onSimpanSp2d: (spmId: string, noSp2d: string, tglSp2d: string) => void;
+  onPisahkan: (spmId: string) => void;
+  onGabungkan: (spmIdA: string, spmIdB: string) => void;
 }) {
   const [noSpm, setNoSpm] = useState(s.no_spm);
   const [tglSpm, setTglSpm] = useState(s.tgl_spm);
   const [noSp2d, setNoSp2d] = useState(s.no_sp2d);
   const [tglSp2d, setTglSp2d] = useState(s.tgl_sp2d);
 
+  // Baris hasil split ditandai dgn nit_anggota ATAU induk_spm_id terisi.
+  // Pasangan utk digabungkan lagi = baris LAIN berbagi kunci grup yang sama,
+  // masih DRAFT (spm.gabung mensyaratkan keduanya DRAFT).
+  const sudahDisplit = !!(s.induk_spm_id || s.nit_anggota);
+  const pasangan = sudahDisplit
+    ? semuaSpm.filter((x) => x.spm_id !== s.spm_id && x.status === 'DRAFT' && kunciGrup(x) === kunciGrup(s))
+    : [];
+
   return (
     <tr className="border-b border-gray-100 align-top">
       <td className="py-2 pr-2">
         <div className="font-medium">{s.prodi} / {s.tingkat}</div>
         <div className="text-gray-500">{s.penyedia_nama || s.penyedia_id || '(belum ditentukan)'}</div>
+        {sudahDisplit && (
+          <div className="mt-1 flex flex-col items-start gap-0.5 text-[11px] text-purple-700">
+            <span>{s.induk_spm_id ? `Pecahan dari ${s.induk_spm_id}` : 'Sisa induk (sudah dipecah)'}</span>
+            {pasangan.map((p) => (
+              <button key={p.spm_id} className="text-primary underline disabled:opacity-50" disabled={proses}
+                onClick={() => onGabungkan(s.spm_id, p.spm_id)}>
+                ↩️ Gabungkan kembali{pasangan.length > 1 ? ` (${p.spm_id})` : ''}
+              </button>
+            ))}
+          </div>
+        )}
+        {s.status === 'DRAFT' && (
+          <button className="mt-1 block text-primary underline disabled:opacity-50" disabled={proses}
+            onClick={() => onPisahkan(s.spm_id)}>
+            ✂️ Pisahkan Taruna
+          </button>
+        )}
       </td>
       <td className="py-2 pr-2 text-right">{formatRupiah(s.nominal)}</td>
       <td className="py-2 pr-2"><Badge status={s.status} /></td>
@@ -138,6 +261,7 @@ export function KartuSpmDalamKampus({ bulan, bayarId, spm, refresh }: {
 }) {
   const { toast } = useToast();
   const [proses, setProses] = useState(false);
+  const [pisahSpmId, setPisahSpmId] = useState<string | null>(null);
 
   const semuaDraft = spm.length > 0 && spm.every((s) => s.status === 'DRAFT');
   const total = spm.reduce((s, x) => s + x.nominal, 0);
@@ -186,6 +310,19 @@ export function KartuSpmDalamKampus({ bulan, bayarId, spm, refresh }: {
     }
   }
 
+  async function gabungkan(spmIdA: string, spmIdB: string) {
+    setProses(true);
+    try {
+      await api('spm.gabung', { spm_id_a: spmIdA, spm_id_b: spmIdB });
+      toast('SPM digabungkan kembali.', 'sukses');
+      refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
+    } finally {
+      setProses(false);
+    }
+  }
+
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -224,7 +361,8 @@ export function KartuSpmDalamKampus({ bulan, bayarId, spm, refresh }: {
           </thead>
           <tbody>
             {spm.map((s) => (
-              <BarisSpm key={s.spm_id} s={s} proses={proses} onSimpanSpm={simpanSpm} onSimpanSp2d={simpanSp2d} />
+              <BarisSpm key={s.spm_id} s={s} semuaSpm={spm} proses={proses} onSimpanSpm={simpanSpm} onSimpanSp2d={simpanSp2d}
+                onPisahkan={setPisahSpmId} onGabungkan={(a, b) => void gabungkan(a, b)} />
             ))}
           </tbody>
           <tfoot>
@@ -236,6 +374,10 @@ export function KartuSpmDalamKampus({ bulan, bayarId, spm, refresh }: {
           </tfoot>
         </table>
       </div>
+
+      {pisahSpmId && (
+        <ModalPisahTaruna spmId={pisahSpmId} onClose={() => setPisahSpmId(null)} onSukses={refresh} />
+      )}
     </Card>
   );
 }

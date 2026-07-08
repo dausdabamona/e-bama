@@ -112,6 +112,9 @@ var ACTION_MAP = {
   'spm.update':       { handler: spmUpdate,      roles: ['PPK', 'ADMIN'] },
   'spm.set_sp2d':     { handler: spmSetSp2d,     roles: ['PPK', 'ADMIN'] },
   'spm.regenerate':   { handler: spmRegenerate,  roles: ['PPK', 'ADMIN'] },
+  'spm.anggota':      { handler: spmAnggota,     roles: ['PPK', 'ADMIN'] },
+  'spm.split':        { handler: spmSplit,       roles: ['PPK', 'ADMIN'] },
+  'spm.gabung':       { handler: spmGabung,      roles: ['PPK', 'ADMIN'] },
 
   // Tagihan gagal debet (TAHAP 4A)
   'tagihan.create':   { handler: tagihanCreate,  roles: ['SENAT', 'PPK'] },

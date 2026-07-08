@@ -166,7 +166,10 @@ function _skema_() {
       ['prodi','s'], ['tingkat','s'], ['penyedia_id','s'], ['kegiatan','s'],
       ['pembayaran_ke','i'], ['periode','s'], ['nominal','i'],
       ['no_spm','s'], ['tgl_spm','d'], ['no_sp2d','s'], ['tgl_sp2d','d'],
-      ['status', E.SPM_STATUS]
+      ['status', E.SPM_STATUS],
+      // nit_anggota/induk_spm_id (spm.split/spm.gabung) — default kosong,
+      // TIDAK memengaruhi grup yang belum pernah displit (lihat skema-sheet.md §18).
+      ['nit_anggota','s'], ['induk_spm_id','s']
     ]]
   ];
 }

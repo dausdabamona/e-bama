@@ -639,7 +639,7 @@ data yang tak bisa dihitung ulang (nomor, tanggal, status, hasil SP2D),
 BUKAN salinan baris taruna; selalu diturunkan dari `REKAP_BULANAN` (Dalam
 Kampus) atau `BANTUAN_LUAR_KAMPUS` (Luar Kampus) saat dibutuhkan.
 
-**Pengelompokan (kunci gabungan unik, beda per kategori):**
+**Pengelompokan (kunci gabungan, beda per kategori):**
 - **`DALAM_KAMPUS`**: `(bulan, prodi, tingkat, penyedia_id)`. Dikonfirmasi
   Firdaus: satu suplier SELALU melayani satu kelompok prodi+tingkat utuh
   (tidak pernah campur) — jadi kelompok ini otomatis = satu SP2D KPPN (§17:
@@ -652,6 +652,13 @@ Kampus) atau `BANTUAN_LUAR_KAMPUS` (Luar Kampus) saat dibutuhkan.
   (awal/selama/akhir kegiatan) — setiap tahap dipicu satu laporan + satu
   surat pengajuan Prodi/Ketua Jurusan = satu SPM tersendiri. Tanpa suplier
   (transfer tunai langsung ke taruna, tidak lewat kontrak penyedia).
+
+**PENTING — kunci di atas TIDAK LAGI UNIK begitu satu grup pernah dipisah
+lewat `spm.split`** (dikonfirmasi Firdaus): bisa ada LEBIH DARI SATU baris
+SPM berbagi kunci grup yang sama, dibedakan lewat `nit_anggota` yang saling
+TIDAK tumpang tindih (lihat kolom `nit_anggota` di bawah). Untuk grup yang
+belum pernah displit, perilaku LAMA tetap berlaku apa adanya (satu baris =
+satu grup, `nit_anggota` kosong, keanggotaan diturunkan dari sumbernya).
 
 | Kolom | Tipe | Keterangan |
 |---|---|---|
@@ -671,6 +678,8 @@ Kampus) atau `BANTUAN_LUAR_KAMPUS` (Luar Kampus) saat dibutuhkan.
 | no_sp2d | string | diisi saat SP2D terbit (1:1 dengan SPM) |
 | tgl_sp2d | date | |
 | status | enum | `DRAFT` → `DIAJUKAN` → `SP2D_TERBIT` (cair). **Tidak ada `DITOLAK`** — PPK edit ulang no_spm/tgl_spm di tempat kalau SPM dikembalikan KPPN |
+| nit_anggota | string (opsional) | NIT dipisah koma. **Default KOSONG** = baris natural, keanggotaan diturunkan dari sumber (perilaku lama, TIDAK berubah). Begitu satu baris dalam grup pernah displit (`spm.split`), SEMUA baris turunan grup itu (sisa induk MAUPUN pecahan) WAJIB terisi eksplisit — supaya keanggotaan antar-baris yang berbagi kunci grup sama tidak ambigu |
+| induk_spm_id | FK → SPM (opsional) | Jejak asal kalau baris ini hasil `spm.split` dari SPM lain. Kosong = baris asli, atau baris yang sudah pernah `spm.gabung` kembali jadi utuh |
 
 **Alur:** `bayar.create` (Dalam Kampus, §9) langsung generate N baris SPM
 `DRAFT` — satu per (prodi, tingkat, penyedia_id) dari REKAP FINAL bulan itu.
@@ -682,13 +691,43 @@ pembayaran_ke) — soft-gate: tandai grup yang belum seluruhnya
 kunci kelompok beku). `spm.set_sp2d` isi hasil SP2D → `SP2D_TERBIT`; untuk
 `DALAM_KAMPUS`, begitu SEMUA SPM bulan itu `SP2D_TERBIT`, `PEMBAYARAN.status`
 otomatis `SELESAI` (+ audit). `spm.regenerate` re-derive dari sumber, hanya
-boleh selama SEMUA SPM grup itu masih `DRAFT`.
+boleh selama SEMUA SPM grup itu masih `DRAFT` — DITOLAK juga bila grup itu
+sudah pernah displit (ada baris `induk_spm_id` terisi ATAU >1 baris berbagi
+kunci grup yang sama) — gabungkan dulu lewat `spm.gabung` sebelum bisa
+`spm.regenerate` lagi.
+
+**Pisah/gabung taruna dalam satu grup (`spm.split`/`spm.gabung`,
+`15_pembayaran.gs`, DALAM_KAMPUS saja untuk saat ini)** — dikonfirmasi
+Firdaus, untuk kasus PPK perlu mengajukan sebagian taruna dalam satu
+kelompok (prodi+tingkat+suplier) sebagai SPM tersendiri ke KPPN (mis. data
+taruna tsb perlu diproses terpisah dari rombongannya):
+- `spm.split {spm_id, nit_list}` — HANYA selama baris itu `DRAFT` (snapshot
+  beku sama seperti aturan `nominal` §5). Membuat baris SPM BARU (kategori/
+  bayar_id/bulan/prodi/tingkat/penyedia_id SAMA dengan induk, `nominal` =
+  SUM REKAP_BULANAN taruna di `nit_list`, `nit_anggota` = `nit_list`,
+  `induk_spm_id` = spm_id induk, status `DRAFT`); baris induk nominalnya
+  dikurangi & `nit_anggota`-nya diisi eksplisit (anggota lama dikurangi
+  `nit_list`) — TIDAK boleh memisah SELURUH anggota (harus tersisa ≥1 di
+  induk).
+- `spm.gabung {spm_id_a, spm_id_b}` — kebalikannya, HANYA selama KEDUA baris
+  `DRAFT` dan sama-sama anggota kunci grup yang sama; gabungkan
+  `nit_anggota`+`nominal` ke satu baris, hapus baris satunya. Kalau hasil
+  gabungan PERSIS sama dengan keanggotaan ALAMI grup itu (semua taruna balik
+  utuh, tidak ada sisa split), `nit_anggota` OTOMATIS dikosongkan lagi supaya
+  baris kembali "natural" seperti sebelum pernah displit.
+- **Efek ke auto-isi SP2D (disengaja, BUKAN bug):** `_autoIsiSpmDariSp2d_`
+  (lihat guard di bawah) sudah mensyaratkan PERSIS SATU baris SPM per kunci
+  grup — begitu grup displit (>1 baris berbagi kunci sama), auto-isi
+  OTOMATIS DILEWATI utk grup itu (guard lama, tidak perlu diubah). PPK
+  mengisi `no_spm`/`no_sp2d` manual per pecahan lewat `spm.update`/
+  `spm.set_sp2d` seperti biasa.
 
 **Auto-isi dari impor SP2D (`sp2d.import`, §17 → `_autoIsiSpmDariSp2d_`,
 `15_pembayaran.gs`) — dijalankan OTOMATIS tiap impor selesai:** `DALAM_KAMPUS`
 dicocokkan lewat (prodi, tingkat, bulan) — selalu tak ambigu (satu kelompok =
 satu SPM, lihat di atas), TAPI tetap dijaga: kalau baris agregat Monitoring
-utk kunci itu bukan PERSIS SATU (mis. re-impor ganda), auto-isi DILEWATI.
+utk kunci itu bukan PERSIS SATU (mis. re-impor ganda, ATAU grup sudah displit
+jadi >1 baris SPM), auto-isi DILEWATI.
 `LUAR_KAMPUS` dicocokkan lewat (prodi, tingkat, kegiatan, bulan) TAPI hanya
 bila grup itu punya PERSIS SATU baris SPM — kalau ada beberapa `pembayaran_ke`
 untuk kombinasi yang sama (SP2D_MONITORING tidak mem-parse tahap pembayaran

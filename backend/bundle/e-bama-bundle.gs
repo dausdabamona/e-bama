@@ -581,6 +581,9 @@ var ACTION_MAP = {
   'spm.update':       { handler: spmUpdate,      roles: ['PPK', 'ADMIN'] },
   'spm.set_sp2d':     { handler: spmSetSp2d,     roles: ['PPK', 'ADMIN'] },
   'spm.regenerate':   { handler: spmRegenerate,  roles: ['PPK', 'ADMIN'] },
+  'spm.anggota':      { handler: spmAnggota,     roles: ['PPK', 'ADMIN'] },
+  'spm.split':        { handler: spmSplit,       roles: ['PPK', 'ADMIN'] },
+  'spm.gabung':       { handler: spmGabung,      roles: ['PPK', 'ADMIN'] },
 
   // Tagihan gagal debet (TAHAP 4A)
   'tagihan.create':   { handler: tagihanCreate,  roles: ['SENAT', 'PPK'] },
@@ -3428,11 +3431,210 @@ function spmSetSp2d(payload, session) {
 }
 
 /**
+ * spm.anggota {spm_id} — daftar taruna dalam satu baris SPM, sumber checklist
+ * utk spm.split. Kalau `nit_anggota` SUDAH terisi (baris hasil split atau
+ * sisa induk setelah displit) → pakai itu langsung. Kalau KOSONG (grup
+ * natural, belum pernah displit) → derive PERSIS seperti
+ * _generateSpmDalamKampus_: REKAP_BULANAN (bulan, nominal>0) join
+ * TARUNA_REKENING.penyedia_id + TARUNA, filter (prodi, tingkat, penyedia_id)
+ * sesuai baris SPM ini. HANYA kategori DALAM_KAMPUS (LUAR_KAMPUS belum
+ * didukung split — tanpa suplier, kuncinya beda).
+ */
+function spmAnggota(payload, session) {
+  var s = _spm_(payload && payload.spm_id);
+  if (s.kategori !== 'DALAM_KAMPUS') {
+    throw _fail_('spm.anggota baru mendukung kategori DALAM_KAMPUS.');
+  }
+
+  var tarunaByNit = {};
+  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+
+  var rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) {
+    return _bulanStr_(r.bulan) === s.bulan && _int_(r.nominal || 0, 'nominal') > 0;
+  });
+  var nominalByNit = {};
+  rekapRows.forEach(function (r) { nominalByNit[String(r.nit)] = _int_(r.nominal || 0, 'nominal'); });
+
+  var nitAnggota = String(s.nit_anggota || '').split(',').map(function (v) { return v.trim(); }).filter(Boolean);
+  var nitList = nitAnggota.length ? nitAnggota : _nitAlamiDalamKampus_(s.bulan, s.prodi, s.tingkat, s.penyedia_id, rekapRows, tarunaByNit);
+
+  var anggota = nitList.map(function (nit) {
+    var t = tarunaByNit[nit] || {};
+    return { nit: nit, nama: t.nama || '', nominal: nominalByNit[nit] || 0 };
+  }).sort(function (a, b2) { return (a.nama || '').localeCompare(b2.nama || ''); });
+
+  var total = anggota.reduce(function (sum, a) { return sum + a.nominal; }, 0);
+  return { spm_id: s.spm_id, anggota: anggota, total_nominal: total };
+}
+
+/**
+ * NIT taruna yang NATURAL menjadi anggota kelompok (bulan, prodi, tingkat,
+ * penyedia_id) DALAM_KAMPUS — TANPA memandang nit_anggota sama sekali (murni
+ * dari REKAP_BULANAN × TARUNA_REKENING × TARUNA, sama seperti
+ * _generateSpmDalamKampus_). Dipakai spmAnggota (grup belum displit) DAN
+ * spmGabung (cek apakah gabungan kembali jadi grup ALAMI utuh, utk keputusan
+ * kosongkan nit_anggota lagi). `rekapRows`/`tarunaByNit` opsional (dipakai
+ * ulang oleh pemanggil yang sudah baca sheet-nya, hindari baca dobel).
+ */
+function _nitAlamiDalamKampus_(bulan, prodi, tingkat, penyediaId, rekapRows, tarunaByNit) {
+  if (!rekapRows) {
+    rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) {
+      return _bulanStr_(r.bulan) === bulan && _int_(r.nominal || 0, 'nominal') > 0;
+    });
+  }
+  if (!tarunaByNit) {
+    tarunaByNit = {};
+    sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  }
+  var rekeningByNit = {};
+  sheetRead(SHEETS.TARUNA_REKENING, function (r) { return String(r.penyedia_id) === String(penyediaId); })
+    .forEach(function (r) { rekeningByNit[String(r.nit)] = r; });
+  return rekapRows
+    .filter(function (r) {
+      var t = tarunaByNit[String(r.nit)] || {};
+      return (t.prodi || '') === prodi && (t.tingkat || '') === tingkat && rekeningByNit[String(r.nit)];
+    })
+    .map(function (r) { return String(r.nit); });
+}
+
+/**
+ * spm.split {spm_id, nit_list} — keluarkan sebagian taruna dari satu baris
+ * SPM jadi baris SPM BARU tersendiri, tetap dalam kelompok (kunci) yang
+ * sama — dipakai kalau PPK perlu mengajukan sebagian taruna terpisah ke
+ * KPPN. HANYA kategori DALAM_KAMPUS, HANYA selama status DRAFT (snapshot
+ * beku sesuai §5 CLAUDE.md — sama seperti spmUpdate/spmRegenerate). Efek
+ * DISENGAJA (bukan bug, lihat §18 skema-sheet.md): _autoIsiSpmDariSp2d_
+ * otomatis MELEWATI grup ini begitu >1 baris berbagi kunci sama — PPK isi
+ * no_spm/no_sp2d manual per pecahan lewat spm.update/spm.set_sp2d.
+ */
+function spmSplit(payload, session) {
+  var s = _spm_(payload && payload.spm_id);
+  if (s.kategori !== 'DALAM_KAMPUS') {
+    throw _fail_('spm.split baru mendukung kategori DALAM_KAMPUS.');
+  }
+  if (s.status !== 'DRAFT') {
+    throw _fail_('SPM ' + s.spm_id + ' berstatus ' + s.status + ' — hanya SPM DRAFT yang bisa dipecah.');
+  }
+  var nitList = ((payload && payload.nit_list) || []).map(function (v) { return String(v).trim(); }).filter(Boolean);
+  if (!nitList.length) throw _fail_('nit_list wajib diisi minimal 1 NIT.');
+
+  return withLock(function () {
+    var info = spmAnggota({ spm_id: s.spm_id }, session);
+    var anggotaByNit = {};
+    info.anggota.forEach(function (a) { anggotaByNit[a.nit] = a; });
+
+    var takDikenal = nitList.filter(function (nit) { return !anggotaByNit[nit]; });
+    if (takDikenal.length) {
+      throw _fail_('NIT berikut bukan anggota SPM ini: ' + takDikenal.join(', '));
+    }
+    if (nitList.length >= info.anggota.length) {
+      throw _fail_('Tidak bisa memisahkan SELURUH anggota — minimal 1 taruna harus tersisa di SPM asal.');
+    }
+
+    var nitSisaSet = {};
+    info.anggota.forEach(function (a) { nitSisaSet[a.nit] = true; });
+    nitList.forEach(function (nit) { delete nitSisaSet[nit]; });
+    var nitSisa = Object.keys(nitSisaSet);
+
+    var nominalPecahan = nitList.reduce(function (sum, nit) { return sum + (anggotaByNit[nit].nominal || 0); }, 0);
+    var nominalSisa = s.nominal - nominalPecahan;
+
+    var spmBaru = {
+      spm_id: nextId('SPM'), kategori: s.kategori, bayar_id: s.bayar_id, bulan: s.bulan,
+      prodi: s.prodi, tingkat: s.tingkat, penyedia_id: s.penyedia_id,
+      kegiatan: s.kegiatan || '', pembayaran_ke: s.pembayaran_ke || '', periode: s.periode || '',
+      nominal: nominalPecahan, no_spm: '', tgl_spm: '', no_sp2d: '', tgl_sp2d: '',
+      status: 'DRAFT', nit_anggota: nitList.join(','), induk_spm_id: s.spm_id
+    };
+    sheetAppend(SHEETS.SPM, spmBaru);
+    sheetUpdate(SHEETS.SPM, 'spm_id', s.spm_id, { nominal: nominalSisa, nit_anggota: nitSisa.join(',') });
+
+    auditLog(session, 'spm.split', 'SPM', s.spm_id,
+      { nominal: s.nominal, nit_anggota: s.nit_anggota || '' },
+      { spm_asal: { spm_id: s.spm_id, nominal: nominalSisa, nit_anggota: nitSisa.join(',') },
+        spm_baru: { spm_id: spmBaru.spm_id, nominal: nominalPecahan, nit_anggota: nitList.join(',') } });
+
+    return {
+      spm_asal: { spm_id: s.spm_id, nominal: nominalSisa, nit_anggota: nitSisa.join(',') },
+      spm_baru: spmBaru
+    };
+  });
+}
+
+/**
+ * spm.gabung {spm_id_a, spm_id_b} — kebalikan spm.split, dipakai utk koreksi
+ * kalau salah pisah. HANYA selama KEDUA baris masih DRAFT dan berbagi kunci
+ * kelompok (kategori+bayar_id+prodi+tingkat+penyedia_id+kegiatan+
+ * pembayaran_ke) yang PERSIS sama. Baris yang dipertahankan: yang TANPA
+ * induk_spm_id (baris asli); kalau keduanya punya induk, pertahankan spm_id
+ * yang dibuat lebih dulu. `nit_anggota` digabung eksplisit — KECUALI kalau
+ * gabungan itu PERSIS sama dengan keanggotaan ALAMI grup (`DALAM_KAMPUS`
+ * saja, lihat _nitAlamiDalamKampus_), dalam hal ini `nit_anggota` dikosongkan
+ * lagi supaya baris kembali "natural" (rapi, konsisten dgn tampilan sebelum
+ * pernah displit) — tetap sah kalau di kasus lain (LUAR_KAMPUS, atau gabungan
+ * sebagian) `nit_anggota` tersisa terisi eksplisit, lihat §18 skema-sheet.md.
+ */
+function spmGabung(payload, session) {
+  var idA = payload && payload.spm_id_a, idB = payload && payload.spm_id_b;
+  if (!idA || !idB) throw _fail_('spm_id_a dan spm_id_b wajib diisi.');
+  if (String(idA) === String(idB)) throw _fail_('spm_id_a dan spm_id_b tidak boleh sama.');
+
+  return withLock(function () {
+    var a = _spm_(idA), b = _spm_(idB);
+    if (a.status !== 'DRAFT' || b.status !== 'DRAFT') {
+      throw _fail_('Kedua SPM harus berstatus DRAFT untuk digabungkan (status sekarang: ' +
+        a.spm_id + '=' + a.status + ', ' + b.spm_id + '=' + b.status + ').');
+    }
+    var kunciSama = a.kategori === b.kategori && String(a.bayar_id) === String(b.bayar_id) &&
+      a.prodi === b.prodi && a.tingkat === b.tingkat &&
+      String(a.penyedia_id || '') === String(b.penyedia_id || '') &&
+      String(a.kegiatan || '') === String(b.kegiatan || '') &&
+      String(a.pembayaran_ke || '') === String(b.pembayaran_ke || '');
+    if (!kunciSama) {
+      throw _fail_('Kedua SPM bukan pasangan kelompok yang sama — tidak bisa digabungkan.');
+    }
+
+    var nitA = String(a.nit_anggota || '').split(',').map(function (v) { return v.trim(); }).filter(Boolean);
+    var nitB = String(b.nit_anggota || '').split(',').map(function (v) { return v.trim(); }).filter(Boolean);
+    var tumpangTindih = nitA.filter(function (nit) { return nitB.indexOf(nit) >= 0; });
+    if (tumpangTindih.length) {
+      throw _fail_('Anggota kedua SPM tumpang tindih (data tidak konsisten): ' + tumpangTindih.join(', '));
+    }
+
+    var tahan = !a.induk_spm_id ? a : (!b.induk_spm_id ? b : (a.spm_id < b.spm_id ? a : b));
+    var hapus = tahan.spm_id === a.spm_id ? b : a;
+    var nitGabung = nitA.concat(nitB);
+    var nominalGabung = a.nominal + b.nominal;
+
+    var nitGabungFinal = nitGabung;
+    if (a.kategori === 'DALAM_KAMPUS') {
+      var nitAlami = _nitAlamiDalamKampus_(a.bulan, a.prodi, a.tingkat, a.penyedia_id);
+      var samaAlami = nitGabung.length === nitAlami.length &&
+        nitGabung.slice().sort().join(',') === nitAlami.slice().sort().join(',');
+      if (samaAlami) nitGabungFinal = [];
+    }
+
+    sheetUpdate(SHEETS.SPM, 'spm_id', tahan.spm_id, { nominal: nominalGabung, nit_anggota: nitGabungFinal.join(',') });
+    sheetDeleteRows(SHEETS.SPM, 'spm_id', [hapus.spm_id]);
+
+    auditLog(session, 'spm.gabung', 'SPM', tahan.spm_id,
+      { spm_a: { spm_id: a.spm_id, nominal: a.nominal, nit_anggota: a.nit_anggota || '' },
+        spm_b: { spm_id: b.spm_id, nominal: b.nominal, nit_anggota: b.nit_anggota || '' } },
+      { spm_id: tahan.spm_id, nominal: nominalGabung, nit_anggota: nitGabungFinal.join(','), spm_dihapus: hapus.spm_id });
+
+    return { spm_id: tahan.spm_id, nominal: nominalGabung, nit_anggota: nitGabungFinal.join(','), spm_dihapus: hapus.spm_id };
+  });
+}
+
+/**
  * spm.regenerate {bayar_id} — re-derive SPM DALAM_KAMPUS dari REKAP_BULANAN
  * terbaru (mis. rekap dikoreksi setelah SPM dibuat, sebelum diajukan). HANYA
  * boleh selama SEMUA SPM grup itu masih DRAFT — kalau ada yang sudah
  * DIAJUKAN/SP2D_TERBIT, nominal & kunci kelompoknya sudah beku, regenerate
- * ditolak supaya tidak menghapus SPM yang sudah diajukan ke KPPN.
+ * ditolak supaya tidak menghapus SPM yang sudah diajukan ke KPPN. DITOLAK
+ * JUGA bila grup itu sudah pernah displit (spm.split) — ada baris
+ * induk_spm_id terisi ATAU >1 baris berbagi kunci grup yang sama —
+ * gabungkan dulu lewat spm.gabung.
  */
 function spmRegenerate(payload, session) {
   var bayarId = payload && payload.bayar_id;
@@ -3447,6 +3649,19 @@ function spmRegenerate(payload, session) {
     if (belumDraft.length) {
       throw _fail_('Tidak bisa regenerate — ' + belumDraft.length + ' SPM sudah diajukan/cair: ' +
         belumDraft.map(function (r) { return r.spm_id; }).join(', '));
+    }
+
+    var sudahDisplit = lama.some(function (r) { return !!r.induk_spm_id; });
+    if (!sudahDisplit) {
+      var kunciCount = {};
+      lama.forEach(function (r) {
+        var k = r.prodi + '|' + r.tingkat + '|' + r.penyedia_id;
+        kunciCount[k] = (kunciCount[k] || 0) + 1;
+      });
+      sudahDisplit = Object.keys(kunciCount).some(function (k) { return kunciCount[k] > 1; });
+    }
+    if (sudahDisplit) {
+      throw _fail_('Ada SPM yang sudah dipecah (spm.split) — gabungkan dulu (spm.gabung) sebelum membuat ulang dari Rekap.');
     }
 
     var idLama = lama.map(function (r) { return r.spm_id; });
@@ -6994,7 +7209,10 @@ function _skema_() {
       ['prodi','s'], ['tingkat','s'], ['penyedia_id','s'], ['kegiatan','s'],
       ['pembayaran_ke','i'], ['periode','s'], ['nominal','i'],
       ['no_spm','s'], ['tgl_spm','d'], ['no_sp2d','s'], ['tgl_sp2d','d'],
-      ['status', E.SPM_STATUS]
+      ['status', E.SPM_STATUS],
+      // nit_anggota/induk_spm_id (spm.split/spm.gabung) — default kosong,
+      // TIDAK memengaruhi grup yang belum pernah displit (lihat skema-sheet.md §18).
+      ['nit_anggota','s'], ['induk_spm_id','s']
     ]]
   ];
 }
