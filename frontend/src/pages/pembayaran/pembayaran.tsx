@@ -244,11 +244,11 @@ export function HalamanPembayaran() {
                                   : <span className="text-red-600">SP2D nyasar</span>}
                             </td>
                           </tr>
-                          {k.rincian.length > 0 && (
+                          {(k.rincian ?? []).length > 0 && (
                             <tr>
                               <td colSpan={5} className="px-2 pb-2">
                                 <ul className="ml-1 list-disc pl-4 text-[11px] text-gray-500">
-                                  {k.rincian.map((sp, i) => (
+                                  {(k.rincian ?? []).map((sp, i) => (
                                     <li key={sp.no_sp2d || `${sp.no_spm}-${i}`}>
                                       No. SPM <span className="font-mono">{sp.no_spm || '-'}</span>
                                       {sp.tgl_spm ? ` (${sp.tgl_spm})` : ''}
@@ -262,7 +262,7 @@ export function HalamanPembayaran() {
                               </td>
                             </tr>
                           )}
-                          {k.per_suplier.length > 0 && (
+                          {(k.per_suplier ?? []).length > 0 && (
                             <tr>
                               <td colSpan={5} className="px-2 pb-3">
                                 <div className="rounded border border-dashed border-gray-300 bg-gray-50 p-2">
@@ -281,7 +281,7 @@ export function HalamanPembayaran() {
                                       </tr>
                                     </thead>
                                     <tbody>
-                                      {k.per_suplier.map((s) => (
+                                      {(k.per_suplier ?? []).map((s) => (
                                         <tr key={s.penyedia_id || '__tanpa__'}>
                                           <td className="pr-2 text-gray-600">{s.penyedia_nama || s.penyedia_id}</td>
                                           <td className="pr-2 text-right text-gray-600">{formatRupiah(s.sistem)}</td>

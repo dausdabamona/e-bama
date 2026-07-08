@@ -73,7 +73,7 @@ function useTanpaCache<T>(action: string, payload?: unknown) {
  */
 function unduhCsvSpm(suplier: SuplierF10, bulan: string): number {
   const sanit = (v: string) => String(v || '').replace(/[|\r\n]+/g, ' ').trim();
-  const semua = suplier.kelompok.flatMap((k) => k.baris);
+  const semua = (suplier.kelompok ?? []).flatMap((k) => k.baris ?? []);
   const dipakai = semua.filter((b) => b.rekening_lengkap_ada && b.no_rekening_lengkap);
   const header = 'NO|NAMA_SUPPLIER|NAMA_PEMILIK_REKENING|NO_REKENING|JUMLAH_UANG';
   const barisCsv = dipakai.map((b, i) =>
@@ -123,9 +123,9 @@ function LembarSuplier({ suplier, urutan, pejabat, bulan, terpisah, onToggleTerp
           <Button varian="garis" onClick={() => unduhCsvSpm(suplier, bulan)}>
             ⬇️ Unduh CSV SPM (format SPAN) — {suplier.penyedia_nama || `ID ${suplier.penyedia_id}`}
           </Button>
-          {suplier.kelompok.flatMap((k) => k.baris).some((b) => !b.rekening_lengkap_ada) && (
+          {(suplier.kelompok ?? []).flatMap((k) => k.baris ?? []).some((b) => !b.rekening_lengkap_ada) && (
             <p className="text-xs text-amber-600">
-              {suplier.kelompok.flatMap((k) => k.baris).filter((b) => !b.rekening_lengkap_ada).length} taruna dilewati (rekening lengkap belum diisi).
+              {(suplier.kelompok ?? []).flatMap((k) => k.baris ?? []).filter((b) => !b.rekening_lengkap_ada).length} taruna dilewati (rekening lengkap belum diisi).
             </p>
           )}
         </div>
@@ -138,7 +138,7 @@ function LembarSuplier({ suplier, urutan, pejabat, bulan, terpisah, onToggleTerp
         </p>
       )}
 
-      {suplier.kelompok.map((k) => (
+      {(suplier.kelompok ?? []).map((k) => (
         <Card key={`${k.prodi}|${k.tingkat}`} className="mt-3 overflow-x-auto print:border-0 print:p-0 print:shadow-none">
           <p className="mb-2 text-sm font-semibold text-gray-600 print:text-black">
             Prodi {k.prodi || '-'} · Tingkat {k.tingkat || '-'} ({k.jml_taruna} taruna)
@@ -153,7 +153,7 @@ function LembarSuplier({ suplier, urutan, pejabat, bulan, terpisah, onToggleTerp
               </tr>
             </thead>
             <tbody>
-              {k.baris.map((b, i) => (
+              {(k.baris ?? []).map((b, i) => (
                 <tr key={b.nit}>
                   <td className="border border-gray-300 px-2 py-1 text-right">{i + 1}</td>
                   <td className="border border-gray-300 px-2 py-1">{b.nit}</td>
