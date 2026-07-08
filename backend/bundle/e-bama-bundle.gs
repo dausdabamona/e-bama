@@ -607,6 +607,7 @@ var ACTION_MAP = {
 
   // Surat peringatan (TAHAP 4B)
   'sp.list':          { handler: spList,         roles: [] },
+  'sp.cetak_massal':  { handler: spCetakMassal,  roles: ['PPK', 'STAF_PPK', 'ADMIN'] },
 
   // Master pengguna (TAHAP 7 — Admin)
   'pengguna.list':      { handler: penggunaList,     roles: ['ADMIN'] },
@@ -4321,6 +4322,69 @@ function tagihanRegenerateSp(payload, session) {
   if (!maxLevel) throw _fail_('Tagihan ini belum punya SP — tidak ada yang bisa diterbitkan ulang.');
   var hasil = spTerbitkan(t.tagihan_id, maxLevel, session);
   return { sp: hasil, level: maxLevel };
+}
+
+/**
+ * sp.cetak_massal {bulan?} — data untuk CETAK MASSAL surat SP-1 di aplikasi
+ * (halaman React /cetak/sp1), READ-ONLY. Mengumpulkan tagihan TERTAGIH yang
+ * level aktifnya masih SP-1, memakai NOMOR SURAT SP-1 yang SUDAH terbit di
+ * SURAT_PERINGATAN (TIDAK membuat nomor baru — beda dari tagihan.regenerate_sp).
+ * Frontend memfilter di layar (belum setor / semua) & mencetak sekaligus.
+ * Surat SP hanya memuat nominal + rekening Senat (BUKAN rekening taruna), jadi
+ * tanpa audit khusus & boleh di-cache (beda dari Form-07/08/10). Bila `bulan`
+ * diisi, hanya bulan itu; kosong = semua bulan. Roles: PPK/STAF_PPK/ADMIN.
+ */
+function spCetakMassal(payload, session) {
+  var bulanFilter = payload && payload.bulan ? _bulanStr_(payload.bulan) : '';
+
+  // SP-1 per tagihan — kalau pernah diterbitkan ulang, ambil yang tgl_terbit
+  // paling baru (no_surat terbaru yang sah).
+  var sp1ByTagihan = {};
+  sheetRead(SHEETS.SURAT_PERINGATAN, function (s) { return Number(s.level) === 1; })
+    .forEach(function (s) {
+      var id = String(s.tagihan_id);
+      var tgl = _tglStr_(s.tgl_terbit);
+      var ada = sp1ByTagihan[id];
+      if (!ada || tgl >= ada.tgl_terbit) {
+        sp1ByTagihan[id] = { no_surat: s.no_surat, tgl_terbit: tgl, tenggat: _tglStr_(s.tenggat) };
+      }
+    });
+
+  var tarunaByNit = {};
+  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+
+  var daftar = [];
+  _tagihanJoin_().forEach(function (t) {
+    if (t.status !== 'TERTAGIH' || t.level_aktif !== 1) return;   // hanya yg masih SP-1
+    if (bulanFilter && t.bulan !== bulanFilter) return;
+    var sp = sp1ByTagihan[String(t.tagihan_id)];
+    if (!sp) return;                                              // belum ada SP-1 tercatat
+    var tr = tarunaByNit[String(t.nit)] || {};
+    daftar.push({
+      nit: String(t.nit), nama: tr.nama || '', prodi: tr.prodi || '', tingkat: tr.tingkat || '',
+      bulan: t.bulan, nominal: t.nominal,
+      no_surat: sp.no_surat, tgl_terbit: sp.tgl_terbit, tenggat: sp.tenggat,
+      sudah_setor: !!t.tgl_setor
+    });
+  });
+
+  daftar.sort(function (a, b) {
+    return (a.prodi || '').localeCompare(b.prodi || '') ||
+           (a.tingkat || '').localeCompare(b.tingkat || '') ||
+           (a.nama || '').localeCompare(b.nama || '');
+  });
+
+  var kb = getKebijakanSP();
+  var pej = PEJABAT[kb.PENANDATANGAN['1']] || PEJABAT.PPK;
+  var rekSenat = PropertiesService.getScriptProperties().getProperty('REK_SENAT') ||
+    '(nomor rekening Senat — set Script Property REK_SENAT)';
+
+  return {
+    bulan_filter: bulanFilter,
+    rek_senat: rekSenat,
+    penandatangan: { nama: pej.nama, nip: pej.nip },
+    daftar: daftar
+  };
 }
 
 /**

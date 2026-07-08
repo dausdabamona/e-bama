@@ -182,6 +182,7 @@ diisi ulang sejak migrasi harga per-porsi → per-hari, dikonfirmasi Firdaus).
 | `tagihan.waive` | PPK | `catatan_hapus` WAJIB → `DIHAPUSKAN` |
 | `tagihan.regenerate_sp` | PPK | terbitkan ulang PDF level aktif — no_surat BARU, baris SP baru, `generated_by=MANUAL` |
 | `sp.list` | semua login | riwayat SP per tagihan |
+| `sp.cetak_massal` | PPK, STAF_PPK, ADMIN | `{bulan?}` → `{bulan_filter, rek_senat, penandatangan:{nama,nip}, daftar:[{nit,nama,prodi,tingkat,bulan,nominal,no_surat,tgl_terbit,tenggat,sudah_setor}]}` — data CETAK MASSAL surat SP-1 di aplikasi (halaman `/cetak/sp1`), READ-ONLY. Hanya tagihan `TERTAGIH` yang `level_aktif===1` (masih SP-1). Memakai **no_surat SP-1 yang SUDAH terbit** di SURAT_PERINGATAN (yang tgl_terbit paling baru bila pernah diterbitkan ulang) — TIDAK membuat nomor baru. `penandatangan` = `PEJABAT[getKebijakanSP().PENANDATANGAN['1']]` (default PPK). `rek_senat` dari Script Property `REK_SENAT`. Surat SP hanya memuat nominal + rekening Senat (BUKAN rekening taruna) → tanpa audit khusus, boleh di-cache. Frontend memfilter layar (belum setor / semua, default belum setor) & mencetak sekaligus (tiap surat 1 halaman) | ✅ diimplementasi |
 
 ### Laporan & Audit
 

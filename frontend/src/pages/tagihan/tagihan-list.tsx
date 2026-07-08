@@ -108,6 +108,9 @@ export function HalamanTagihanList() {
         <h1 className="text-xl font-bold text-primary-dark">Tagihan</h1>
         <div className="flex gap-2">
           <Link to="/tagihan/status-debet"><Button varian="garis">📊 Status Debet</Button></Link>
+          {(sepertiPpk(session?.role) || session?.role === 'ADMIN') && (
+            <Link to="/cetak/sp1"><Button varian="garis">🖨️ Cetak SP-1</Button></Link>
+          )}
           {(session?.role === 'SENAT' || session?.role === 'PEMBINA' || session?.role === 'ADMIN' || sepertiPpk(session?.role)) && (
             <Link to="/tagihan/teruskan-penyedia"><Button varian="garis">📤 Teruskan ke Penyedia</Button></Link>
           )}

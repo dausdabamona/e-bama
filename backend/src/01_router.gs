@@ -137,6 +137,7 @@ var ACTION_MAP = {
 
   // Surat peringatan (TAHAP 4B)
   'sp.list':          { handler: spList,         roles: [] },
+  'sp.cetak_massal':  { handler: spCetakMassal,  roles: ['PPK', 'STAF_PPK', 'ADMIN'] },
 
   // Master pengguna (TAHAP 7 — Admin)
   'pengguna.list':      { handler: penggunaList,     roles: ['ADMIN'] },
