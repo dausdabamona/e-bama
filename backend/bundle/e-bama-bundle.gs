@@ -3627,7 +3627,15 @@ function tagihanList(payload, session) {
 
 /**
  * Dashboard piutang: {per_level: {0..3:{jumlah,nominal}}, total_outstanding,
- * verifikasi_1x, lunas_belum_diteruskan, lunas_sudah_diteruskan}.
+ * sudah_disetor_menunggu_verifikasi_1, verifikasi_1x, lunas_belum_diteruskan,
+ * lunas_sudah_diteruskan}.
+ * `sudah_disetor_menunggu_verifikasi_1` = dana YANG SUDAH MASUK ke rekening
+ * Senat (tgl_setor terisi) tapi BELUM disentuh verifikator sama sekali —
+ * tahap PALING AWAL, beda dari `verifikasi_1x` (sudah lolos verifikator
+ * PERTAMA, tinggal menunggu verifikator KEDUA). Tanpa baris ini, kartu
+ * ringkasan tak menunjukkan uang yang sudah terkumpul di Senat tapi belum
+ * mulai diverifikasi (dikonfirmasi Firdaus — sebelumnya cuma kelihatan di
+ * sub-grup "Menunggu Verifikasi ke-1" per bulan, tak terhitung di ringkasan).
  * `lunas_belum_diteruskan` = dana taruna yang SUDAH lunas ditagih tapi BELUM
  * diteruskan ke penyedia — inilah angka "utang Poltek ke penyedia" dari
  * jalur tagih-ulang ini (terpisah dari SP2D/SPM), lihat tagihan.teruskan_penyedia.
@@ -3636,6 +3644,7 @@ function tagihanSummary(payload, session) {
   var per = { 0: { jumlah: 0, nominal: 0 }, 1: { jumlah: 0, nominal: 0 },
               2: { jumlah: 0, nominal: 0 }, 3: { jumlah: 0, nominal: 0 } };
   var total = 0;
+  var sudahDisetorMenungguVerif1 = { jumlah: 0, nominal: 0 };
   var verif1 = { jumlah: 0, nominal: 0 };
   var lunasBelumDiteruskan = { jumlah: 0, nominal: 0 };
   var lunasSudahDiteruskan = { jumlah: 0, nominal: 0 };
@@ -3645,7 +3654,11 @@ function tagihanSummary(payload, session) {
       var lv = Math.min(Math.max(t.level_aktif, 0), 3);
       per[lv].jumlah++; per[lv].nominal += t.nominal;
       total += t.nominal;
-      if (t.verif_1_oleh) { verif1.jumlah++; verif1.nominal += t.nominal; }
+      if (t.verif_1_oleh) {
+        verif1.jumlah++; verif1.nominal += t.nominal;
+      } else if (t.tgl_setor) {
+        sudahDisetorMenungguVerif1.jumlah++; sudahDisetorMenungguVerif1.nominal += t.nominal;
+      }
     } else if (t.status === 'LUNAS') {
       var nilai = t.nilai_transfer || t.nominal;
       if (t.tgl_diteruskan_penyedia) { lunasSudahDiteruskan.jumlah++; lunasSudahDiteruskan.nominal += nilai; }
@@ -3655,6 +3668,7 @@ function tagihanSummary(payload, session) {
 
   return {
     per_level: per, total_outstanding: total,
+    sudah_disetor_menunggu_verifikasi_1: sudahDisetorMenungguVerif1,
     verifikasi_1x: verif1, lunas_belum_diteruskan: lunasBelumDiteruskan, lunas_sudah_diteruskan: lunasSudahDiteruskan
   };
 }
