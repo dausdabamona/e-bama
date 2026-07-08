@@ -19,7 +19,7 @@ import { api } from '../../lib/api';
 import { ambilBerkasInput, berkasKeBase64 } from '../../lib/berkas';
 import { useListCache } from '../../lib/use-list-cache';
 import { formatRupiah } from '../tagihan/tipe';
-import { KartuSpmDalamKampus, useSpmDalamKampus } from './spm-dalam-kampus';
+import { KartuBuatRancanganSpm, KartuSpmDalamKampus, useSpmDalamKampus } from './spm-dalam-kampus';
 import type { Pembayaran } from './tipe';
 
 const URUTAN_STATUS: Pembayaran['status'][] = ['DIAJUKAN', 'SELESAI'];
@@ -202,6 +202,12 @@ export function HalamanPembayaran() {
               & bisa diedit langsung di sini (ganti jalur lama menu Laporan). */}
           {adaSpmTersimpan && (
             <KartuSpmDalamKampus bulan={bulan} bayarId={b.bayar_id} spm={spmDalamKampus} refresh={spmQ.refresh} />
+          )}
+
+          {/* Bulan yang PEMBAYARAN-nya sudah ada tapi baris SPM belum pernah
+              terbentuk (mis. dibuat sebelum fitur ini ada) — tombol utk membuat. */}
+          {!adaSpmTersimpan && session?.role === 'PPK' && (
+            <KartuBuatRancanganSpm bayarId={b.bayar_id} refresh={spmQ.refresh} />
           )}
 
           {/* Rincian SP2D LIVE dari SP2D_MONITORING — 1 bulan pembayaran = N SP2D

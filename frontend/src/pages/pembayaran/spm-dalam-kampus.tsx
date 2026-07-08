@@ -37,6 +37,46 @@ export function useSpmDalamKampus(bulan: string) {
   return useListCache<{ spm: SpmBaris[] }>('spm.list', { bulan, kategori: 'DALAM_KAMPUS' });
 }
 
+/**
+ * Kartu "Belum ada Rancangan SPM" — tampil kalau PEMBAYARAN bulan ini SUDAH
+ * ada tapi baris SPM-nya belum pernah dibuat (mis. dibuat sebelum Tahap 3 ada,
+ * atau proses awal gagal separuh jalan). `spm.regenerate` aman dipanggil di
+ * sini walau belum ada baris SPM sama sekali (bukan cuma "buat ulang") — ia
+ * cuma menolak kalau ada baris yang SUDAH DIAJUKAN/SP2D_TERBIT, yang mustahil
+ * terjadi kalau memang belum ada baris sama sekali.
+ */
+export function KartuBuatRancanganSpm({ bayarId, refresh }: { bayarId: string; refresh: () => void }) {
+  const { toast } = useToast();
+  const [proses, setProses] = useState(false);
+
+  async function buat() {
+    setProses(true);
+    try {
+      const hasil = await api<{ dibuat: number }>('spm.regenerate', { bayar_id: bayarId });
+      toast(`Rancangan SPM dibuat (${hasil.dibuat} kelompok prodi+tingkat+suplier).`, 'sukses');
+      refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
+    } finally {
+      setProses(false);
+    }
+  }
+
+  return (
+    <Card className="flex flex-col gap-2 border-l-4 border-l-primary">
+      <p className="text-sm font-semibold text-gray-600">📋 Rancangan SPM belum dibuat untuk bulan ini</p>
+      <p className="text-xs text-gray-500">
+        Pembayaran bulan ini dibuat sebelum fitur rancangan SPM tersimpan ada (atau baris SPM-nya belum sempat
+        terbentuk). Buat sekarang dari data Rekap saat ini — satu baris per prodi+tingkat+suplier, bisa diisi
+        No. SPM/No. SP2D langsung setelah dibuat.
+      </p>
+      <Button onClick={() => void buat()} disabled={proses}>
+        📝 Buat Rancangan SPM dari Rekap
+      </Button>
+    </Card>
+  );
+}
+
 function BarisSpm({ s, proses, onSimpanSpm, onSimpanSp2d }: {
   s: SpmBaris; proses: boolean;
   onSimpanSpm: (spmId: string, noSpm: string, tglSpm: string) => void;
