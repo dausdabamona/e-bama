@@ -15,6 +15,7 @@ import { Card } from '../../components/ui/card';
 import { ErrorMessage } from '../../components/ui/error-message';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
 import { api } from '../../lib/api';
+import { terbilangRupiah } from '../../lib/terbilang';
 import { formatRupiah } from '../tagihan/tipe';
 
 interface BarisForm07 {
@@ -56,23 +57,6 @@ function kelompokProdiTingkat(rows: BarisForm07[]): { prodi: string; tingkat: st
     .sort((a, b) => (URUT_TINGKAT[a.tingkat] ?? 9) - (URUT_TINGKAT[b.tingkat] ?? 9) || a.prodi.localeCompare(b.prodi));
 }
 
-const SATUAN = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas'];
-function terbilang(n: number): string {
-  n = Math.floor(Math.abs(n));
-  if (n < 12) return SATUAN[n];
-  if (n < 20) return terbilang(n - 10) + ' belas';
-  if (n < 100) return terbilang(Math.floor(n / 10)) + ' puluh' + (n % 10 ? ' ' + terbilang(n % 10) : '');
-  if (n < 200) return 'seratus' + (n - 100 ? ' ' + terbilang(n - 100) : '');
-  if (n < 1000) return terbilang(Math.floor(n / 100)) + ' ratus' + (n % 100 ? ' ' + terbilang(n % 100) : '');
-  if (n < 2000) return 'seribu' + (n - 1000 ? ' ' + terbilang(n - 1000) : '');
-  if (n < 1e6) return terbilang(Math.floor(n / 1000)) + ' ribu' + (n % 1000 ? ' ' + terbilang(n % 1000) : '');
-  if (n < 1e9) return terbilang(Math.floor(n / 1e6)) + ' juta' + (n % 1e6 ? ' ' + terbilang(n % 1e6) : '');
-  return terbilang(Math.floor(n / 1e9)) + ' miliar' + (n % 1e9 ? ' ' + terbilang(n % 1e9) : '');
-}
-function terbilangRupiah(n: number): string {
-  const t = (terbilang(n).trim() || 'nol') + ' rupiah';
-  return t.charAt(0).toUpperCase() + t.slice(1);
-}
 interface PembayaranRingkas {
   bayar_id: string; nilai_total: number; no_spm: string; tgl_spm: string; no_sp2d: string; tgl_sp2d: string; status: string;
 }

@@ -3,17 +3,17 @@
 // dikelompokkan per prodi+tingkat+angkatan (angkatan = 2 digit depan NIT).
 // Menampilkan nomor rekening PENUH taruna → TIDAK di-cache Dexie (pola Form-07),
 // setiap pemuatan tercatat di Log Audit oleh backend.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BulanPicker, bulanIni, labelBulan } from '../../components/bulan-picker';
 import { BlokTtdTengah } from '../../components/cetak/blok-ttd';
 import { KopSurat } from '../../components/cetak/kop-surat';
-import { BarisCetak, SelCetak, TabelCetak } from '../../components/cetak/tabel-cetak';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { ErrorMessage } from '../../components/ui/error-message';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
 import { api } from '../../lib/api';
+import { terbilangRupiah } from '../../lib/terbilang';
 import { formatRupiah } from '../tagihan/tipe';
 
 interface Pejabat { nama: string; nip: string }
@@ -89,9 +89,17 @@ function unduhCsvSpm(suplier: SuplierF10, bulan: string): number {
   return semua.length - dipakai.length;
 }
 
-/** Satu lembar SPM per suplier (halaman cetak sendiri, break-before-page). */
-function LembarSuplier({ suplier, urutan, pejabat, bulan }: {
+/**
+ * Satu lembar SPM per suplier (halaman cetak sendiri, break-before-page).
+ * Kolom "Pisah" (checkbox, print:hidden) memberi PPK/Admin cara ad hoc untuk
+ * menarik taruna TERTENTU keluar dari lembar ini dan menjadikannya SPM
+ * tersendiri (mis. taruna yang datanya perlu diajukan terpisah dari
+ * rombongan prodi/tingkatnya) — TIDAK ada NIT yang dikhususkan di kode,
+ * berlaku untuk taruna manapun, bulan manapun, murni pilihan saat cetak.
+ */
+function LembarSuplier({ suplier, urutan, pejabat, bulan, terpisah, onToggleTerpisah, labelTambahan }: {
   suplier: SuplierF10; urutan: number; pejabat: Form10Data['pejabat']; bulan: string;
+  terpisah: Set<string>; onToggleTerpisah: (nit: string) => void; labelTambahan?: string;
 }) {
   const belumAdaSuplier = !suplier.penyedia_id;
   // Tampilkan nama suplier bila ada di master PENYEDIA; kalau tidak, tampilkan ID-nya.
@@ -101,7 +109,9 @@ function LembarSuplier({ suplier, urutan, pejabat, bulan }: {
   return (
     <div className={urutan > 0 ? 'break-before-page pt-4' : ''}>
       <div className="text-center">
-        <h2 className="text-base font-bold">RENCANA PENGAJUAN SPM — SUPLIER: {labelSuplier}</h2>
+        <h2 className="text-base font-bold">
+          RENCANA PENGAJUAN SPM — SUPLIER: {labelSuplier}{labelTambahan ? ` ${labelTambahan}` : ''}
+        </h2>
         <p className="text-sm">
           Bulan {labelBulan(bulan)} — {suplier.jml_taruna} taruna
           {suplier.penyedia_id ? <> · ID Suplier: <span className="font-mono">{suplier.penyedia_id}</span></> : null}
@@ -133,19 +143,33 @@ function LembarSuplier({ suplier, urutan, pejabat, bulan }: {
           <p className="mb-2 text-sm font-semibold text-gray-600 print:text-black">
             Prodi {k.prodi || '-'} · Tingkat {k.tingkat || '-'} ({k.jml_taruna} taruna)
           </p>
-          <TabelCetak headers={['No', 'NIT', 'Nama', 'Bank', 'No. Rekening', 'Hari', 'Nominal (Rp)']}>
-            {k.baris.map((b, i) => (
-              <BarisCetak key={b.nit}>
-                <SelCetak className="text-right">{i + 1}</SelCetak>
-                <SelCetak>{b.nit}</SelCetak>
-                <SelCetak>{b.nama}</SelCetak>
-                <SelCetak>{b.rekening_lengkap_ada ? b.bank : '-'}</SelCetak>
-                <SelCetak>{b.rekening_lengkap_ada ? b.no_rekening_lengkap : '…… (belum ada rekening)'}</SelCetak>
-                <SelCetak className="text-right">{b.hari_makan}</SelCetak>
-                <SelCetak className="text-right">{formatRupiah(b.nominal)}</SelCetak>
-              </BarisCetak>
-            ))}
-          </TabelCetak>
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr>
+                {['No', 'NIT', 'Nama', 'Bank', 'No. Rekening', 'Hari', 'Nominal (Rp)'].map((h) => (
+                  <th key={h} className="border border-gray-400 bg-[#D9E2F3] px-2 py-1 text-left font-semibold">{h}</th>
+                ))}
+                <th className="border border-gray-400 bg-[#D9E2F3] px-2 py-1 text-left font-semibold print:hidden">Pisah</th>
+              </tr>
+            </thead>
+            <tbody>
+              {k.baris.map((b, i) => (
+                <tr key={b.nit}>
+                  <td className="border border-gray-300 px-2 py-1 text-right">{i + 1}</td>
+                  <td className="border border-gray-300 px-2 py-1">{b.nit}</td>
+                  <td className="border border-gray-300 px-2 py-1">{b.nama}</td>
+                  <td className="border border-gray-300 px-2 py-1">{b.rekening_lengkap_ada ? b.bank : '-'}</td>
+                  <td className="border border-gray-300 px-2 py-1">{b.rekening_lengkap_ada ? b.no_rekening_lengkap : '…… (belum ada rekening)'}</td>
+                  <td className="border border-gray-300 px-2 py-1 text-right">{b.hari_makan}</td>
+                  <td className="border border-gray-300 px-2 py-1 text-right">{formatRupiah(b.nominal)}</td>
+                  <td className="border border-gray-300 px-2 py-1 text-center print:hidden">
+                    <input type="checkbox" aria-label={`Pisahkan ${b.nama} jadi SPM sendiri`}
+                      checked={terpisah.has(b.nit)} onChange={() => onToggleTerpisah(b.nit)} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
           <div className="mt-1 flex justify-between text-xs font-semibold">
             <span>Subtotal {k.prodi} {k.tingkat}</span>
             <span>{formatRupiah(k.total_nominal)}</span>
@@ -154,7 +178,7 @@ function LembarSuplier({ suplier, urutan, pejabat, bulan }: {
       ))}
 
       <div className="mt-3 flex justify-between text-sm font-bold">
-        <span>TOTAL SPM SUPLIER {belumAdaSuplier ? '(BELUM DITENTUKAN)' : suplier.penyedia_nama.toUpperCase()}</span>
+        <span>TOTAL SPM SUPLIER {belumAdaSuplier ? '(BELUM DITENTUKAN)' : suplier.penyedia_nama.toUpperCase()}{labelTambahan ? ` ${labelTambahan}` : ''}</span>
         <span>{formatRupiah(suplier.total_nominal)}</span>
       </div>
       <p className="mt-1 text-xs italic">Terbilang: <strong>{suplier.total_terbilang}</strong></p>
@@ -173,6 +197,60 @@ export function HalamanCetakForm10() {
   const { bulan: bulanParam } = useParams<{ bulan?: string }>();
   const [bulan, setBulan] = useState(bulanParam || bulanIni());
   const { data, memuat, galat, refresh } = useTanpaCache<Form10Data>('cetak.form10', { bulan });
+
+  // NIT taruna yang ditandai "pisahkan jadi SPM sendiri" — state layar saja
+  // (tidak dikirim/disimpan ke server), berlaku untuk taruna manapun sesuai
+  // pilihan PPK/Admin saat mencetak, di-reset tiap ganti bulan.
+  const [terpisah, setTerpisah] = useState<Set<string>>(new Set());
+  useEffect(() => { setTerpisah(new Set()); }, [bulan]);
+  const toggleTerpisah = useCallback((nit: string) => {
+    setTerpisah((prev) => {
+      const next = new Set(prev);
+      if (next.has(nit)) next.delete(nit); else next.add(nit);
+      return next;
+    });
+  }, []);
+
+  const { perSuplierUtama, lembarTerpisah } = useMemo(() => {
+    const daftar = data?.per_suplier ?? [];
+    if (terpisah.size === 0) return { perSuplierUtama: daftar, lembarTerpisah: [] as SuplierF10[] };
+
+    const dipisah: { suplier: SuplierF10; prodi: string; tingkat: string; baris: BarisF10 }[] = [];
+
+    const perSuplierUtama = daftar
+      .map((s) => {
+        const kelompokBaru = s.kelompok
+          .map((k) => {
+            const barisTetap: BarisF10[] = [];
+            k.baris.forEach((b) => {
+              if (terpisah.has(b.nit)) dipisah.push({ suplier: s, prodi: k.prodi, tingkat: k.tingkat, baris: b });
+              else barisTetap.push(b);
+            });
+            return { ...k, baris: barisTetap, jml_taruna: barisTetap.length, total_nominal: barisTetap.reduce((sum, b) => sum + b.nominal, 0) };
+          })
+          .filter((k) => k.baris.length > 0);
+        const totalNominal = kelompokBaru.reduce((sum, k) => sum + k.total_nominal, 0);
+        return {
+          ...s,
+          kelompok: kelompokBaru,
+          jml_taruna: kelompokBaru.reduce((sum, k) => sum + k.jml_taruna, 0),
+          total_nominal: totalNominal,
+          total_terbilang: terbilangRupiah(totalNominal),
+        };
+      })
+      .filter((s) => s.kelompok.length > 0);
+
+    const lembarTerpisah: SuplierF10[] = dipisah.map(({ suplier, prodi, tingkat, baris }) => ({
+      penyedia_id: suplier.penyedia_id,
+      penyedia_nama: suplier.penyedia_nama,
+      jml_taruna: 1,
+      total_nominal: baris.nominal,
+      total_terbilang: terbilangRupiah(baris.nominal),
+      kelompok: [{ prodi, tingkat, jml_taruna: 1, total_nominal: baris.nominal, baris: [baris] }],
+    }));
+
+    return { perSuplierUtama, lembarTerpisah };
+  }, [data, terpisah]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -210,14 +288,26 @@ export function HalamanCetakForm10() {
               <div className="flex justify-between"><span>Jumlah suplier</span><span>{data.per_suplier.length}</span></div>
               <div className="flex justify-between"><span>No. SP2D (bila sudah terbit)</span><span>{data.pembayaran.no_sp2d || '-'}</span></div>
             </div>
+            <p className="mt-2 text-xs text-gray-500 print:hidden">
+              Centang kolom "Pisah" pada baris taruna untuk menjadikan taruna tersebut SPM
+              tersendiri, terpisah dari kelompok prodi/tingkatnya (mis. taruna yang perlu
+              diajukan lewat lembar sendiri) — pilihan ini hanya berlaku di layar/cetak saat ini.
+            </p>
           </Card>
 
           {data.per_suplier.length === 0 && (
             <Card className="text-sm text-gray-500">Belum ada data rekap untuk bulan ini.</Card>
           )}
 
-          {data.per_suplier.map((s, i) => (
-            <LembarSuplier key={s.penyedia_id || '__tanpa__'} suplier={s} urutan={i} pejabat={data.pejabat} bulan={data.bulan} />
+          {perSuplierUtama.map((s, i) => (
+            <LembarSuplier key={s.penyedia_id || '__tanpa__'} suplier={s} urutan={i} pejabat={data.pejabat} bulan={data.bulan}
+              terpisah={terpisah} onToggleTerpisah={toggleTerpisah} />
+          ))}
+
+          {lembarTerpisah.map((s, i) => (
+            <LembarSuplier key={`terpisah-${s.kelompok[0].baris[0].nit}`} suplier={s} urutan={perSuplierUtama.length + i}
+              pejabat={data.pejabat} bulan={data.bulan} terpisah={terpisah} onToggleTerpisah={toggleTerpisah}
+              labelTambahan="(SPM Terpisah)" />
           ))}
         </div>
       )}
