@@ -22,6 +22,7 @@ interface PerBank {
 }
 interface Form09Data {
   bulan: string; penyedia_nama: string; per_bank: PerBank[]; total_nominal: number; nominal_terbilang: string;
+  biaya_admin_bank: number;
   pembayaran: { no_spm: string; tgl_spm: string; no_sp2d: string; tgl_sp2d: string; status: string };
   kontrak?: { no_kontrak: string; tgl_kontrak: string; adendum: string };
   pejabat: { PPK: Pejabat; KPA: Pejabat; DIREKTUR: Pejabat; WADIR3: Pejabat };
@@ -114,6 +115,11 @@ export function HalamanCetakForm09() {
 
           <Card className="overflow-x-auto print:border-0 print:p-0 print:shadow-none">
             <p className="mb-2 text-sm font-semibold text-gray-600 print:text-black">Rincian Pendebetan per Bank</p>
+            <p className="mb-2 text-xs text-gray-500 print:text-black">
+              Nominal per bank sudah dikurangi biaya admin bank {formatRupiah(data.biaya_admin_bank)} per taruna
+              (sama seperti Form-07) — identik dengan total per bank Form-07, sebab dana ini adalah hasil
+              pendebetan Form-07.
+            </p>
             <TabelCetak headers={['Bank', 'Jml Taruna', 'Rekening Senat (Sumber)', 'Rekening Penyedia (Tujuan)', 'Nominal (Rp)']}>
               {data.per_bank.map((b) => (
                 <BarisCetak key={b.bank}>

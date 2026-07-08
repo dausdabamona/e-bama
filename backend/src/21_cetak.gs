@@ -467,7 +467,9 @@ function cetakForm08(payload, session) {
  * Senat BSI→Penyedia BSI, Senat BNI→Penyedia BNI).
  *
  * Nominal per bank HARUS sama persis dengan total per bank di Form 07 — sebab
- * yang diteruskan Senat→Penyedia adalah dana yang masuk dari pendebetan Form 07.
+ * yang diteruskan Senat→Penyedia adalah dana yang masuk dari pendebetan Form 07
+ * (sudah dipotong biaya admin bank per taruna, getKebijakanPendebetan — sama
+ * kebijakan dgn Form 07, dikonfirmasi Firdaus berlaku di kedua form).
  * Karena itu pengelompokan bank memakai bank REKENING RIIL taruna
  * (`TARUNA_REKENING.bank`), bukan `TARUNA.bank` master (yang bisa berbeda), dan
  * taruna bernilai Rp0 diabaikan — persis aturan Form 07. Yang dibaca dari
@@ -508,12 +510,18 @@ function cetakForm09(payload, session) {
     if (p) penyediaNama = p.nama || '';
   }
 
+  // Biaya admin bank per taruna (sama kebijakan dgn Form 07, getKebijakanPendebetan)
+  // — dikurangi di sini juga supaya total per bank TETAP identik dengan Form 07,
+  // sebab dana yang diteruskan Senat→Penyedia = hasil pendebetan Form 07 (yang
+  // sudah dipotong biaya admin bank per taruna), bukan nilai SPM penuh.
+  var biayaAdminBank = getKebijakanPendebetan().biayaAdminBank;
   var rek = getRekeningInstansi();
   var agg = {}; // bank -> {total, jml}
   rekapRows.forEach(function (r) {
     var bank = bankByNit[String(r.nit)] || 'TANPA_REKENING';
     if (!agg[bank]) agg[bank] = { total: 0, jml: 0 };
-    agg[bank].total += _int_(r.nominal || 0, 'nominal');
+    var nominal = _int_(r.nominal || 0, 'nominal');
+    agg[bank].total += Math.max(0, nominal - biayaAdminBank);
     agg[bank].jml += 1;
   });
 
@@ -539,6 +547,7 @@ function cetakForm09(payload, session) {
     per_bank: perBank,
     total_nominal: totalNominal,
     nominal_terbilang: _terbilangRupiah_(totalNominal),
+    biaya_admin_bank: biayaAdminBank,
     pembayaran: {
       no_spm: pembayaran.no_spm, tgl_spm: _tglStr_(pembayaran.tgl_spm),
       no_sp2d: pembayaran.no_sp2d, tgl_sp2d: _tglStr_(pembayaran.tgl_sp2d),
