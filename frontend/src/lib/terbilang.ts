@@ -5,6 +5,12 @@ const SATUAN = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'de
 
 export function terbilang(n: number): string {
   n = Math.floor(Math.abs(n));
+  // Data hulu (respons API/hitungan klien) semestinya selalu integer — tapi bila
+  // ada field yang belum terisi (mis. backend belum di-clasp-push ulang) nilainya
+  // bisa jadi undefined/NaN. Tanpa penjaga ini, NaN membuat rekursi tak pernah
+  // menyentuh basis kasus manapun → RangeError (stack overflow) yang mematikan
+  // seluruh halaman cetak.
+  if (!Number.isFinite(n)) return '';
   if (n < 12) return SATUAN[n];
   if (n < 20) return terbilang(n - 10) + ' belas';
   if (n < 100) return terbilang(Math.floor(n / 10)) + ' puluh' + (n % 10 ? ' ' + terbilang(n % 10) : '');
