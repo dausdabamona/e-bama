@@ -267,6 +267,18 @@ export function KartuSpmDalamKampus({ bulan, bayarId, spm, refresh }: {
   const total = spm.reduce((s, x) => s + x.nominal, 0);
   const jmlSp2dTerbit = spm.filter((s) => s.status === 'SP2D_TERBIT').length;
 
+  // Urutkan agar baris SATU kelompok (termasuk pecahan hasil spm.split) BERSEBELAHAN:
+  // prodi → tingkat → penyedia → induk (tanpa induk_spm_id) dulu, lalu pecahannya.
+  // Tanpa ini, baris pecahan (di-append di akhir sheet) muncul jauh dari induknya
+  // sehingga tampak "hilang" (padahal ada) — lihat keluhan Firdaus.
+  const spmUrut = [...spm].sort((a, b) =>
+    (a.prodi || '').localeCompare(b.prodi || '') ||
+    (a.tingkat || '').localeCompare(b.tingkat || '') ||
+    String(a.penyedia_id || '').localeCompare(String(b.penyedia_id || '')) ||
+    (a.induk_spm_id ? 1 : 0) - (b.induk_spm_id ? 1 : 0) ||
+    String(a.spm_id).localeCompare(String(b.spm_id)),
+  );
+
   async function simpanSpm(spmId: string, noSpm: string, tglSpm: string) {
     setProses(true);
     try {
@@ -360,7 +372,7 @@ export function KartuSpmDalamKampus({ bulan, bayarId, spm, refresh }: {
             </tr>
           </thead>
           <tbody>
-            {spm.map((s) => (
+            {spmUrut.map((s) => (
               <BarisSpm key={s.spm_id} s={s} semuaSpm={spm} proses={proses} onSimpanSpm={simpanSpm} onSimpanSp2d={simpanSp2d}
                 onPisahkan={setPisahSpmId} onGabungkan={(a, b) => void gabungkan(a, b)} />
             ))}
