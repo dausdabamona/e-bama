@@ -1,7 +1,7 @@
 // Kerangka halaman: header (nama app, indikator online/offline, badge antrian)
 // + bottom-nav 4–5 item BERBEDA per role.
 import { NavLink, Outlet } from 'react-router-dom';
-import { useAuth, type Role } from '../auth/auth-context';
+import { sepertiPpk, useAuth, type Role } from '../auth/auth-context';
 import { SidebarPpkDesktop } from './sidebar-ppk-desktop';
 import { TopbarPpkDesktop } from './topbar-ppk-desktop';
 import { BadgeAntrianSinkron, TitikStatusOnline, useSyncStatus } from './ui/sync-badge';
@@ -14,7 +14,7 @@ interface ItemNav {
 
 // Label role untuk indikator "sedang aktif sebagai" di header.
 const LABEL_ROLE: Record<Role, string> = {
-  KPA: 'KPA', PPK: 'PPK', SENAT: 'Senat', PEMBINA: 'Pembina',
+  KPA: 'KPA', PPK: 'PPK', STAF_PPK: 'Staf PPK', SENAT: 'Senat', PEMBINA: 'Pembina',
   ADMIN: 'Admin', WADIR3: 'Wadir 3', BAAK: 'BAAK', PENYEDIA: 'Penyedia',
   KETUA_JURUSAN: 'Ketua Jurusan', OPERATOR_SAKTI: 'Operator SAKTI'
 };
@@ -39,6 +39,15 @@ export const NAV_PER_ROLE: Record<Role, ItemNav[]> = {
     { ke: '/akun', label: 'Akun', ikon: '👤' }
   ],
   PPK: [
+    { ke: '/kokpit-ppk', label: 'Kokpit', ikon: '🧭' },
+    { ke: '/rekap', label: 'Rekap', ikon: '📊' },
+    { ke: '/pembayaran', label: 'Bayar', ikon: '🏦' },
+    { ke: '/tagihan', label: 'Tagihan', ikon: '💳' },
+    { ke: '/laporan', label: 'Laporan', ikon: '🖨️' },
+    { ke: '/akun', label: 'Akun', ikon: '👤' }
+  ],
+  // Staf PPK: navigasi cermin PPK (dia mengerjakan administrasi yang sama).
+  STAF_PPK: [
     { ke: '/kokpit-ppk', label: 'Kokpit', ikon: '🧭' },
     { ke: '/rekap', label: 'Rekap', ikon: '📊' },
     { ke: '/pembayaran', label: 'Bayar', ikon: '🏦' },
@@ -93,7 +102,7 @@ export function Layout() {
   const nav = session ? NAV_PER_ROLE[session.role] : [];
   // Desktop khusus PPK (design_handoff_ebama_kokpit): sidebar gelap + topbar
   // sendiri, HANYA ≥1024px. Mobile & role lain tetap memakai shell lama.
-  const ppkDesktop = session?.role === 'PPK';
+  const ppkDesktop = sepertiPpk(session?.role);
 
   return (
     <div className="flex min-h-dvh w-full bg-ivory lg:flex-row">

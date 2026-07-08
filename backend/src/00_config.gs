@@ -43,6 +43,7 @@ var SHEETS = {
 var ROLES = {
   KPA:      'KPA',
   PPK:      'PPK',
+  STAF_PPK: 'STAF_PPK',       // staf administrasi PPK — cermin penuh hak PPK KECUALI bayar.create (komit anggaran tetap PPK); boleh beberapa akun
   SENAT:    'SENAT',
   PEMBINA:  'PEMBINA',
   ADMIN:    'ADMIN',
@@ -56,7 +57,7 @@ var ROLES = {
 // ── Nilai enum per kolom (rujukan validasi dropdown & pengecekan handler) ────
 var ENUM = {
   AKTIF_STATUS:      ['AKTIF', 'NONAKTIF'],                 // PENGGUNA/TARUNA/PENYEDIA.status
-  ROLE:              ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK', 'PENYEDIA', 'KETUA_JURUSAN', 'OPERATOR_SAKTI'],
+  ROLE:              ['KPA', 'PPK', 'STAF_PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK', 'PENYEDIA', 'KETUA_JURUSAN', 'OPERATOR_SAKTI'],
   BANK:              ['BNI', 'BSI'],                        // TARUNA.bank
   KONTRAK_STATUS:    ['DRAFT', 'DISETUJUI_PPK'],
   BLK_STATUS:        ['DRAFT', 'DISETUJUI_KAJUR'],          // BANTUAN_LUAR_KAMPUS.status (persetujuan Ketua Jurusan)

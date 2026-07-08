@@ -88,7 +88,9 @@ function _hanyaKajur_(session) {
  * handler tetap menolak sendiri.
  */
 function _hanyaAdminPPK_(session) {
-  if (!session || (session.role !== ROLES.ADMIN && session.role !== ROLES.PPK)) {
+  // STAF_PPK ikut PPK (lihat rekening lengkap utk Form-07/08/10) — mencerminkan
+  // hak PPK. Input rekening (rekening.simpan) TETAP ADMIN saja (gate terpisah).
+  if (!session || (session.role !== ROLES.ADMIN && session.role !== ROLES.PPK && session.role !== ROLES.STAF_PPK)) {
     throw _fail_('Anda tidak berwenang mengakses data rekening lengkap.');
   }
 }

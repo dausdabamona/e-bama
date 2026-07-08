@@ -5,7 +5,7 @@
 // berjalan lewat dokumen cetak terpisah (Form-07 lalu Form-09).
 import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../../auth/auth-context';
+import { sepertiPpk, useAuth } from '../../auth/auth-context';
 import { BulanPicker, bulanIni } from '../../components/bulan-picker';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
@@ -184,7 +184,7 @@ export function HalamanPembayaran() {
 
           {/* Lanjutan alur: pembagian SPM ke KPPN (Form-10). Muncul sejak pembayaran
               dibuat (DIAJUKAN) — SPM diajukan lebih dulu untuk memperoleh SP2D. */}
-          {session?.role === 'PPK' && (
+          {sepertiPpk(session?.role) && (
             <Card className="flex flex-col gap-2 border-l-4 border-l-primary">
               <p className="text-sm font-semibold text-gray-600">📄 Dokumen: Pembagian SPM ke KPPN</p>
               <p className="text-xs text-gray-500">
@@ -206,7 +206,7 @@ export function HalamanPembayaran() {
 
           {/* Bulan yang PEMBAYARAN-nya sudah ada tapi baris SPM belum pernah
               terbentuk (mis. dibuat sebelum fitur ini ada) — tombol utk membuat. */}
-          {!adaSpmTersimpan && session?.role === 'PPK' && (
+          {!adaSpmTersimpan && sepertiPpk(session?.role) && (
             <KartuBuatRancanganSpm bayarId={b.bayar_id} refresh={spmQ.refresh} />
           )}
 
@@ -342,7 +342,7 @@ export function HalamanPembayaran() {
                   </p>
                 ) : null}
 
-                {session?.role === 'PPK' && b.status === 'DIAJUKAN' && sp2dLengkap && (
+                {sepertiPpk(session?.role) && b.status === 'DIAJUKAN' && sp2dLengkap && (
                   <Button onClick={() => void sinkronkan()} disabled={proses}>
                     🔄 Sinkronkan Sekarang → SELESAI
                   </Button>
@@ -352,7 +352,7 @@ export function HalamanPembayaran() {
           </Card>
           )}
 
-          {session?.role === 'PPK' && statusLegacy && (
+          {sepertiPpk(session?.role) && statusLegacy && (
             <Card className="flex flex-col gap-2 border-l-4 border-l-amber-500 bg-amber-50">
               <p className="text-sm font-semibold text-amber-800">⚠️ Status lama: {b.status.replace(/_/g, ' ')}</p>
               <p className="text-xs text-amber-700">
@@ -365,7 +365,7 @@ export function HalamanPembayaran() {
             </Card>
           )}
 
-          {session?.role === 'PPK' && b.status === 'DIAJUKAN' && !sp2dSudahAda && (
+          {sepertiPpk(session?.role) && b.status === 'DIAJUKAN' && !sp2dSudahAda && (
             <Card className="flex flex-col gap-2 border-l-4 border-l-primary">
               <p className="text-sm font-semibold text-gray-600">📄 Dokumen: Blokir &amp; Pendebetan Bank</p>
               <p className="text-xs text-gray-500">
@@ -379,7 +379,7 @@ export function HalamanPembayaran() {
             </Card>
           )}
 
-          {session?.role === 'PPK' && sp2dSudahAda && (
+          {sepertiPpk(session?.role) && sp2dSudahAda && (
             <Card className="flex flex-col gap-2 border-l-4 border-l-red-500 bg-red-50">
               <p className="text-sm font-semibold text-red-800">🚨 MENDESAK — Cetak &amp; Kirim Surat Blokir ke Bank</p>
               <p className="text-xs text-red-700">
@@ -392,7 +392,7 @@ export function HalamanPembayaran() {
             </Card>
           )}
 
-          {(session?.role === 'PPK' || session?.role === 'SENAT') && sp2dSudahAda && (
+          {(sepertiPpk(session?.role) || session?.role === 'SENAT') && sp2dSudahAda && (
             <Card className="flex flex-col gap-2 border-l-4 border-l-primary">
               <p className="text-sm font-semibold text-gray-600">📄 Dokumen: Pendebetan Senat → Penyedia</p>
               <p className="text-xs text-gray-500">
@@ -405,7 +405,7 @@ export function HalamanPembayaran() {
             </Card>
           )}
 
-          {session?.role === 'PPK' && b.status === 'DIAJUKAN' && (
+          {sepertiPpk(session?.role) && b.status === 'DIAJUKAN' && (
             <Card className="flex flex-col gap-3">
               <p className="text-sm font-semibold text-gray-600">Input Manual (fallback/opsional)</p>
               <p className="text-xs text-gray-500">
@@ -425,7 +425,7 @@ export function HalamanPembayaran() {
             </Card>
           )}
 
-          {session?.role === 'PPK' && (
+          {sepertiPpk(session?.role) && (
             <Card className="flex flex-col gap-2">
               <p className="text-sm font-semibold text-gray-600">Unggah Lampiran</p>
               <div className="flex flex-wrap gap-2">

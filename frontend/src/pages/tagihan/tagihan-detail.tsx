@@ -1,7 +1,7 @@
 // /tagihan/:id — riwayat SP (unduh PDF) + form bukti setor (Senat).
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useAuth } from '../../auth/auth-context';
+import { sepertiPpk, useAuth } from '../../auth/auth-context';
 import { ambilBerkasInput, berkasKeBase64 } from '../../lib/berkas';
 import { aksiTulis } from '../../lib/sync';
 import { Badge } from '../../components/ui/badge';
@@ -48,7 +48,7 @@ export function HalamanTagihanDetail() {
   const [nilaiTransfer, setNilaiTransfer] = useState('');
 
   const bisaSetorVerifikasi = session?.role === 'SENAT' || session?.role === 'PEMBINA'
-    || session?.role === 'ADMIN' || session?.role === 'PPK';
+    || session?.role === 'ADMIN' || sepertiPpk(session?.role);
 
   if (tagihanQ.memuat && !tagihanQ.data) return <LoadingSpinner />;
   if (tagihanQ.galat && !tagihanQ.data) return <ErrorMessage pesan={tagihanQ.galat} onRetry={tagihanQ.refresh} />;
@@ -130,7 +130,7 @@ export function HalamanTagihanDetail() {
   // (offset diukur dari tinggi <header> yang aktif — beda shell PPK desktop
   // vs shell umum, lihat komponen Layout/TopbarPpkDesktop) supaya tetap
   // terlihat saat men-scroll kartu-kartu panjang di bawahnya.
-  const offsetHeader = session?.role === 'PPK' ? 'top-[68px] lg:top-[62px]' : 'top-[68px] lg:top-[77px]';
+  const offsetHeader = sepertiPpk(session?.role) ? 'top-[68px] lg:top-[62px]' : 'top-[68px] lg:top-[77px]';
 
   return (
     <div className="flex flex-col gap-4">
@@ -308,7 +308,7 @@ export function HalamanTagihanDetail() {
         </Card>
       )}
 
-      {t.status === 'TERTAGIH' && session?.role === 'PPK' && (
+      {t.status === 'TERTAGIH' && sepertiPpk(session?.role) && (
         <Card className="flex flex-col gap-2">
           <p className="text-sm font-semibold text-gray-600">Tindakan PPK</p>
           {spQ.data && spQ.data.sp.length > 0 && (

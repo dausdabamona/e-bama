@@ -2,7 +2,7 @@
 // PPK: kartu ringkasan piutang per level + tombol tandai gagal debet massal.
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../../auth/auth-context';
+import { sepertiPpk, useAuth } from '../../auth/auth-context';
 import { labelBulan } from '../../components/bulan-picker';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
@@ -78,7 +78,7 @@ export function HalamanTagihanList() {
   const ringkasanQ = useListCache<Ringkasan>('tagihan.summary', {});
   const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', {});
   const namaByNit = new Map((tarunaQ.data?.taruna ?? []).map((t) => [t.nit, t.nama]));
-  const tampilRingkasan = session?.role === 'PPK' || session?.role === 'KPA' || session?.role === 'WADIR3';
+  const tampilRingkasan = sepertiPpk(session?.role) || session?.role === 'KPA' || session?.role === 'WADIR3';
 
   const [cari, setCari] = useState('');
   const daftar = useMemo(() => {
@@ -108,10 +108,10 @@ export function HalamanTagihanList() {
         <h1 className="text-xl font-bold text-primary-dark">Tagihan</h1>
         <div className="flex gap-2">
           <Link to="/tagihan/status-debet"><Button varian="garis">📊 Status Debet</Button></Link>
-          {(session?.role === 'SENAT' || session?.role === 'PEMBINA' || session?.role === 'ADMIN' || session?.role === 'PPK') && (
+          {(session?.role === 'SENAT' || session?.role === 'PEMBINA' || session?.role === 'ADMIN' || sepertiPpk(session?.role)) && (
             <Link to="/tagihan/teruskan-penyedia"><Button varian="garis">📤 Teruskan ke Penyedia</Button></Link>
           )}
-          {session?.role === 'PPK' && (
+          {sepertiPpk(session?.role) && (
             <>
               <Link to="/tagihan/impor-debet"><Button varian="garis">📥 Impor CSV</Button></Link>
               <Link to="/tagihan/gagal-debet"><Button>+ Gagal Debet</Button></Link>

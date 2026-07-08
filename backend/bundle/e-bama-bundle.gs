@@ -53,6 +53,7 @@ var SHEETS = {
 var ROLES = {
   KPA:      'KPA',
   PPK:      'PPK',
+  STAF_PPK: 'STAF_PPK',       // staf administrasi PPK — cermin penuh hak PPK KECUALI bayar.create (komit anggaran tetap PPK); boleh beberapa akun
   SENAT:    'SENAT',
   PEMBINA:  'PEMBINA',
   ADMIN:    'ADMIN',
@@ -66,7 +67,7 @@ var ROLES = {
 // ── Nilai enum per kolom (rujukan validasi dropdown & pengecekan handler) ────
 var ENUM = {
   AKTIF_STATUS:      ['AKTIF', 'NONAKTIF'],                 // PENGGUNA/TARUNA/PENYEDIA.status
-  ROLE:              ['KPA', 'PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK', 'PENYEDIA', 'KETUA_JURUSAN', 'OPERATOR_SAKTI'],
+  ROLE:              ['KPA', 'PPK', 'STAF_PPK', 'SENAT', 'PEMBINA', 'ADMIN', 'WADIR3', 'BAAK', 'PENYEDIA', 'KETUA_JURUSAN', 'OPERATOR_SAKTI'],
   BANK:              ['BNI', 'BSI'],                        // TARUNA.bank
   KONTRAK_STATUS:    ['DRAFT', 'DISETUJUI_PPK'],
   BLK_STATUS:        ['DRAFT', 'DISETUJUI_KAJUR'],          // BANTUAN_LUAR_KAMPUS.status (persetujuan Ketua Jurusan)
@@ -493,14 +494,14 @@ var ACTION_MAP = {
   'taruna.list':      { handler: tarunaList,     roles: [] },
   'taruna.upsert':    { handler: tarunaUpsert,   roles: ['ADMIN', 'BAAK'] },
   'penyedia.list':    { handler: penyediaList,   roles: [] },
-  'penyedia.upsert':  { handler: penyediaUpsert, roles: ['ADMIN', 'PPK'] },
+  'penyedia.upsert':  { handler: penyediaUpsert, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'kontrak.list':     { handler: kontrakList,    roles: [] },
   'kontrak.get':      { handler: kontrakGet,     roles: [] },
-  'kontrak.upsert':   { handler: kontrakUpsert,  roles: ['PPK'] },
-  'kontrak.approve':  { handler: kontrakApprove, roles: ['PPK'] },
-  'kontrak.lampiran_upload': { handler: kontrakLampiranUpload, roles: ['PPK'] },
+  'kontrak.upsert':   { handler: kontrakUpsert,  roles: ['PPK', 'STAF_PPK'] },
+  'kontrak.approve':  { handler: kontrakApprove, roles: ['PPK', 'STAF_PPK'] },
+  'kontrak.lampiran_upload': { handler: kontrakLampiranUpload, roles: ['PPK', 'STAF_PPK'] },
   'menu.list':        { handler: menuList,       roles: [] },
-  'menu.upsert':      { handler: menuUpsert,     roles: ['PPK'] },
+  'menu.upsert':      { handler: menuUpsert,     roles: ['PPK', 'STAF_PPK'] },
   // Ownership Taruna Fitur 2a — papan "Menu Hari Ini", read-only, nol data sensitif
   'menu.hari_ini':    { handler: menuHariIni,    roles: ['SENAT', 'PEMBINA'] },
 
@@ -548,59 +549,61 @@ var ACTION_MAP = {
   'realisasi.penerimaan': { handler: realisasiPenerimaan, roles: ['SENAT', 'PEMBINA', 'ADMIN'] },
   'realisasi.kebijakan_penerimaan': { handler: realisasiKebijakanPenerimaan, roles: [] },
   // Rekap kelengkapan Penerimaan Barang (Tahap 5, opsional) — baca murni, bahan evaluasi penyedia
-  'realisasi.rekap_penerimaan': { handler: realisasiRekapPenerimaan, roles: ['PPK', 'KPA', 'WADIR3', 'SENAT'] },
+  'realisasi.rekap_penerimaan': { handler: realisasiRekapPenerimaan, roles: ['PPK', 'STAF_PPK', 'KPA', 'WADIR3', 'SENAT'] },
 
   // Rekap bulanan (TAHAP 3 + gerbang Wadir 3)
   // SENAT/PEMBINA baca saja (halaman /rekap-ringkas, tanpa nominal di frontend)
-  'rekap.get':        { handler: rekapGet,       roles: ['PPK', 'KPA', 'WADIR3', 'SENAT', 'PEMBINA'] },
-  'rekap.verify':     { handler: rekapVerify,    roles: ['PPK'] },
-  'rekap.final':      { handler: rekapFinal,     roles: ['PPK'] },
+  'rekap.get':        { handler: rekapGet,       roles: ['PPK', 'STAF_PPK', 'KPA', 'WADIR3', 'SENAT', 'PEMBINA'] },
+  'rekap.verify':     { handler: rekapVerify,    roles: ['PPK', 'STAF_PPK'] },
+  'rekap.final':      { handler: rekapFinal,     roles: ['PPK', 'STAF_PPK'] },
   'rekap.approve_wadir3': { handler: rekapApproveWadir3, roles: ['WADIR3'] },
   'rekap.batal_wadir3': { handler: rekapBatalWadir3, roles: ['WADIR3'] },
-  'rekap.input_historis': { handler: rekapInputHistoris, roles: ['PPK', 'ADMIN'] },
+  'rekap.input_historis': { handler: rekapInputHistoris, roles: ['PPK', 'STAF_PPK', 'ADMIN'] },
   // rekap.harian: rekonsiliasi 3 titik HARIAN per Prodi+Tingkat, read-only —
   // internal login mana pun (pola sama seperti taruna.list), TIDAK di
   // PENYEDIA_ACTIONS/KETUA_JURUSAN_ACTIONS jadi otomatis dikecualikan.
   'rekap.harian':     { handler: rekapHarian,    roles: [] },
 
   // Pembayaran (TAHAP 4A)
-  'bayar.list':       { handler: bayarList,      roles: ['PPK', 'KPA', 'SENAT', 'WADIR3'] },
-  'bayar.get':        { handler: bayarGet,       roles: ['PPK', 'KPA', 'SENAT', 'WADIR3'] },
+  'bayar.list':       { handler: bayarList,      roles: ['PPK', 'STAF_PPK', 'KPA', 'SENAT', 'WADIR3'] },
+  'bayar.get':        { handler: bayarGet,       roles: ['PPK', 'STAF_PPK', 'KPA', 'SENAT', 'WADIR3'] },
+  // bayar.create: KOMIT ANGGARAN — TETAP PPK-ONLY (dikecualikan dari STAF_PPK
+  // atas permintaan Firdaus; staf menyiapkan semua, PPK yang menekan "Buat Pembayaran").
   'bayar.create':     { handler: bayarCreate,    roles: ['PPK'] },
-  'bayar.update':     { handler: bayarUpdate,    roles: ['PPK'] },
+  'bayar.update':     { handler: bayarUpdate,    roles: ['PPK', 'STAF_PPK'] },
   // bayar.sync: tandai SELESAI dari kelengkapan SP2D_MONITORING (relasi 1:N) —
   // pelengkap auto-sync di sp2d.import; lihat 15_pembayaran.gs
-  'bayar.sync':       { handler: bayarSync,      roles: ['PPK'] },
+  'bayar.sync':       { handler: bayarSync,      roles: ['PPK', 'STAF_PPK'] },
   // bayar.close: fallback manual (baris historis status lama) — bukan alur normal, lihat 15_pembayaran.gs
-  'bayar.close':      { handler: bayarClose,     roles: ['PPK'] },
+  'bayar.close':      { handler: bayarClose,     roles: ['PPK', 'STAF_PPK'] },
 
   // SPM (§18 skema-sheet.md) — header kelompok Prodi+Tingkat+Suplier, authored,
   // beda provenance dari sp2d.* (imported). Baca lebih longgar (pola bayar.*/
   // sp2d.rekonsiliasi), tulis PPK/ADMIN saja. TIDAK masuk PENYEDIA_ACTIONS.
-  'spm.list':         { handler: spmList,        roles: ['PPK', 'KPA', 'SENAT', 'WADIR3', 'ADMIN'] },
-  'spm.update':       { handler: spmUpdate,      roles: ['PPK', 'ADMIN'] },
-  'spm.set_sp2d':     { handler: spmSetSp2d,     roles: ['PPK', 'ADMIN'] },
-  'spm.regenerate':   { handler: spmRegenerate,  roles: ['PPK', 'ADMIN'] },
-  'spm.anggota':      { handler: spmAnggota,     roles: ['PPK', 'ADMIN'] },
-  'spm.split':        { handler: spmSplit,       roles: ['PPK', 'ADMIN'] },
-  'spm.gabung':       { handler: spmGabung,      roles: ['PPK', 'ADMIN'] },
+  'spm.list':         { handler: spmList,        roles: ['PPK', 'STAF_PPK', 'KPA', 'SENAT', 'WADIR3', 'ADMIN'] },
+  'spm.update':       { handler: spmUpdate,      roles: ['PPK', 'STAF_PPK', 'ADMIN'] },
+  'spm.set_sp2d':     { handler: spmSetSp2d,     roles: ['PPK', 'STAF_PPK', 'ADMIN'] },
+  'spm.regenerate':   { handler: spmRegenerate,  roles: ['PPK', 'STAF_PPK', 'ADMIN'] },
+  'spm.anggota':      { handler: spmAnggota,     roles: ['PPK', 'STAF_PPK', 'ADMIN'] },
+  'spm.split':        { handler: spmSplit,       roles: ['PPK', 'STAF_PPK', 'ADMIN'] },
+  'spm.gabung':       { handler: spmGabung,      roles: ['PPK', 'STAF_PPK', 'ADMIN'] },
 
   // Tagihan gagal debet (TAHAP 4A)
-  'tagihan.create':   { handler: tagihanCreate,  roles: ['SENAT', 'PPK'] },
+  'tagihan.create':   { handler: tagihanCreate,  roles: ['SENAT', 'PPK', 'STAF_PPK'] },
   'tagihan.list':     { handler: tagihanList,    roles: [] },
-  'tagihan.summary':  { handler: tagihanSummary, roles: ['PPK', 'KPA', 'WADIR3'] },
+  'tagihan.summary':  { handler: tagihanSummary, roles: ['PPK', 'STAF_PPK', 'KPA', 'WADIR3'] },
   // Laporan status debet taruna→Senat per taruna (berhasil/gagal) — baca saja,
   // tanpa rekening lengkap, akses sama seperti tagihan.summary + SENAT.
-  'tagihan.status_debet': { handler: tagihanStatusDebet, roles: ['PPK', 'SENAT', 'KPA', 'WADIR3'] },
-  'tagihan.setor':    { handler: tagihanSetor,   roles: ['SENAT', 'PEMBINA', 'ADMIN', 'PPK'] },
+  'tagihan.status_debet': { handler: tagihanStatusDebet, roles: ['PPK', 'STAF_PPK', 'SENAT', 'KPA', 'WADIR3'] },
+  'tagihan.setor':    { handler: tagihanSetor,   roles: ['SENAT', 'PEMBINA', 'ADMIN', 'PPK', 'STAF_PPK'] },
   // Verifikasi ganda TANPA urutan peran tetap — siapa pun di antara 4 role
   // boleh jadi verifikator 1 ATAU 2, ASAL dua orang (user_id) berbeda.
-  'tagihan.verifikasi': { handler: tagihanVerifikasi, roles: ['SENAT', 'PEMBINA', 'ADMIN', 'PPK'] },
-  'tagihan.waive':    { handler: tagihanWaive,   roles: ['PPK'] },
-  'tagihan.regenerate_sp': { handler: tagihanRegenerateSp, roles: ['PPK'] },
+  'tagihan.verifikasi': { handler: tagihanVerifikasi, roles: ['SENAT', 'PEMBINA', 'ADMIN', 'PPK', 'STAF_PPK'] },
+  'tagihan.waive':    { handler: tagihanWaive,   roles: ['PPK', 'STAF_PPK'] },
+  'tagihan.regenerate_sp': { handler: tagihanRegenerateSp, roles: ['PPK', 'STAF_PPK'] },
   // Tandai batch tagihan LUNAS yang dananya sudah diteruskan ke penyedia —
   // TERPISAH dari jalur SP2D/SPM. Akses sama seperti tagihan.setor/verifikasi.
-  'tagihan.teruskan_penyedia': { handler: tagihanTeruskanPenyedia, roles: ['SENAT', 'PEMBINA', 'ADMIN', 'PPK'] },
+  'tagihan.teruskan_penyedia': { handler: tagihanTeruskanPenyedia, roles: ['SENAT', 'PEMBINA', 'ADMIN', 'PPK', 'STAF_PPK'] },
 
   // Surat peringatan (TAHAP 4B)
   'sp.list':          { handler: spList,         roles: [] },
@@ -611,42 +614,42 @@ var ACTION_MAP = {
   'pengguna.reset_pin': { handler: penggunaResetPin, roles: ['ADMIN'] },
 
   // Laporan & Audit (TAHAP 7)
-  'laporan.bulanan':  { handler: laporanBulanan, roles: ['PPK', 'KPA', 'WADIR3', 'ADMIN'] },
-  'laporan.resmi':    { handler: laporanResmi,   roles: ['PPK', 'KPA', 'WADIR3', 'ADMIN'] },
+  'laporan.bulanan':  { handler: laporanBulanan, roles: ['PPK', 'STAF_PPK', 'KPA', 'WADIR3', 'ADMIN'] },
+  'laporan.resmi':    { handler: laporanResmi,   roles: ['PPK', 'STAF_PPK', 'KPA', 'WADIR3', 'ADMIN'] },
 
   // Bantuan Luar Kampus (PKL/Magang/KPA/PTB) — TAHAP migrasi
-  'blk.list':         { handler: blkList,   roles: ['PPK', 'ADMIN', 'KPA', 'WADIR3'] },
-  'blk.import':       { handler: blkImport, roles: ['PPK', 'ADMIN'] },
-  'audit.list':       { handler: auditList,      roles: ['ADMIN', 'PPK', 'KPA', 'WADIR3'] },
+  'blk.list':         { handler: blkList,   roles: ['PPK', 'STAF_PPK', 'ADMIN', 'KPA', 'WADIR3'] },
+  'blk.import':       { handler: blkImport, roles: ['PPK', 'STAF_PPK', 'ADMIN'] },
+  'audit.list':       { handler: auditList,      roles: ['ADMIN', 'PPK', 'STAF_PPK', 'KPA', 'WADIR3'] },
 
   // Cetak Form Manual SOP (TAHAP cetak)
-  'cetak.form01':     { handler: cetakForm01, roles: ['SENAT', 'PEMBINA', 'PPK', 'ADMIN'] },
-  'cetak.form02':     { handler: cetakForm02, roles: ['PEMBINA', 'PPK', 'ADMIN'] },
-  'cetak.form03':     { handler: cetakForm03, roles: ['PPK', 'ADMIN', 'PEMBINA'] },
-  'cetak.form04':     { handler: cetakForm04, roles: ['SENAT', 'PEMBINA', 'PPK', 'ADMIN'] },
-  'cetak.form05':     { handler: cetakForm05, roles: ['PEMBINA', 'PPK', 'ADMIN'] },
-  'cetak.form06':     { handler: cetakForm06, roles: ['PPK', 'KPA', 'ADMIN', 'OPERATOR_SAKTI'] },
-  'cetak.form07':     { handler: cetakForm07, roles: ['ADMIN', 'PPK'] },
-  'cetak.form08':     { handler: cetakForm08, roles: ['ADMIN', 'PPK'] },
-  'cetak.form09':     { handler: cetakForm09, roles: ['SENAT', 'PPK', 'ADMIN', 'OPERATOR_SAKTI'] },
-  'cetak.form10':     { handler: cetakForm10, roles: ['ADMIN', 'PPK'] },
+  'cetak.form01':     { handler: cetakForm01, roles: ['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN'] },
+  'cetak.form02':     { handler: cetakForm02, roles: ['PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN'] },
+  'cetak.form03':     { handler: cetakForm03, roles: ['PPK', 'STAF_PPK', 'ADMIN', 'PEMBINA'] },
+  'cetak.form04':     { handler: cetakForm04, roles: ['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN'] },
+  'cetak.form05':     { handler: cetakForm05, roles: ['PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN'] },
+  'cetak.form06':     { handler: cetakForm06, roles: ['PPK', 'STAF_PPK', 'KPA', 'ADMIN', 'OPERATOR_SAKTI'] },
+  'cetak.form07':     { handler: cetakForm07, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
+  'cetak.form08':     { handler: cetakForm08, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
+  'cetak.form09':     { handler: cetakForm09, roles: ['SENAT', 'PPK', 'STAF_PPK', 'ADMIN', 'OPERATOR_SAKTI'] },
+  'cetak.form10':     { handler: cetakForm10, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
 
   // Rekening lengkap (TARUNA_REKENING) — TAHAP SENSITIF, lihat CLAUDE.md § 4/§ 7
-  'rekening.lihat_lengkap': { handler: rekeningLihatLengkap, roles: ['ADMIN', 'PPK'] },
-  'rekening.cocokkan':      { handler: rekeningCocokkan,     roles: ['ADMIN', 'PPK'] },
+  'rekening.lihat_lengkap': { handler: rekeningLihatLengkap, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
+  'rekening.cocokkan':      { handler: rekeningCocokkan,     roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'rekening.simpan':        { handler: rekeningSimpan,       roles: ['ADMIN'] },
   'rekening.simpan_batch':  { handler: rekeningSimpanBatch,  roles: ['ADMIN'] },
 
   // Rekonsiliasi SP2D (Monitoring SP2D OM-SPAN vs data sistem)
-  'sp2d.import':        { handler: sp2dImport,        roles: ['PPK', 'ADMIN'] },
-  'sp2d.rekonsiliasi':  { handler: sp2dRekonsiliasi,  roles: ['PPK', 'KPA', 'WADIR3', 'ADMIN'] },
-  'sp2d.list':          { handler: sp2dList,          roles: ['PPK', 'ADMIN'] },
-  'sp2d.koreksi':       { handler: sp2dKoreksi,       roles: ['PPK', 'ADMIN'] },
-  'sp2d.cek_dobel':     { handler: sp2dCekDobel,      roles: ['PPK', 'ADMIN'] },
-  'sp2d.hapus_dobel':   { handler: sp2dHapusDobel,    roles: ['PPK', 'ADMIN'] },
+  'sp2d.import':        { handler: sp2dImport,        roles: ['PPK', 'STAF_PPK', 'ADMIN'] },
+  'sp2d.rekonsiliasi':  { handler: sp2dRekonsiliasi,  roles: ['PPK', 'STAF_PPK', 'KPA', 'WADIR3', 'ADMIN'] },
+  'sp2d.list':          { handler: sp2dList,          roles: ['PPK', 'STAF_PPK', 'ADMIN'] },
+  'sp2d.koreksi':       { handler: sp2dKoreksi,       roles: ['PPK', 'STAF_PPK', 'ADMIN'] },
+  'sp2d.cek_dobel':     { handler: sp2dCekDobel,      roles: ['PPK', 'STAF_PPK', 'ADMIN'] },
+  'sp2d.hapus_dobel':   { handler: sp2dHapusDobel,    roles: ['PPK', 'STAF_PPK', 'ADMIN'] },
 
   // Kokpit PPK — agregasi baca murni, tidak menulis apa pun
-  'ppk.kokpit':         { handler: ppkKokpit,         roles: ['PPK', 'KPA', 'WADIR3'] },
+  'ppk.kokpit':         { handler: ppkKokpit,         roles: ['PPK', 'STAF_PPK', 'KPA', 'WADIR3'] },
 
   // Portal Penyedia (rekanan eksternal) — akses SANGAT terbatas, lihat PENYEDIA_ACTIONS
   'penyedia.portal':    { handler: penyediaPortal,    roles: ['PENYEDIA'] }
@@ -846,7 +849,9 @@ function _hanyaKajur_(session) {
  * handler tetap menolak sendiri.
  */
 function _hanyaAdminPPK_(session) {
-  if (!session || (session.role !== ROLES.ADMIN && session.role !== ROLES.PPK)) {
+  // STAF_PPK ikut PPK (lihat rekening lengkap utk Form-07/08/10) — mencerminkan
+  // hak PPK. Input rekening (rekening.simpan) TETAP ADMIN saja (gate terpisah).
+  if (!session || (session.role !== ROLES.ADMIN && session.role !== ROLES.PPK && session.role !== ROLES.STAF_PPK)) {
     throw _fail_('Anda tidak berwenang mengakses data rekening lengkap.');
   }
 }
@@ -3449,14 +3454,19 @@ function spmAnggota(payload, session) {
   var tarunaByNit = {};
   sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
+  // Normalkan bulan SPM → 'YYYY-MM'. Kolom bulan bisa terbaca sebagai Date
+  // (sel diformat tanggal) — kalau dibandingkan mentah, filter REKAP tak pernah
+  // cocok → daftar anggota kosong (0 taruna). spmList sudah menormalkan; di sini
+  // dulu belum, itulah sebab modal "Pisahkan Taruna" tampil kosong.
+  var blnSpm = _bulanStr_(s.bulan);
   var rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) {
-    return _bulanStr_(r.bulan) === s.bulan && _int_(r.nominal || 0, 'nominal') > 0;
+    return _bulanStr_(r.bulan) === blnSpm && _int_(r.nominal || 0, 'nominal') > 0;
   });
   var nominalByNit = {};
   rekapRows.forEach(function (r) { nominalByNit[String(r.nit)] = _int_(r.nominal || 0, 'nominal'); });
 
   var nitAnggota = String(s.nit_anggota || '').split(',').map(function (v) { return v.trim(); }).filter(Boolean);
-  var nitList = nitAnggota.length ? nitAnggota : _nitAlamiDalamKampus_(s.bulan, s.prodi, s.tingkat, s.penyedia_id, rekapRows, tarunaByNit);
+  var nitList = nitAnggota.length ? nitAnggota : _nitAlamiDalamKampus_(blnSpm, s.prodi, s.tingkat, s.penyedia_id, rekapRows, tarunaByNit);
 
   var anggota = nitList.map(function (nit) {
     var t = tarunaByNit[nit] || {};
@@ -3477,6 +3487,10 @@ function spmAnggota(payload, session) {
  * ulang oleh pemanggil yang sudah baca sheet-nya, hindari baca dobel).
  */
 function _nitAlamiDalamKampus_(bulan, prodi, tingkat, penyediaId, rekapRows, tarunaByNit) {
+  // Normalkan bulan → 'YYYY-MM' (bisa dipanggil dgn Date dari kolom sheet, mis.
+  // dari spmGabung yang meneruskan a.bulan mentah). _bulanStr_ pada 'YYYY-MM'
+  // mengembalikannya apa adanya, pada Date mengubahnya ke 'YYYY-MM'.
+  bulan = _bulanStr_(bulan);
   if (!rekapRows) {
     rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) {
       return _bulanStr_(r.bulan) === bulan && _int_(r.nominal || 0, 'nominal') > 0;

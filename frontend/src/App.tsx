@@ -87,22 +87,22 @@ export default function App() {
               {/* Rekap ringkas baca-saja (Senat, Pembina) — grup Prodi+Tingkat, tanpa nominal */}
               <Route path="/rekap-ringkas" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanRekapRingkas /></WajibLogin>} />
               {/* PPK */}
-              <Route path="/rekap" element={<WajibLogin roles={['PPK']}><HalamanRekap /></WajibLogin>} />
-              <Route path="/rekap/historis" element={<WajibLogin roles={['PPK', 'ADMIN']}><HalamanRekapHistoris /></WajibLogin>} />
-              <Route path="/kokpit-ppk" element={<WajibLogin roles={['PPK', 'KPA', 'WADIR3']}><HalamanKokpitPpk /></WajibLogin>} />
-              <Route path="/kontrak" element={<WajibLogin roles={['PPK']}><HalamanKontrak /></WajibLogin>} />
-              <Route path="/pembayaran" element={<WajibLogin roles={['PPK', 'SENAT', 'KPA', 'WADIR3']}><HalamanPembayaran /></WajibLogin>} />
+              <Route path="/rekap" element={<WajibLogin roles={['PPK', 'STAF_PPK']}><HalamanRekap /></WajibLogin>} />
+              <Route path="/rekap/historis" element={<WajibLogin roles={['PPK', 'STAF_PPK', 'ADMIN']}><HalamanRekapHistoris /></WajibLogin>} />
+              <Route path="/kokpit-ppk" element={<WajibLogin roles={['PPK', 'STAF_PPK', 'KPA', 'WADIR3']}><HalamanKokpitPpk /></WajibLogin>} />
+              <Route path="/kontrak" element={<WajibLogin roles={['PPK', 'STAF_PPK']}><HalamanKontrak /></WajibLogin>} />
+              <Route path="/pembayaran" element={<WajibLogin roles={['PPK', 'STAF_PPK', 'SENAT', 'KPA', 'WADIR3']}><HalamanPembayaran /></WajibLogin>} />
               {/* Senat + PPK (+KPA/Wadir3 lihat) */}
-              <Route path="/tagihan" element={<WajibLogin roles={['SENAT', 'PPK', 'KPA', 'WADIR3', 'PEMBINA', 'ADMIN']}><HalamanTagihanList /></WajibLogin>} />
-              <Route path="/tagihan/gagal-debet" element={<WajibLogin roles={['PPK']}><HalamanTagihanGagalDebet /></WajibLogin>} />
-              <Route path="/tagihan/impor-debet" element={<WajibLogin roles={['PPK']}><HalamanTagihanImporDebet /></WajibLogin>} />
-              <Route path="/tagihan/status-debet" element={<WajibLogin roles={['SENAT', 'PPK', 'KPA', 'WADIR3']}><HalamanStatusDebet /></WajibLogin>} />
-              <Route path="/tagihan/teruskan-penyedia" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'ADMIN', 'PPK']}><HalamanTagihanTeruskanPenyedia /></WajibLogin>} />
-              <Route path="/tagihan/:id" element={<WajibLogin roles={['SENAT', 'PPK', 'KPA', 'WADIR3', 'PEMBINA', 'ADMIN']}><HalamanTagihanDetail /></WajibLogin>} />
+              <Route path="/tagihan" element={<WajibLogin roles={['SENAT', 'PPK', 'STAF_PPK', 'KPA', 'WADIR3', 'PEMBINA', 'ADMIN']}><HalamanTagihanList /></WajibLogin>} />
+              <Route path="/tagihan/gagal-debet" element={<WajibLogin roles={['PPK', 'STAF_PPK']}><HalamanTagihanGagalDebet /></WajibLogin>} />
+              <Route path="/tagihan/impor-debet" element={<WajibLogin roles={['PPK', 'STAF_PPK']}><HalamanTagihanImporDebet /></WajibLogin>} />
+              <Route path="/tagihan/status-debet" element={<WajibLogin roles={['SENAT', 'PPK', 'STAF_PPK', 'KPA', 'WADIR3']}><HalamanStatusDebet /></WajibLogin>} />
+              <Route path="/tagihan/teruskan-penyedia" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'ADMIN', 'PPK', 'STAF_PPK']}><HalamanTagihanTeruskanPenyedia /></WajibLogin>} />
+              <Route path="/tagihan/:id" element={<WajibLogin roles={['SENAT', 'PPK', 'STAF_PPK', 'KPA', 'WADIR3', 'PEMBINA', 'ADMIN']}><HalamanTagihanDetail /></WajibLogin>} />
               {/* PPK + KPA + Wadir3 */}
-              <Route path="/laporan" element={<WajibLogin roles={['PPK', 'KPA', 'WADIR3', 'ADMIN']}><HalamanLaporan /></WajibLogin>} />
-              <Route path="/laporan/resmi" element={<WajibLogin roles={['PPK', 'KPA', 'WADIR3', 'ADMIN']}><HalamanLaporanResmi /></WajibLogin>} />
-              <Route path="/luar-kampus" element={<WajibLogin roles={['PPK', 'ADMIN', 'KPA', 'WADIR3']}><HalamanBantuanLuarKampus /></WajibLogin>} />
+              <Route path="/laporan" element={<WajibLogin roles={['PPK', 'STAF_PPK', 'KPA', 'WADIR3', 'ADMIN']}><HalamanLaporan /></WajibLogin>} />
+              <Route path="/laporan/resmi" element={<WajibLogin roles={['PPK', 'STAF_PPK', 'KPA', 'WADIR3', 'ADMIN']}><HalamanLaporanResmi /></WajibLogin>} />
+              <Route path="/luar-kampus" element={<WajibLogin roles={['PPK', 'STAF_PPK', 'ADMIN', 'KPA', 'WADIR3']}><HalamanBantuanLuarKampus /></WajibLogin>} />
               <Route path="/dashboard" element={<WajibLogin roles={['KPA', 'WADIR3']}><HalamanDashboardKpa /></WajibLogin>} />
               {/* Wadir 3 */}
               <Route path="/persetujuan-wadir3" element={<WajibLogin roles={['WADIR3']}><HalamanPersetujuanWadir3 /></WajibLogin>} />
@@ -110,38 +110,38 @@ export default function App() {
               <Route path="/taruna" element={<WajibLogin roles={['ADMIN', 'BAAK', 'PEMBINA']}><HalamanTarunaList /></WajibLogin>} />
               <Route path="/taruna/impor" element={<WajibLogin roles={['ADMIN', 'BAAK']}><HalamanTarunaImpor /></WajibLogin>} />
               <Route path="/taruna/impor-rekening" element={<WajibLogin roles={['ADMIN']}><HalamanTarunaImporRekening /></WajibLogin>} />
-              <Route path="/taruna/rekap-harian" element={<WajibLogin roles={['ADMIN', 'BAAK', 'PEMBINA', 'PPK']}><HalamanRekapHarianTaruna /></WajibLogin>} />
+              <Route path="/taruna/rekap-harian" element={<WajibLogin roles={['ADMIN', 'BAAK', 'PEMBINA', 'PPK', 'STAF_PPK']}><HalamanRekapHarianTaruna /></WajibLogin>} />
               <Route path="/pengguna" element={<WajibLogin roles={['ADMIN']}><HalamanPengguna /></WajibLogin>} />
               {/* Penyedia (rekanan eksternal) — portal terbatas */}
               <Route path="/penyedia-portal" element={<WajibLogin roles={['PENYEDIA']}><HalamanPenyediaPortal /></WajibLogin>} />
               {/* Ketua Jurusan — input absen luar kampus + approve rekap (scope prodi) */}
               <Route path="/luar-kampus-kajur" element={<WajibLogin roles={['KETUA_JURUSAN']}><HalamanKetuaJurusan /></WajibLogin>} />
               {/* Admin, PPK, KPA, Wadir3 */}
-              <Route path="/audit" element={<WajibLogin roles={['ADMIN', 'PPK', 'KPA', 'WADIR3']}><HalamanAudit /></WajibLogin>} />
+              <Route path="/audit" element={<WajibLogin roles={['ADMIN', 'PPK', 'STAF_PPK', 'KPA', 'WADIR3']}><HalamanAudit /></WajibLogin>} />
               {/* Semua role */}
               <Route path="/akun" element={<HalamanAkun />} />
               <Route path="/antrian" element={<HalamanAntrian />} />
               <Route path="/cetak" element={<HalamanCetakIndex />} />
-              <Route path="/cetak/form-01" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm01 /></WajibLogin>} />
-              <Route path="/cetak/form-01/:tgl" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm01 /></WajibLogin>} />
-              <Route path="/cetak/format-serah-terima" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'ADMIN']}><HalamanFormatSerahTerima /></WajibLogin>} />
-              <Route path="/cetak/surat-pesanan/:id" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakSuratPesanan /></WajibLogin>} />
-              <Route path="/cetak/form-02" element={<WajibLogin roles={['PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm02 /></WajibLogin>} />
-              <Route path="/cetak/form-02/:tgl" element={<WajibLogin roles={['PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm02 /></WajibLogin>} />
-              <Route path="/cetak/form-03" element={<WajibLogin roles={['PPK', 'ADMIN', 'PEMBINA']}><HalamanCetakForm03 /></WajibLogin>} />
-              <Route path="/cetak/form-04" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm04 /></WajibLogin>} />
-              <Route path="/cetak/form-04/:bulan" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm04 /></WajibLogin>} />
-              <Route path="/cetak/form-05" element={<WajibLogin roles={['PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm05 /></WajibLogin>} />
-              <Route path="/cetak/form-05/:tgl" element={<WajibLogin roles={['PEMBINA', 'PPK', 'ADMIN']}><HalamanCetakForm05 /></WajibLogin>} />
-              <Route path="/cetak/form-06" element={<WajibLogin roles={['PPK', 'KPA', 'ADMIN', 'OPERATOR_SAKTI']}><HalamanCetakForm06 /></WajibLogin>} />
-              <Route path="/cetak/form-06/:bulan" element={<WajibLogin roles={['PPK', 'KPA', 'ADMIN', 'OPERATOR_SAKTI']}><HalamanCetakForm06 /></WajibLogin>} />
-              <Route path="/cetak/form-07" element={<WajibLogin roles={['ADMIN', 'PPK']}><HalamanCetakForm07 /></WajibLogin>} />
-              <Route path="/cetak/form-07/:bulan" element={<WajibLogin roles={['ADMIN', 'PPK']}><HalamanCetakForm07 /></WajibLogin>} />
-              <Route path="/cetak/form-08" element={<WajibLogin roles={['ADMIN', 'PPK']}><HalamanCetakForm08 /></WajibLogin>} />
-              <Route path="/cetak/form-09" element={<WajibLogin roles={['SENAT', 'PPK', 'ADMIN', 'OPERATOR_SAKTI']}><HalamanCetakForm09 /></WajibLogin>} />
-              <Route path="/cetak/form-09/:bulan" element={<WajibLogin roles={['SENAT', 'PPK', 'ADMIN', 'OPERATOR_SAKTI']}><HalamanCetakForm09 /></WajibLogin>} />
-              <Route path="/cetak/form-10" element={<WajibLogin roles={['ADMIN', 'PPK']}><HalamanCetakForm10 /></WajibLogin>} />
-              <Route path="/cetak/form-10/:bulan" element={<WajibLogin roles={['ADMIN', 'PPK']}><HalamanCetakForm10 /></WajibLogin>} />
+              <Route path="/cetak/form-01" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN']}><HalamanCetakForm01 /></WajibLogin>} />
+              <Route path="/cetak/form-01/:tgl" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN']}><HalamanCetakForm01 /></WajibLogin>} />
+              <Route path="/cetak/format-serah-terima" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN']}><HalamanFormatSerahTerima /></WajibLogin>} />
+              <Route path="/cetak/surat-pesanan/:id" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN']}><HalamanCetakSuratPesanan /></WajibLogin>} />
+              <Route path="/cetak/form-02" element={<WajibLogin roles={['PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN']}><HalamanCetakForm02 /></WajibLogin>} />
+              <Route path="/cetak/form-02/:tgl" element={<WajibLogin roles={['PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN']}><HalamanCetakForm02 /></WajibLogin>} />
+              <Route path="/cetak/form-03" element={<WajibLogin roles={['PPK', 'STAF_PPK', 'ADMIN', 'PEMBINA']}><HalamanCetakForm03 /></WajibLogin>} />
+              <Route path="/cetak/form-04" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN']}><HalamanCetakForm04 /></WajibLogin>} />
+              <Route path="/cetak/form-04/:bulan" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN']}><HalamanCetakForm04 /></WajibLogin>} />
+              <Route path="/cetak/form-05" element={<WajibLogin roles={['PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN']}><HalamanCetakForm05 /></WajibLogin>} />
+              <Route path="/cetak/form-05/:tgl" element={<WajibLogin roles={['PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN']}><HalamanCetakForm05 /></WajibLogin>} />
+              <Route path="/cetak/form-06" element={<WajibLogin roles={['PPK', 'STAF_PPK', 'KPA', 'ADMIN', 'OPERATOR_SAKTI']}><HalamanCetakForm06 /></WajibLogin>} />
+              <Route path="/cetak/form-06/:bulan" element={<WajibLogin roles={['PPK', 'STAF_PPK', 'KPA', 'ADMIN', 'OPERATOR_SAKTI']}><HalamanCetakForm06 /></WajibLogin>} />
+              <Route path="/cetak/form-07" element={<WajibLogin roles={['ADMIN', 'PPK', 'STAF_PPK']}><HalamanCetakForm07 /></WajibLogin>} />
+              <Route path="/cetak/form-07/:bulan" element={<WajibLogin roles={['ADMIN', 'PPK', 'STAF_PPK']}><HalamanCetakForm07 /></WajibLogin>} />
+              <Route path="/cetak/form-08" element={<WajibLogin roles={['ADMIN', 'PPK', 'STAF_PPK']}><HalamanCetakForm08 /></WajibLogin>} />
+              <Route path="/cetak/form-09" element={<WajibLogin roles={['SENAT', 'PPK', 'STAF_PPK', 'ADMIN', 'OPERATOR_SAKTI']}><HalamanCetakForm09 /></WajibLogin>} />
+              <Route path="/cetak/form-09/:bulan" element={<WajibLogin roles={['SENAT', 'PPK', 'STAF_PPK', 'ADMIN', 'OPERATOR_SAKTI']}><HalamanCetakForm09 /></WajibLogin>} />
+              <Route path="/cetak/form-10" element={<WajibLogin roles={['ADMIN', 'PPK', 'STAF_PPK']}><HalamanCetakForm10 /></WajibLogin>} />
+              <Route path="/cetak/form-10/:bulan" element={<WajibLogin roles={['ADMIN', 'PPK', 'STAF_PPK']}><HalamanCetakForm10 /></WajibLogin>} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

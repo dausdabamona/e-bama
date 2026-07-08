@@ -4,7 +4,7 @@
 // Cetak via window.print() dengan CSS print rapi (lihat index.css @media print).
 import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../../auth/auth-context';
+import { sepertiPpk, useAuth } from '../../auth/auth-context';
 import { BulanPicker, bulanIni, labelBulan } from '../../components/bulan-picker';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
@@ -354,7 +354,7 @@ function ModalKoreksiPerTaruna({ judul, noSpm, kategoriAsal, onClose, onSukses }
 export function HalamanLaporan() {
   const { session } = useAuth();
   const { toast } = useToast();
-  const bisaImporSp2d = session?.role === 'PPK' || session?.role === 'ADMIN';
+  const bisaImporSp2d = sepertiPpk(session?.role) || session?.role === 'ADMIN';
 
   const [bulan, setBulan] = useState(bulanIni());
   const { data, memuat, galat, refresh } = useListCache<Laporan>('laporan.bulanan', { bulan });

@@ -22,7 +22,7 @@
 |---|---|---|
 | user_id | string | kunci; kode singkat, mis. `ppk01`, `senat01` |
 | nama | string | |
-| role | enum | `KPA` / `PPK` / `SENAT` / `PEMBINA` / `ADMIN` / `WADIR3` / `BAAK` / `PENYEDIA` / `KETUA_JURUSAN` / `OPERATOR_SAKTI` |
+| role | enum | `KPA` / `PPK` / `STAF_PPK` / `SENAT` / `PEMBINA` / `ADMIN` / `WADIR3` / `BAAK` / `PENYEDIA` / `KETUA_JURUSAN` / `OPERATOR_SAKTI` |
 | pin_hash | string | SHA-256(kata_sandi + SALT); SALT di Script Properties. Nama kolom dipertahankan (`pin_hash`) walau kredensialnya kini kata sandi bebas min 6 karakter (bukan PIN 6 digit) — hash sama, tak perlu migrasi |
 | token | string | token sesi aktif (UUID) |
 | token_exp | datetime | kadaluarsa 24 jam sejak login |
@@ -54,6 +54,18 @@ Form-10 (Rencana Pengajuan SPM per Suplier) SENGAJA tidak diberikan ke role
 ini karena berisi rekening taruna PENUH (`_hanyaAdminPPK_`, ADMIN/PPK saja) —
 dikonfirmasi Firdaus. Tidak ada kolom tambahan di PENGGUNA untuk role ini
 (tanpa scope FK, beda dari `PENYEDIA`/`KETUA_JURUSAN`).
+
+**Role `STAF_PPK` — cermin penuh hak PPK, KECUALI `bayar.create`.** Staf
+administrasi yang menyiapkan seluruh berkas (rekap historis, rancangan SPM,
+split/gabung, impor SP2D, sinkron pembayaran, cetak semua Form, kelola
+kontrak/penyedia, lihat rekening lengkap utk Form-07/08/10) sehingga PPK
+tinggal memeriksa & menandatangani. Tunduk semantik `roles:[]` biasa: di
+`ACTION_MAP` role ini ditambahkan di SETIAP action yang punya `PPK` — SATU
+pengecualian, `bayar.create` (komit anggaran) TETAP `['PPK']` (dikonfirmasi
+Firdaus). `rekening.simpan`/`rekening.simpan_batch` tetap `['ADMIN']` (input
+nomor rekening penuh satu pintu, sama seperti PPK yang juga tak boleh). Boleh
+beberapa akun. Frontend hanya menyembunyikan tombol "Buat Pembayaran" (helper
+`sepertiPpk()`); otorisasi sebenarnya tetap di backend.
 
 ### 2. TARUNA
 

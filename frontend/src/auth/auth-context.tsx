@@ -3,7 +3,14 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { Navigate, useLocation } from 'react-router-dom';
 import { api } from '../lib/api';
 
-export type Role = 'KPA' | 'PPK' | 'SENAT' | 'PEMBINA' | 'ADMIN' | 'WADIR3' | 'BAAK' | 'PENYEDIA' | 'KETUA_JURUSAN' | 'OPERATOR_SAKTI';
+export type Role = 'KPA' | 'PPK' | 'STAF_PPK' | 'SENAT' | 'PEMBINA' | 'ADMIN' | 'WADIR3' | 'BAAK' | 'PENYEDIA' | 'KETUA_JURUSAN' | 'OPERATOR_SAKTI';
+
+// STAF_PPK mencerminkan hak PPK di UI (menu, tombol, tampilan) — KECUALI tombol
+// "Buat Pembayaran" (bayar.create) yang tetap khusus PPK. Otorisasi sebenarnya
+// tetap di backend (ACTION_MAP); ini hanya untuk menyembunyikan/menampilkan UI.
+export function sepertiPpk(role?: Role | null): boolean {
+  return role === 'PPK' || role === 'STAF_PPK';
+}
 
 export interface Session {
   token: string;

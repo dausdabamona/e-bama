@@ -1,7 +1,7 @@
 // Halaman Akun: info sesi, ganti kata sandi, keluar
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../auth/auth-context';
+import { sepertiPpk, useAuth } from '../auth/auth-context';
 import { api } from '../lib/api';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
@@ -47,16 +47,16 @@ export function HalamanAkun() {
           {proses ? 'Memproses…' : 'Simpan Kata Sandi Baru'}
         </Button>
       </Card>
-      {session?.role === 'PPK' && (
+      {sepertiPpk(session?.role) && (
         <Link to="/kontrak"><Button varian="garis" className="w-full">📄 Kelola Kontrak & Penyedia</Button></Link>
       )}
-      {(session?.role === 'PPK' || session?.role === 'ADMIN') && (
+      {(sepertiPpk(session?.role) || session?.role === 'ADMIN') && (
         <Link to="/rekap/historis"><Button varian="garis" className="w-full">🗂️ Input Rekap Historis (Migrasi)</Button></Link>
       )}
-      {(session?.role === 'PPK' || session?.role === 'ADMIN' || session?.role === 'KPA') && (
+      {(sepertiPpk(session?.role) || session?.role === 'ADMIN' || session?.role === 'KPA') && (
         <Link to="/luar-kampus"><Button varian="garis" className="w-full">🧳 Bantuan Luar Kampus (PKL/KPA/PTB)</Button></Link>
       )}
-      {(session?.role === 'ADMIN' || session?.role === 'PPK' || session?.role === 'KPA' || session?.role === 'WADIR3') && (
+      {(session?.role === 'ADMIN' || sepertiPpk(session?.role) || session?.role === 'KPA' || session?.role === 'WADIR3') && (
         <Link to="/audit"><Button varian="garis" className="w-full">📜 Lihat Audit Log</Button></Link>
       )}
       <Button varian="bahaya" onClick={() => void logout()}>Keluar</Button>

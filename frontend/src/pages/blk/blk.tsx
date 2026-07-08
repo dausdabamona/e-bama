@@ -4,7 +4,7 @@
 // Impor CSV memakai header PERSIS file "Gabungan" yang sudah biasa dipakai
 // Ketua Jurusan/panitia — nomor rekening (kalau ada di file) SENGAJA diabaikan.
 import { useState } from 'react';
-import { useAuth } from '../../auth/auth-context';
+import { sepertiPpk, useAuth } from '../../auth/auth-context';
 import { BulanPicker, bulanIni } from '../../components/bulan-picker';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
@@ -43,7 +43,7 @@ const PETA_KOLOM: Record<string, string> = {
 export function HalamanBantuanLuarKampus() {
   const { session } = useAuth();
   const { toast } = useToast();
-  const bisaImpor = session?.role === 'PPK' || session?.role === 'ADMIN';
+  const bisaImpor = sepertiPpk(session?.role) || session?.role === 'ADMIN';
 
   const [bulanFilter, setBulanFilter] = useState(bulanIni());
   const listQ = useListCache<{ bantuan: BantuanLuarKampus[]; total: number }>('blk.list', { bulan: bulanFilter });
