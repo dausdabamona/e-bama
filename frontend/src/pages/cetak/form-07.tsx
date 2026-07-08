@@ -19,7 +19,7 @@ import { formatRupiah } from '../tagihan/tipe';
 
 interface BarisForm07 {
   nit: string; nama: string; prodi: string; tingkat: string; bank: string; no_rekening_lengkap: string;
-  nama_pemilik: string; nominal: number; hari_makan: number; rekening_lengkap_ada: boolean;
+  nama_pemilik: string; nominal: number; nilai_debet: number; hari_makan: number; rekening_lengkap_ada: boolean;
 }
 
 const URUT_TINGKAT: Record<string, number> = { I: 1, II: 2, III: 3, '1': 1, '2': 2, '3': 3 };
@@ -78,7 +78,7 @@ interface PembayaranRingkas {
 }
 interface Pejabat { nama: string; nip: string }
 interface Form07Data {
-  bulan: string; pembayaran: PembayaranRingkas; baris: BarisForm07[]; total_nominal: number;
+  bulan: string; pembayaran: PembayaranRingkas; baris: BarisForm07[]; total_nominal: number; biaya_admin_bank: number;
   pejabat: { PPK: Pejabat; KPA: Pejabat; DIREKTUR: Pejabat; WADIR3: Pejabat };
   rekening_senat?: { BNI?: string; BSI?: string };
   rekening_penyedia?: { BNI?: string; BSI?: string };
@@ -141,11 +141,12 @@ function useTanpaCache<T>(action: string, payload?: unknown) {
  * SPM per orang ke Rekening Senat, (3) teruskan total ke rekening penyedia.
  * Kolom Tanda Tangan taruna = pemberian kuasa mendebet.
  */
-function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia, rekSenatNama, rekPenyediaNama, lamaBlokir, noSurat }: {
+function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia, rekSenatNama, rekPenyediaNama, lamaBlokir, noSurat, biayaAdminBank }: {
   bank: string; rows: BarisForm07[]; bulan: string; pejabat: Form07Data['pejabat'];
   rekSenat?: string; rekPenyedia?: string; rekSenatNama?: string; rekPenyediaNama?: string; lamaBlokir: string; noSurat?: string;
+  biayaAdminBank: number;
 }) {
-  const total = rows.reduce((s, b) => s + b.nominal, 0);
+  const total = rows.reduce((s, b) => s + b.nilai_debet, 0);
   const labelBank = bank === 'TANPA_REKENING' ? 'BELUM ADA REKENING' : bank;
   const namaHari = lamaBlokir.trim() || '……';
   return (
@@ -166,6 +167,10 @@ function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia,
         ({rekPenyedia || '…… belum diisi Admin'}{rekPenyediaNama ? ` a.n. ${rekPenyediaNama}` : ''}). Tanda tangan
         taruna pada kolom terakhir merupakan pemberian kuasa kepada bank untuk mendebet sesuai nilai tersebut.
       </p>
+      <p className="text-xs italic">
+        Nilai debet per taruna pada daftar di bawah adalah nilai SPM dikurangi biaya admin bank
+        sebesar {formatRupiah(biayaAdminBank)} per rekening.
+      </p>
       <table className="w-full border-collapse text-xs">
         <thead>
           <tr>
@@ -175,7 +180,7 @@ function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia,
           </tr>
         </thead>
         {kelompokProdiTingkat(rows).map((pt) => {
-          const subtotalPt = pt.rows.reduce((s, b) => s + b.nominal, 0);
+          const subtotalPt = pt.rows.reduce((s, b) => s + b.nilai_debet, 0);
           return (
             <tbody key={`${pt.prodi}|${pt.tingkat}`}>
               <tr className="bg-primary-light/30 print:bg-gray-100">
@@ -195,7 +200,7 @@ function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia,
                     <SelCetak className="print:py-6">{b.nit}</SelCetak>
                     <SelCetak className="print:py-6">{b.nama}</SelCetak>
                     <SelCetak className="print:py-6">{b.rekening_lengkap_ada ? b.no_rekening_lengkap : 'Belum diisi Admin'}</SelCetak>
-                    <SelCetak className="text-right print:py-6">{formatRupiah(b.nominal)}</SelCetak>
+                    <SelCetak className="text-right print:py-6">{formatRupiah(b.nilai_debet)}</SelCetak>
                     <SelCetak className={`print:py-6 ${num % 2 === 1 ? 'text-left' : 'text-center'}`}>{num}</SelCetak>
                   </tr>
                 );
@@ -320,22 +325,26 @@ export function HalamanCetakForm07() {
             <p className="mb-2 text-sm font-semibold text-gray-600 print:text-black">
               Lampiran: Daftar Taruna Penerima — <strong>dipisah per bank (BSI &amp; BNI)</strong>
             </p>
+            <p className="mb-2 text-xs text-gray-500 print:text-black">
+              Kolom "Nilai Debet" sudah dikurangi biaya admin bank sebesar {formatRupiah(data.biaya_admin_bank)} per
+              rekening dari nilai SPM per taruna.
+            </p>
             {kelompokBank(barisBayar).map((g) => {
               const labelBank = g.bank === 'TANPA_REKENING' ? 'BELUM ADA REKENING' : g.bank;
-              const subtotalBank = g.rows.reduce((s, b) => s + b.nominal, 0);
+              const subtotalBank = g.rows.reduce((s, b) => s + b.nilai_debet, 0);
               return (
                 <div key={g.bank} className="mb-3">
                   <p className="mb-1 text-xs font-semibold print:text-black">Bank {labelBank} — {g.rows.length} taruna</p>
                   <table className="w-full border-collapse text-xs">
                     <thead>
                       <tr>
-                        {['No', 'NIT', 'Nama', 'No. Rekening', 'Jumlah'].map((h) => (
+                        {['No', 'NIT', 'Nama', 'No. Rekening', 'Nilai Debet'].map((h) => (
                           <th key={h} className="border border-gray-400 bg-[#D9E2F3] px-2 py-1 text-left font-semibold">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     {kelompokProdiTingkat(g.rows).map((pt) => {
-                      const subtotalPt = pt.rows.reduce((s, b) => s + b.nominal, 0);
+                      const subtotalPt = pt.rows.reduce((s, b) => s + b.nilai_debet, 0);
                       return (
                         <tbody key={`${pt.prodi}|${pt.tingkat}`}>
                           <tr className="bg-primary-light/30 print:bg-gray-100">
@@ -349,7 +358,7 @@ export function HalamanCetakForm07() {
                               <SelCetak>{b.nit}</SelCetak>
                               <SelCetak>{b.nama}</SelCetak>
                               <SelCetak>{b.rekening_lengkap_ada ? b.no_rekening_lengkap : 'Belum diisi Admin'}</SelCetak>
-                              <SelCetak className="text-right">{formatRupiah(b.nominal)}</SelCetak>
+                              <SelCetak className="text-right">{formatRupiah(b.nilai_debet)}</SelCetak>
                             </tr>
                           ))}
                           <tr className="font-semibold">
@@ -389,7 +398,8 @@ export function HalamanCetakForm07() {
               rekPenyedia={g.bank === 'BNI' ? data.rekening_penyedia?.BNI : g.bank === 'BSI' ? data.rekening_penyedia?.BSI : ''}
               rekSenatNama={g.bank === 'BNI' ? data.rekening_senat_nama?.BNI : g.bank === 'BSI' ? data.rekening_senat_nama?.BSI : ''}
               rekPenyediaNama={g.bank === 'BNI' ? data.rekening_penyedia_nama?.BNI : g.bank === 'BSI' ? data.rekening_penyedia_nama?.BSI : ''}
-              noSurat={g.bank === 'BNI' ? noSuratBNI : g.bank === 'BSI' ? noSuratBSI : ''} />
+              noSurat={g.bank === 'BNI' ? noSuratBNI : g.bank === 'BSI' ? noSuratBSI : ''}
+              biayaAdminBank={data.biaya_admin_bank} />
           ))}
         </div>
       )}

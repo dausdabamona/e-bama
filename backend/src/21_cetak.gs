@@ -318,6 +318,7 @@ function cetakForm07(payload, session) {
     sheetRead(SHEETS.TARUNA_REKENING, function (r) { return nitList.indexOf(String(r.nit)) >= 0; })
       .forEach(function (r) { rekeningByNit[String(r.nit)] = r; });
 
+    var biayaAdminBank = getKebijakanPendebetan().biayaAdminBank;
     var totalNominal = 0;
     var baris = rekapRows.map(function (r) {
       var nit = String(r.nit);
@@ -329,6 +330,11 @@ function cetakForm07(payload, session) {
         nit: nit, nama: t.nama || '', prodi: t.prodi || '', tingkat: t.tingkat || '',
         bank: rek ? rek.bank : '', no_rekening_lengkap: rek ? rek.no_rekening_lengkap : '',
         nama_pemilik: rek ? rek.nama_pemilik : '', nominal: nominal,
+        // Nilai yang diinstruksikan ke bank utk didebet dari rekening taruna —
+        // nominal SPM dikurangi biaya admin bank (getKebijakanPendebetan,
+        // 00_config.gs), floor di 0. HANYA dipakai tampilan Form-07 — nominal
+        // di atas TETAP nilai penuh (snapshot SPM), tidak berubah.
+        nilai_debet: Math.max(0, nominal - biayaAdminBank),
         hari_makan: _int_(r.hari_makan || 0, 'hari_makan'), rekening_lengkap_ada: !!rek
       };
     });
@@ -357,6 +363,7 @@ function cetakForm07(payload, session) {
       },
       baris: baris,
       total_nominal: totalNominal,
+      biaya_admin_bank: biayaAdminBank,
       pejabat: PEJABAT,
       // Rekening tujuan pendebetan per bank: taruna → Senat, lalu Senat → Penyedia
       // (+ nama pemilik rekening untuk "a.n." di surat ke bank).

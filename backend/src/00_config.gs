@@ -303,6 +303,38 @@ function setKebijakanTagihan(obj) {
   return v;
 }
 
+// ── Kebijakan Pendebetan Bank — Form-07 (DEFAULT) ────────────────────────────
+// biayaAdminBank: potongan tetap per taruna yang dikenakan bank saat mendebet
+// rekening taruna → Rekening Senat. Nilai yang diinstruksikan ke bank untuk
+// didebet di Form-07 (Usulan Penahanan & Pendebetan Bank) = nominal SPM per
+// taruna DIKURANGI biaya ini (dikonfirmasi Firdaus) — floor di 0, tidak
+// pernah negatif. HANYA memengaruhi tampilan/cetak Form-07; REKAP_BULANAN,
+// TAGIHAN.nominal, dan nilai SPM/SP2D TETAP nilai penuh (snapshot resmi),
+// tidak diubah oleh kebijakan ini.
+var _CONFIG_PENDEBETAN_DEFAULT = { biayaAdminBank: 10000 };
+
+/** getKebijakanPendebetan() — SATU-SATUNYA cara 21_cetak.gs membaca kebijakan ini. */
+function getKebijakanPendebetan() {
+  var v = { biayaAdminBank: _CONFIG_PENDEBETAN_DEFAULT.biayaAdminBank };
+  var raw = PropertiesService.getScriptProperties().getProperty('KEBIJAKAN_PENDEBETAN');
+  if (raw) {
+    var o = JSON.parse(raw);
+    if (o.biayaAdminBank !== undefined) v.biayaAdminBank = Math.max(0, Number(o.biayaAdminBank) || 0);
+  }
+  return v;
+}
+
+/**
+ * setKebijakanPendebetan({biayaAdminBank?}) — ubah kebijakan dari editor GAS.
+ * Hanya kunci yang disertakan yang ditimpa.
+ */
+function setKebijakanPendebetan(obj) {
+  var v = getKebijakanPendebetan();
+  if (obj && obj.biayaAdminBank !== undefined) v.biayaAdminBank = Math.max(0, Number(obj.biayaAdminBank) || 0);
+  PropertiesService.getScriptProperties().setProperty('KEBIJAKAN_PENDEBETAN', JSON.stringify(v));
+  return v;
+}
+
 // ── Standar Gizi (Ownership Taruna — Fitur 1 Piket & Fitur 2 Transparansi) ───
 // SATU sumber daftar komponen gizi standar per menu — dipakai BERSAMA oleh
 // checklist verifikasi piket (REALISASI.piket_gizi, tahap berikutnya) dan
