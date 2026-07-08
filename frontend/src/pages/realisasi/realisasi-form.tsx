@@ -169,7 +169,7 @@ export function HalamanRealisasiBuat() {
   }
 
   async function pilihFoto(jenis: 'closeup' | 'wide') {
-    const file = await ambilFotoInput();
+    const file = await ambilFotoInput({ kameraSaja: false });
     if (!file) return;
     const base64 = await kompresFotoBase64(file, 200, barisWatermark());
     if (jenis === 'closeup') { setFotoNama(file.name); setFotoBase64(base64); }
@@ -348,17 +348,19 @@ export function HalamanRealisasiBuat() {
 
         {/* Dua foto (Fitur E): close-up (kualitas makanan) + wide-shot (kuantitas
             porsi). Watermark tanggal-jam+koordinat dibakar ke keduanya — butuh
-            geotag lebih dulu supaya koordinat yang tertera akurat. Kamera-only
-            (bukan galeri) via ambilFotoInput — cegah unggah foto lama/rekayasa. */}
+            geotag lebih dulu supaya koordinat yang tertera akurat. Boleh dari
+            kamera ATAU galeri (dikonfirmasi Firdaus, direvisi dari kamera-only
+            — watermark tanggal/jam yang terbakar tetap mencatat WAKTU UNGGAH,
+            bukan waktu foto sesungguhnya diambil kalau dipilih dari galeri). */}
         <div className="flex flex-col gap-2">
           <Button varian="garis" onClick={() => void pilihFoto('closeup')} disabled={!geoSiap}>
-            {fotoNama ? `📎 Close-up: ${fotoNama}` : '📷 Ambil Foto Close-up (kualitas)'}
+            {fotoNama ? `📎 Close-up: ${fotoNama}` : '📷 Pilih Foto Close-up (kualitas)'}
           </Button>
           <Button varian="garis" onClick={() => void pilihFoto('wide')} disabled={!geoSiap}>
-            {fotoWideNama ? `📎 Wide-shot: ${fotoWideNama}` : '📷 Ambil Foto Wide-shot (kuantitas porsi)'}
+            {fotoWideNama ? `📎 Wide-shot: ${fotoWideNama}` : '📷 Pilih Foto Wide-shot (kuantitas porsi)'}
           </Button>
           {!geoSiap && (
-            <p className="text-xs text-gray-400">Ambil/isi lokasi (geotag) dulu sebelum memotret — watermark butuh koordinat.</p>
+            <p className="text-xs text-gray-400">Ambil/isi lokasi (geotag) dulu sebelum memilih foto — watermark butuh koordinat.</p>
           )}
         </div>
       </Card>

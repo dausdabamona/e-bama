@@ -1,11 +1,13 @@
 /**
  * Ambil file gambar. Default kamera-saja (`capture='environment'` memaksa
  * browser mobile membuka kamera langsung, bukan galeri) — kontrol anti-
- * rekayasa utk REALISASI (Fitur E: pesanan auto-terkirim melewati verifikasi
- * Pembina-lain, jadi bukti foto harus benar-benar diambil saat itu juga).
- * Set `kameraSaja:false` untuk kasus yang MEMANG berupa screenshot/dokumen
- * scan (bukti transfer, surat, BA) — di situ galeri/File Manager wajib bisa
- * dipilih, bukan cuma kamera.
+ * rekayasa utk kasus yang MEMANG harus foto real-time (mis. bukti foto
+ * status-taruna, BA revisi pesanan). Set `kameraSaja:false` untuk kasus yang
+ * boleh galeri/File Manager: dokumen scan (bukti transfer, surat, BA), ATAU
+ * foto realisasi (dikonfirmasi Firdaus — dilonggarkan dari kamera-only semula,
+ * lihat realisasi-form.tsx). Watermark tanggal/jam yang dibakar ke foto tetap
+ * mencatat WAKTU UNGGAH, bukan waktu foto sesungguhnya diambil, kalau file
+ * diambil dari galeri.
  */
 export function ambilFotoInput(opts: { kameraSaja?: boolean } = {}): Promise<File | null> {
   const kameraSaja = opts.kameraSaja !== false;
