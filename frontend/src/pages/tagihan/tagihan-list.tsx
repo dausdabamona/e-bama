@@ -27,10 +27,12 @@ interface RekapNilai { jumlah: number; nominal: number }
 interface Ringkasan {
   per_level: Record<string, RekapNilai>;
   total_outstanding: number;
+  belum_disetor: RekapNilai;
   sudah_disetor_menunggu_verifikasi_1: RekapNilai;
   verifikasi_1x: RekapNilai;
   lunas_belum_diteruskan: RekapNilai;
   lunas_sudah_diteruskan: RekapNilai;
+  eskalasi_manual: RekapNilai;
 }
 
 export function HalamanTagihanList() {
@@ -100,6 +102,10 @@ export function HalamanTagihanList() {
           <p className="mt-2 text-sm">Total Outstanding: <span className="font-bold">{formatRupiah(ringkasanQ.data!.total_outstanding)}</span></p>
           <div className="mt-3 flex flex-col gap-1 border-t border-gray-200 pt-2 text-sm">
             <div className="flex items-center justify-between">
+              <span className="text-gray-500">Belum disetor ke Senat</span>
+              <span className="font-semibold">{ringkasanQ.data!.belum_disetor?.jumlah ?? 0} · {formatRupiah(ringkasanQ.data!.belum_disetor?.nominal ?? 0)}</span>
+            </div>
+            <div className="flex items-center justify-between">
               <span className="text-sky-700">Sudah disetor ke Senat, menunggu verifikasi ke-1</span>
               <span className="font-semibold text-sky-700">
                 {ringkasanQ.data!.sudah_disetor_menunggu_verifikasi_1?.jumlah ?? 0} · {formatRupiah(ringkasanQ.data!.sudah_disetor_menunggu_verifikasi_1?.nominal ?? 0)}
@@ -116,6 +122,10 @@ export function HalamanTagihanList() {
             <div className="flex items-center justify-between">
               <span className="text-green-700">Lunas, sudah diteruskan ke Penyedia</span>
               <span className="font-semibold text-green-700">{ringkasanQ.data!.lunas_sudah_diteruskan?.jumlah ?? 0} · {formatRupiah(ringkasanQ.data!.lunas_sudah_diteruskan?.nominal ?? 0)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-red-800 font-bold">Eskalasi Manual (SP-3 lewat tenggat)</span>
+              <span className="font-bold text-red-800">{ringkasanQ.data!.eskalasi_manual?.jumlah ?? 0} · {formatRupiah(ringkasanQ.data!.eskalasi_manual?.nominal ?? 0)}</span>
             </div>
           </div>
         </Card>

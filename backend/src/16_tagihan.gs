@@ -163,27 +163,49 @@ function tagihanList(payload, session) {
 
 /**
  * Dashboard piutang: {per_level: {0..3:{jumlah,nominal}}, total_outstanding,
- * sudah_disetor_menunggu_verifikasi_1, verifikasi_1x, lunas_belum_diteruskan,
- * lunas_sudah_diteruskan}.
- * `sudah_disetor_menunggu_verifikasi_1` = dana YANG SUDAH MASUK ke rekening
- * Senat (tgl_setor terisi) tapi BELUM disentuh verifikator sama sekali —
- * tahap PALING AWAL, beda dari `verifikasi_1x` (sudah lolos verifikator
- * PERTAMA, tinggal menunggu verifikator KEDUA). Tanpa baris ini, kartu
- * ringkasan tak menunjukkan uang yang sudah terkumpul di Senat tapi belum
- * mulai diverifikasi (dikonfirmasi Firdaus — sebelumnya cuma kelihatan di
- * sub-grup "Menunggu Verifikasi ke-1" per bulan, tak terhitung di ringkasan).
+ * belum_disetor, sudah_disetor_menunggu_verifikasi_1, verifikasi_1x,
+ * lunas_belum_diteruskan, lunas_sudah_diteruskan, eskalasi_manual}.
+ *
+ * `per_level` HANYA tagihan TERTAGIH (SP-1/2/3 murni, masih dalam proses SP
+ * normal) — TIDAK termasuk ESKALASI_MANUAL (dipisah, lihat di bawah), supaya
+ * semantiknya jelas: per_level = masih diproses lewat SP, eskalasi_manual =
+ * sudah keluar dari proses SP (penanganan di luar sistem).
+ *
+ * Tiap tagihan TERTAGIH jatuh ke TEPAT SATU dari tiga bucket berikut
+ * (dikonfirmasi Firdaus, urutan tahap):
+ * - `belum_disetor` = TERTAGIH, dana BELUM masuk rekening Senat sama sekali
+ *   (`tgl_setor` kosong) — tahap PALING AWAL.
+ * - `sudah_disetor_menunggu_verifikasi_1` = dana SUDAH MASUK ke rekening
+ *   Senat (`tgl_setor` terisi) tapi BELUM disentuh verifikator sama sekali.
+ * - `verifikasi_1x` = sudah lolos verifikator PERTAMA, tinggal menunggu
+ *   verifikator KEDUA (yang memicu LUNAS).
  * `lunas_belum_diteruskan` = dana taruna yang SUDAH lunas ditagih tapi BELUM
  * diteruskan ke penyedia — inilah angka "utang Poltek ke penyedia" dari
  * jalur tagih-ulang ini (terpisah dari SP2D/SPM), lihat tagihan.teruskan_penyedia.
+ * `eskalasi_manual` = tagihan yang sudah lewat tenggat SP-3 dan ditandai
+ * `eskalasiTagihan()` (20_trigger.gs) — piutang PALING telat/berisiko,
+ * penanganan di luar sistem (sanksi akademik/pemanggilan). Nominalnya TETAP
+ * masuk `total_outstanding` (belum lunas) walau dipisah dari `per_level`.
+ *
+ * Cross-check (dokumentasi, BUKAN assert runtime): karena tiap tagihan
+ * TERTAGIH jatuh ke tepat satu dari 3 bucket tahap di atas, dan tiap tagihan
+ * ESKALASI_MANUAL jatuh ke `eskalasi_manual` saja, maka SELALU berlaku:
+ *   belum_disetor.jumlah + sudah_disetor_menunggu_verifikasi_1.jumlah
+ *     + verifikasi_1x.jumlah + eskalasi_manual.jumlah
+ *   === per_level[0].jumlah + per_level[1].jumlah + per_level[2].jumlah
+ *     + per_level[3].jumlah + eskalasi_manual.jumlah
+ * — PPK bisa cross-check jumlah ini tanpa buka daftar detail.
  */
 function tagihanSummary(payload, session) {
   var per = { 0: { jumlah: 0, nominal: 0 }, 1: { jumlah: 0, nominal: 0 },
               2: { jumlah: 0, nominal: 0 }, 3: { jumlah: 0, nominal: 0 } };
   var total = 0;
+  var belumDisetor = { jumlah: 0, nominal: 0 };
   var sudahDisetorMenungguVerif1 = { jumlah: 0, nominal: 0 };
   var verif1 = { jumlah: 0, nominal: 0 };
   var lunasBelumDiteruskan = { jumlah: 0, nominal: 0 };
   var lunasSudahDiteruskan = { jumlah: 0, nominal: 0 };
+  var eskalasiManual = { jumlah: 0, nominal: 0 };
 
   _tagihanJoin_().forEach(function (t) {
     if (t.status === 'TERTAGIH') {
@@ -194,7 +216,12 @@ function tagihanSummary(payload, session) {
         verif1.jumlah++; verif1.nominal += t.nominal;
       } else if (t.tgl_setor) {
         sudahDisetorMenungguVerif1.jumlah++; sudahDisetorMenungguVerif1.nominal += t.nominal;
+      } else {
+        belumDisetor.jumlah++; belumDisetor.nominal += t.nominal;
       }
+    } else if (t.status === 'ESKALASI_MANUAL') {
+      total += t.nominal;
+      eskalasiManual.jumlah++; eskalasiManual.nominal += t.nominal;
     } else if (t.status === 'LUNAS') {
       var nilai = t.nilai_transfer || t.nominal;
       if (t.tgl_diteruskan_penyedia) { lunasSudahDiteruskan.jumlah++; lunasSudahDiteruskan.nominal += nilai; }
@@ -204,8 +231,10 @@ function tagihanSummary(payload, session) {
 
   return {
     per_level: per, total_outstanding: total,
+    belum_disetor: belumDisetor,
     sudah_disetor_menunggu_verifikasi_1: sudahDisetorMenungguVerif1,
-    verifikasi_1x: verif1, lunas_belum_diteruskan: lunasBelumDiteruskan, lunas_sudah_diteruskan: lunasSudahDiteruskan
+    verifikasi_1x: verif1, lunas_belum_diteruskan: lunasBelumDiteruskan, lunas_sudah_diteruskan: lunasSudahDiteruskan,
+    eskalasi_manual: eskalasiManual
   };
 }
 
