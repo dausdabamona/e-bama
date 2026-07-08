@@ -428,7 +428,11 @@ function _autoIsiSpmDariSp2d_(bulan, session, sumber) {
   });
 }
 
-/** spm.list {bulan?, bayar_id?, kategori?} — daftar SPM (kedua kategori). */
+/**
+ * spm.list {bulan?, bayar_id?, kategori?} — daftar SPM (kedua kategori).
+ * Diperkaya `penyedia_nama` (join PENYEDIA, khusus DALAM_KAMPUS yang punya
+ * penyedia_id) supaya UI tak perlu tampilkan ID mentah.
+ */
 function spmList(payload, session) {
   var f = payload || {};
   var rows = sheetRead(SHEETS.SPM, function (r) {
@@ -436,6 +440,12 @@ function spmList(payload, session) {
     if (f.bayar_id && String(r.bayar_id) !== String(f.bayar_id)) return false;
     if (f.kategori && String(r.kategori) !== f.kategori) return false;
     return true;
+  });
+  var penyediaById = {};
+  sheetRead(SHEETS.PENYEDIA).forEach(function (p) { penyediaById[String(p.penyedia_id)] = p; });
+  rows = rows.map(function (r) {
+    var p = r.penyedia_id ? penyediaById[String(r.penyedia_id)] : null;
+    return Object.assign({}, r, { penyedia_nama: p ? (p.nama || '') : '' });
   });
   return { spm: rows };
 }

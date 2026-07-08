@@ -19,6 +19,7 @@ import { api } from '../../lib/api';
 import { ambilBerkasInput, berkasKeBase64 } from '../../lib/berkas';
 import { useListCache } from '../../lib/use-list-cache';
 import { formatRupiah } from '../tagihan/tipe';
+import { KartuSpmDalamKampus, useSpmDalamKampus } from './spm-dalam-kampus';
 import type { Pembayaran } from './tipe';
 
 const URUTAN_STATUS: Pembayaran['status'][] = ['DIAJUKAN', 'SELESAI'];
@@ -31,6 +32,14 @@ export function HalamanPembayaran() {
   const [proses, setProses] = useState(false);
 
   const b = data?.pembayaran?.find((x) => x.bulan === bulan);
+
+  // Bulan dgn baris SPM tersimpan (sheet SPM, dibuat otomatis sejak Tahap 3) pakai
+  // kartu SPM baru (angka PERSIS, bisa diedit); bulan lama TANPA baris SPM (dibuat
+  // sebelum Tahap 3 ada) tetap pakai kartu Rincian SP2D lama (live-derive, perkiraan
+  // per suplier) — lihat spm-dalam-kampus.tsx.
+  const spmQ = useSpmDalamKampus(bulan);
+  const spmDalamKampus = spmQ.data?.spm ?? [];
+  const adaSpmTersimpan = spmDalamKampus.length > 0;
   const [noSpm, setNoSpm] = useState('');
   const [tglSpm, setTglSpm] = useState('');
   const [noSp2d, setNoSp2d] = useState('');
@@ -189,9 +198,17 @@ export function HalamanPembayaran() {
             </Card>
           )}
 
+          {/* Bulan dgn baris SPM tersimpan (sejak Tahap 3) → kartu baru, angka PERSIS
+              & bisa diedit langsung di sini (ganti jalur lama menu Laporan). */}
+          {adaSpmTersimpan && (
+            <KartuSpmDalamKampus bulan={bulan} bayarId={b.bayar_id} spm={spmDalamKampus} refresh={spmQ.refresh} />
+          )}
+
           {/* Rincian SP2D LIVE dari SP2D_MONITORING — 1 bulan pembayaran = N SP2D
               (KPPN terbitkan 1 SP2D per kelompok Prodi+Tingkat). Read-only; angka
-              diturunkan dari menu Laporan (impor Monitoring SP2D), bukan diketik di sini. */}
+              diturunkan dari menu Laporan (impor Monitoring SP2D), bukan diketik di sini.
+              HANYA utk bulan lama TANPA baris SPM tersimpan — lihat adaSpmTersimpan. */}
+          {!adaSpmTersimpan && (
           <Card className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-semibold text-gray-600">📋 Rincian SP2D dari SP2D_MONITORING</p>
@@ -327,6 +344,7 @@ export function HalamanPembayaran() {
               </>
             )}
           </Card>
+          )}
 
           {session?.role === 'PPK' && statusLegacy && (
             <Card className="flex flex-col gap-2 border-l-4 border-l-amber-500 bg-amber-50">
