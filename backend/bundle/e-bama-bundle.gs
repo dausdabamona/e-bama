@@ -7321,6 +7321,46 @@ function setupDatabase() {
 }
 
 /**
+ * tambahKolomSpm() — migrasi ringan: tambah kolom SPM yang belum ada
+ * (`nit_anggota`, `induk_spm_id` untuk fitur spm.split/spm.gabung) ke sheet
+ * SPM yang SUDAH ADA, TANPA menyentuh sheet lain, data, maupun urutan kolom.
+ *
+ * Kenapa fungsi terpisah, bukan `setupDatabase()`? `setupDatabase()` menimpa
+ * baris header SEMUA 18 sheet secara posisi + menerapkan ulang validasi —
+ * palu besar yang berisiko bila urutan kolom live sheet lain sudah bergeser
+ * dari skema. Fungsi ini hanya menambah kolom yang HILANG di ujung kanan
+ * sheet SPM (append), jadi aman dijalankan berapa kali pun (idempotent).
+ *
+ * Jalankan sekali dari editor GAS: Run → tambahKolomSpm.
+ */
+function tambahKolomSpm() {
+  var ss = _getSpreadsheet_();
+  var sheet = ss.getSheetByName(SHEETS.SPM);
+  if (!sheet) throw new Error('Sheet SPM belum ada. Jalankan setupDatabase() dulu.');
+
+  var header = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  var perluTambah = ['nit_anggota', 'induk_spm_id'];
+  var ditambah = [];
+
+  perluTambah.forEach(function (nama) {
+    if (header.indexOf(nama) !== -1) return; // sudah ada → lewati (idempotent)
+    var col = sheet.getLastColumn() + 1;
+    sheet.getRange(1, col).setValue(nama)
+      .setFontWeight('bold').setBackground(_WARNA_HEADER_);
+    // Format teks polos di area data (hindari auto-konversi ID/NIT jadi angka)
+    var dataRows = Math.max(sheet.getMaxRows() - 1, 1);
+    sheet.getRange(2, col, dataRows, 1).setNumberFormat('@');
+    header.push(nama);
+    ditambah.push(nama);
+  });
+
+  Logger.log('tambahKolomSpm() selesai. Ditambah: ' +
+    (ditambah.length ? ditambah.join(', ') : '(tidak ada — semua sudah ada)') +
+    '. Header SPM sekarang: ' + header.join(', '));
+  return ditambah;
+}
+
+/**
  * seedAwal() — 5 akun contoh. Kata sandi default 123456 di-hash SHA-256(sandi+SALT).
  * Idempotent: akun dengan user_id yang sudah ada dilewati.
  */
