@@ -262,6 +262,41 @@ export function HalamanPembayaran() {
                               </td>
                             </tr>
                           )}
+                          {k.per_suplier.length > 0 && (
+                            <tr>
+                              <td colSpan={5} className="px-2 pb-3">
+                                <div className="rounded border border-dashed border-gray-300 bg-gray-50 p-2">
+                                  <p className="mb-1 text-[11px] font-medium text-gray-500">
+                                    Pecahan per suplier — kolom SP2D/Selisih di sini <strong>PERKIRAAN</strong> (dibagi
+                                    proporsional dari total SP2D kelompok ini), <strong>bukan angka resmi KPPN</strong>,
+                                    karena data Monitoring SP2D tidak mencatat suplier.
+                                  </p>
+                                  <table className="w-full text-[11px]">
+                                    <thead>
+                                      <tr className="text-left text-gray-400">
+                                        <th className="pr-2 font-normal">Suplier</th>
+                                        <th className="pr-2 text-right font-normal">Sistem</th>
+                                        <th className="pr-2 text-right font-normal">SP2D (perkiraan)</th>
+                                        <th className="text-right font-normal">Selisih (perkiraan)</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {k.per_suplier.map((s) => (
+                                        <tr key={s.penyedia_id || '__tanpa__'}>
+                                          <td className="pr-2 text-gray-600">{s.penyedia_nama || s.penyedia_id}</td>
+                                          <td className="pr-2 text-right text-gray-600">{formatRupiah(s.sistem)}</td>
+                                          <td className="pr-2 text-right text-gray-500 italic">{formatRupiah(s.sp2d_perkiraan)}</td>
+                                          <td className={`text-right italic ${s.selisih_perkiraan !== 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+                                            {s.selisih_perkiraan !== 0 ? formatRupiah(s.selisih_perkiraan) : '—'}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
                         </Fragment>
                       ))}
                     </tbody>

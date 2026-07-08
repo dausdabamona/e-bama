@@ -142,7 +142,16 @@ diisi ulang sejak migrasi harga per-porsi → per-hari, dikonfirmasi Firdaus).
 > kelompok memuat sub-daftar No. SP2D) + `sp2d_lengkap` (semua kelompok
 > bersistem >0 sudah cocok) + `sp2d_perlu_cek_manual` (jumlah baris gagal
 > parse). Begitu `sp2d_lengkap`, status OTOMATIS `SELESAI` — dijalankan dari
-> `sp2d.import` (auto) atau `bayar.sync` (manual).
+> `sp2d.import` (auto) atau `bayar.sync` (manual). Tiap kelompok `sp2d_rincian`
+> juga memuat `per_suplier:[{penyedia_id,penyedia_nama,sistem,sp2d_perkiraan,selisih_perkiraan}]`
+> (dikonfirmasi Firdaus) — pecahan per `TARUNA_REKENING.penyedia_id`. `sistem`
+> ASLI (SUM REKAP_BULANAN suplier itu); `sp2d_perkiraan`/`selisih_perkiraan`
+> SELALU **taksiran** (dibagi proporsional dari total SP2D kelompok berdasar
+> porsi `sistem` tiap suplier, sisa pembulatan ditumpuk ke baris terakhir agar
+> SUM tetap persis sama dgn `sp2d`) — `SP2D_MONITORING` (impor KPPN) tidak
+> punya kolom suplier sama sekali, jadi angka SP2D per suplier yang sungguh
+> asli memang tidak ada. Frontend WAJIB menandai kolom ini "perkiraan", bukan
+> angka resmi KPPN.
 
 | Action | Role | Keterangan |
 |---|---|---|

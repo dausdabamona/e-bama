@@ -5795,6 +5795,31 @@ function _sistemDalamKampusPerKelompok_(bulan, tarunaByNit) {
 }
 
 /**
+ * SUM(nominal) REKAP_BULANAN `bulan` per kelompok (prodi|tingkat) DAN per suplier
+ * (TARUNA_REKENING.penyedia_id) — pecahan lebih rinci dari
+ * _sistemDalamKampusPerKelompok_, dipakai HANYA utk kolom "Sistem" per suplier
+ * di Rincian SP2D (`_rincianSp2dDalamKampus_`). Angka "Sistem" ini ASLI (dihitung
+ * dari data internal e-BAMA) — beda dgn kolom "SP2D" per suplier di pemanggil,
+ * yang cuma PERKIRAAN (dibagi proporsional) karena SP2D_MONITORING (impor KPPN)
+ * tidak punya kolom suplier sama sekali (dikonfirmasi Firdaus). Taruna tanpa
+ * penyedia_id masuk kunci suplier '' (BELUM DITENTUKAN).
+ */
+function _sistemDalamKampusPerKelompokSuplier_(bulan, tarunaByNit, rekeningByNit) {
+  var rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
+  var hasil = {};
+  rekapRows.forEach(function (r) {
+    var nit = String(r.nit);
+    var t = tarunaByNit[nit] || {};
+    var rek = rekeningByNit[nit];
+    var kunciKelompok = (t.prodi || '?') + '|' + (t.tingkat || '?');
+    var pid = (rek && rek.penyedia_id) ? String(rek.penyedia_id) : '';
+    if (!hasil[kunciKelompok]) hasil[kunciKelompok] = {};
+    hasil[kunciKelompok][pid] = (hasil[kunciKelompok][pid] || 0) + _int_(r.nominal || 0, 'nominal');
+  });
+  return hasil;
+}
+
+/**
  * sp2d.rekonsiliasi {bulan} — bandingkan SUM per kelompok (Prodi+Tingkat[+Kegiatan])
  * antara data sistem (REKAP_BULANAN/BANTUAN_LUAR_KAMPUS, di-join TARUNA utk
  * prodi+tingkat) vs SUM jumlah_pembayaran SP2D_MONITORING kelompok yang sama.
@@ -6177,12 +6202,25 @@ function sp2dHapusDobel(payload, session) {
  * bersistem 0 tidak menghalangi kelengkapan (tapi tetap tampil sebagai anomali
  * kalau ada SP2D nyasar). `perlu_cek_manual` = jumlah baris Dalam Kampus bulan
  * ini yang gagal parse (SP2D ada tapi tak terhitung — perlu koreksi manual).
+ *
+ * Tiap kelompok juga memuat `per_suplier` (dikonfirmasi Firdaus) — pecahan
+ * tambahan per `TARUNA_REKENING.penyedia_id`. Kolom `sistem` di situ ASLI
+ * (dihitung langsung dari REKAP_BULANAN), tapi `sp2d_perkiraan`/`selisih_perkiraan`
+ * SELALU perkiraan (dibagi PROPORSIONAL dari total SP2D kelompok berdasar porsi
+ * `sistem` tiap suplier) — SP2D_MONITORING (impor KPPN) tidak punya kolom
+ * suplier sama sekali, jadi tidak ada cara membaca angka SP2D per suplier yang
+ * sungguh-sungguh asli. Frontend WAJIB menandai kolom ini sebagai perkiraan.
  */
 function _rincianSp2dDalamKampus_(bulan) {
   var tarunaByNit = {};
   sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  var rekeningByNit = {};
+  sheetRead(SHEETS.TARUNA_REKENING).forEach(function (r) { rekeningByNit[String(r.nit)] = r; });
+  var penyediaById = {};
+  sheetRead(SHEETS.PENYEDIA).forEach(function (p) { penyediaById[String(p.penyedia_id)] = p; });
 
   var sistemDalam = _sistemDalamKampusPerKelompok_(bulan, tarunaByNit);
+  var sistemSuplierDalam = _sistemDalamKampusPerKelompokSuplier_(bulan, tarunaByNit, rekeningByNit);
 
   // _bulanStr_ (BUKAN String() polos) — lihat catatan di sp2dRekonsiliasi.
   var semua = sheetRead(SHEETS.SP2D_MONITORING, function (r) {
@@ -6217,11 +6255,46 @@ function _rincianSp2dDalamKampus_(bulan) {
     return {
       prodi: parts[0], tingkat: parts[1], sistem: sistem, sp2d: sp2d,
       selisih: sistem - sp2d, cocok: sistem === sp2d,
+      per_suplier: _pecahSp2dPerSuplierPerkiraan_(sistemSuplierDalam[k], sp2d, penyediaById),
       rincian: rincianPerKunci[k] || []
     };
   });
 
   return { bulan: bulan, kelompok: kelompok, lengkap: adaSistem && semuaCocok, perlu_cek_manual: perluCekManual };
+}
+
+/**
+ * Pecah `sp2dTotal` (satu angka ASLI KPPN utk satu kelompok Prodi+Tingkat) jadi
+ * PERKIRAAN per suplier — proporsional terhadap porsi `sistem` (ASLI, dari
+ * REKAP_BULANAN) tiap suplier dalam kelompok itu. WAJIB dianggap taksiran,
+ * BUKAN angka resmi KPPN per suplier (yang memang tidak ada/tidak pernah
+ * dilaporkan terpisah). Sisa pembulatan ditumpuk ke baris terakhir (terurut by
+ * penyedia_id) supaya SUM(sp2d_perkiraan) tetap == sp2dTotal.
+ */
+function _pecahSp2dPerSuplierPerkiraan_(sistemSuplierKelompok, sp2dTotal, penyediaById) {
+  var pidList = Object.keys(sistemSuplierKelompok || {}).sort();
+  if (!pidList.length) return [];
+  var totalSistem = pidList.reduce(function (s, pid) { return s + sistemSuplierKelompok[pid]; }, 0);
+  var hasil = pidList.map(function (pid) {
+    var sistemSup = sistemSuplierKelompok[pid];
+    var sp2dSup = totalSistem > 0 ? Math.round(sp2dTotal * sistemSup / totalSistem) : 0;
+    var p = penyediaById[pid];
+    return {
+      penyedia_id: pid,
+      penyedia_nama: pid ? (p ? (p.nama || '') : '') : '(BELUM DITENTUKAN)',
+      sistem: sistemSup, sp2d_perkiraan: sp2dSup, selisih_perkiraan: sistemSup - sp2dSup
+    };
+  });
+  if (totalSistem > 0 && hasil.length) {
+    var sumSp2d = hasil.reduce(function (s, x) { return s + x.sp2d_perkiraan; }, 0);
+    var selisihBulat = sp2dTotal - sumSp2d;
+    if (selisihBulat !== 0) {
+      var last = hasil[hasil.length - 1];
+      last.sp2d_perkiraan += selisihBulat;
+      last.selisih_perkiraan = last.sistem - last.sp2d_perkiraan;
+    }
+  }
+  return hasil;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
