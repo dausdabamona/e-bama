@@ -124,10 +124,10 @@ function useTanpaCache<T>(action: string, payload?: unknown) {
  * SPM per orang ke Rekening Senat, (3) teruskan total ke rekening penyedia.
  * Kolom Tanda Tangan taruna = pemberian kuasa mendebet.
  */
-function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia, rekSenatNama, rekPenyediaNama, lamaBlokir, noSurat, biayaAdminBank, kontrak, pembayaran, pisahHalaman }: {
+function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia, rekSenatNama, rekPenyediaNama, lamaBlokir, noSurat, pisahHalaman }: {
   bank: string; rows: BarisForm07[]; bulan: string; pejabat: Form07Data['pejabat'];
   rekSenat?: string; rekPenyedia?: string; rekSenatNama?: string; rekPenyediaNama?: string; lamaBlokir: string; noSurat?: string;
-  biayaAdminBank: number; kontrak?: Form07Data['kontrak']; pembayaran: PembayaranRingkas; pisahHalaman: boolean;
+  pisahHalaman: boolean;
 }) {
   const total = rows.reduce((s, b) => s + b.nilai_debet, 0);
   const labelBank = bank === 'TANPA_REKENING' ? 'BELUM ADA REKENING' : bank;
@@ -149,21 +149,6 @@ function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia,
         <strong> (3)</strong> meneruskan total dana yang berhasil didebet ke <strong>rekening penyedia jasa boga {bank}</strong>{' '}
         ({rekPenyedia || '…… belum diisi Admin'}{rekPenyediaNama ? ` a.n. ${rekPenyediaNama}` : ''}). Tanda tangan
         taruna pada kolom terakhir merupakan pemberian kuasa kepada bank untuk mendebet sesuai nilai tersebut.
-      </p>
-      <div className="flex flex-col gap-1 text-xs">
-        {kontrak?.no_kontrak && (
-          <div className="flex justify-between"><span>No. Kontrak</span><span>{kontrak.no_kontrak}{kontrak.tgl_kontrak ? ` · ${kontrak.tgl_kontrak}` : ''}</span></div>
-        )}
-        {kontrak?.adendum && (
-          <div className="flex justify-between"><span>Adendum</span><span>{kontrak.adendum}</span></div>
-        )}
-        <div className="flex justify-between"><span>No. SPM</span><span>{pembayaran.no_spm || '-'}</span></div>
-        <div className="flex justify-between"><span>No. SP2D</span><span>{pembayaran.no_sp2d || '-'}</span></div>
-        <div className="flex justify-between"><span>Tanggal SP2D</span><span>{pembayaran.tgl_sp2d || '-'}</span></div>
-      </div>
-      <p className="text-xs italic">
-        Nilai debet per taruna pada daftar di bawah adalah nilai SPM dikurangi biaya admin bank
-        sebesar {formatRupiah(biayaAdminBank)} per rekening.
       </p>
       <table className="w-full border-collapse text-xs">
         <thead>
@@ -292,13 +277,12 @@ export function HalamanCetakForm07() {
               tanpa break-before agar tak ada halaman kosong di depan. */}
           {kelompokBank(barisBayar).map((g, i) => (
             <LampiranBlokirBank key={g.bank} bank={g.bank} rows={g.rows} bulan={data.bulan} pejabat={data.pejabat}
-              lamaBlokir={lamaBlokir} kontrak={data.kontrak} pembayaran={data.pembayaran} pisahHalaman={i > 0}
+              lamaBlokir={lamaBlokir} pisahHalaman={i > 0}
               rekSenat={g.bank === 'BNI' ? data.rekening_senat?.BNI : g.bank === 'BSI' ? data.rekening_senat?.BSI : ''}
               rekPenyedia={g.bank === 'BNI' ? data.rekening_penyedia?.BNI : g.bank === 'BSI' ? data.rekening_penyedia?.BSI : ''}
               rekSenatNama={g.bank === 'BNI' ? data.rekening_senat_nama?.BNI : g.bank === 'BSI' ? data.rekening_senat_nama?.BSI : ''}
               rekPenyediaNama={g.bank === 'BNI' ? data.rekening_penyedia_nama?.BNI : g.bank === 'BSI' ? data.rekening_penyedia_nama?.BSI : ''}
-              noSurat={g.bank === 'BNI' ? noSuratBNI : g.bank === 'BSI' ? noSuratBSI : ''}
-              biayaAdminBank={data.biaya_admin_bank} />
+              noSurat={g.bank === 'BNI' ? noSuratBNI : g.bank === 'BSI' ? noSuratBSI : ''} />
           ))}
         </div>
       )}
