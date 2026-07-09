@@ -128,7 +128,7 @@ var _REKENING_INSTANSI_DEFAULT = {
   senat:         { BNI: '2026715541', BSI: '7339443046' },
   penyedia:      { BNI: '', BSI: '' },
   senat_nama:    { BNI: 'Senat Taruna Politeknik KP Sorong', BSI: 'Senat Taruna Politeknik KP Sorong' },
-  penyedia_nama: { BNI: '', BSI: '' }
+  penyedia_nama: { BNI: 'Mukhori', BSI: 'Mukhori' }
 };
 
 /** getRekeningInstansi() — rekening instansi efektif (default ← override Script Properties). */
