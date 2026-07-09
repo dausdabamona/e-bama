@@ -134,7 +134,8 @@ var PEJABAT = {
 // senat_nama/penyedia_nama opsional — mis. penyedia_nama.BNI = 'Mukhori'.
 var _REKENING_INSTANSI_GRUP = ['senat', 'penyedia', 'senat_nama', 'penyedia_nama'];
 var _REKENING_INSTANSI_DEFAULT = {
-  senat:         { BNI: '', BSI: '' },
+  // Rekening Senat Taruna (tujuan pendebetan dari rekening taruna) — dikonfirmasi Firdaus.
+  senat:         { BNI: '2026715541', BSI: '7339443046' },
   penyedia:      { BNI: '', BSI: '' },
   senat_nama:    { BNI: '', BSI: '' },
   penyedia_nama: { BNI: '', BSI: '' }
