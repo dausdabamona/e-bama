@@ -137,7 +137,7 @@ var _REKENING_INSTANSI_DEFAULT = {
   // Rekening Senat Taruna (tujuan pendebetan dari rekening taruna) — dikonfirmasi Firdaus.
   senat:         { BNI: '2026715541', BSI: '7339443046' },
   penyedia:      { BNI: '', BSI: '' },
-  senat_nama:    { BNI: '', BSI: '' },
+  senat_nama:    { BNI: 'Senat Taruna Politeknik KP Sorong', BSI: 'Senat Taruna Politeknik KP Sorong' },
   penyedia_nama: { BNI: '', BSI: '' }
 };
 
