@@ -219,10 +219,10 @@ export function HalamanCetakForm10() {
 
     const perSuplierUtama = daftar
       .map((s) => {
-        const kelompokBaru = s.kelompok
+        const kelompokBaru = (s.kelompok ?? [])
           .map((k) => {
             const barisTetap: BarisF10[] = [];
-            k.baris.forEach((b) => {
+            (k.baris ?? []).forEach((b) => {
               if (terpisah.has(b.nit)) dipisah.push({ suplier: s, prodi: k.prodi, tingkat: k.tingkat, baris: b });
               else barisTetap.push(b);
             });
@@ -305,7 +305,7 @@ export function HalamanCetakForm10() {
           ))}
 
           {lembarTerpisah.map((s, i) => (
-            <LembarSuplier key={`terpisah-${s.kelompok[0].baris[0].nit}`} suplier={s} urutan={perSuplierUtama.length + i}
+            <LembarSuplier key={`terpisah-${s.kelompok?.[0]?.baris?.[0]?.nit ?? i}`} suplier={s} urutan={perSuplierUtama.length + i}
               pejabat={data.pejabat} bulan={data.bulan} terpisah={terpisah} onToggleTerpisah={toggleTerpisah}
               labelTambahan="(SPM Terpisah)" />
           ))}

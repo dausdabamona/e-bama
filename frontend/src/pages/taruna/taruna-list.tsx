@@ -173,7 +173,7 @@ function ModalRekening({ taruna, onClose }: { taruna: Taruna; onClose: () => voi
         ]);
         if (batal) return;
         setDaftarPenyedia((p.penyedia ?? []).map((x) => ({ penyedia_id: x.penyedia_id, nama: x.nama })));
-        const baris = r.rekening[0];
+        const baris = r.rekening?.[0];
         if (baris && baris.no_rekening_lengkap) {
           setNoRek(baris.no_rekening_lengkap);
           setBank(baris.bank || BANK[0] as 'BNI' | 'BSI');

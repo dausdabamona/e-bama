@@ -48,9 +48,9 @@ export function HalamanDashboardKpa() {
       ]);
 
       setData({
-        tarunaAktif: taruna.taruna.length,
-        realisasiHariIni: realisasi.realisasi.filter((r) => r.tanggal === hariIni).length,
-        bayarStatus: bayar.pembayaran[0]?.status ?? 'Belum ada',
+        tarunaAktif: (taruna.taruna ?? []).length,
+        realisasiHariIni: (realisasi.realisasi ?? []).filter((r) => r.tanggal === hariIni).length,
+        bayarStatus: bayar.pembayaran?.[0]?.status ?? 'Belum ada',
         outstanding: ringkasanTagihan.total_outstanding,
         grafik: bulanList.map((b, i) => ({ label: labelBulan(b).slice(0, 3), nilai: rekapPerBulan[i].total }))
       });
