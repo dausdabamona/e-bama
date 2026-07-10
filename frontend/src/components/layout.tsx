@@ -99,7 +99,10 @@ export function Layout() {
   const { session } = useAuth();
   const { online, nAntrian } = useSyncStatus();
 
-  const nav = session ? NAV_PER_ROLE[session.role] : [];
+  // Jaga-jaga: kalau session.role tak dikenal di build ini (mis. role baru
+  // ditambah backend tapi frontend belum di-deploy ulang), NAV_PER_ROLE[role]
+  // = undefined → `nav.map` melempar & seluruh app blank. Fallback ke [] .
+  const nav = (session ? NAV_PER_ROLE[session.role] : null) ?? [];
   // Desktop khusus PPK (design_handoff_ebama_kokpit): sidebar gelap + topbar
   // sendiri, HANYA ≥1024px. Mobile & role lain tetap memakai shell lama.
   const ppkDesktop = sepertiPpk(session?.role);
@@ -151,10 +154,10 @@ export function Layout() {
           </div>
           <div className="flex items-center gap-2">
             {session && (
-              <NavLink to="/akun" className="flex items-center gap-1.5" aria-label="Akun & role aktif" title={`Masuk sebagai ${session.nama} (${LABEL_ROLE[session.role]})`}>
+              <NavLink to="/akun" className="flex items-center gap-1.5" aria-label="Akun & role aktif" title={`Masuk sebagai ${session.nama} (${LABEL_ROLE[session.role] ?? session.role})`}>
                 <span className="hidden max-w-[9rem] truncate text-sm sm:inline">{session.nama}</span>
                 <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-semibold lg:bg-primary-light lg:text-primary-dark">
-                  {LABEL_ROLE[session.role]}
+                  {LABEL_ROLE[session.role] ?? session.role}
                 </span>
               </NavLink>
             )}
