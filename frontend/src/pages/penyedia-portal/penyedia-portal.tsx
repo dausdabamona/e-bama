@@ -30,6 +30,7 @@ interface Portal {
   pesanan: PesananPortal[];
   realisasi: RealisasiPortal[];
   pembayaran: PembayaranPortal[];
+  ringkasan_pembayaran?: { dalam_proses: number; sudah_dibayar: number; total: number };
 }
 
 const LABEL_STATUS_BAYAR: Record<string, string> = {
@@ -201,6 +202,20 @@ export function HalamanPenyediaPortal() {
       {/* Status pembayaran */}
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-semibold text-gray-600">Status Pembayaran</h2>
+        {data.ringkasan_pembayaran && (data.ringkasan_pembayaran.total > 0) && (
+          <div className="grid grid-cols-2 gap-2">
+            <Card className="flex flex-col gap-0.5 border-l-4 border-l-amber-500">
+              <p className="text-xs text-gray-500">Terutang / dalam proses</p>
+              <p className="text-lg font-bold text-amber-700">{formatRupiah(data.ringkasan_pembayaran.dalam_proses)}</p>
+              <p className="text-[11px] text-gray-400">Sudah diajukan, dana belum cair (SP2D belum terbit)</p>
+            </Card>
+            <Card className="flex flex-col gap-0.5 border-l-4 border-l-green-600">
+              <p className="text-xs text-gray-500">Sudah dibayar</p>
+              <p className="text-lg font-bold text-green-700">{formatRupiah(data.ringkasan_pembayaran.sudah_dibayar)}</p>
+              <p className="text-[11px] text-gray-400">Dana sudah cair (SP2D terbit / selesai)</p>
+            </Card>
+          </div>
+        )}
         {pembayaran.length === 0 ? (
           <EmptyState pesan="Belum ada pembayaran tercatat." />
         ) : (

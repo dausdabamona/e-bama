@@ -6855,12 +6855,23 @@ function penyediaPortal(payload, session) {
     });
   pembayaran.sort(function (a, b) { return a.bulan < b.bulan ? 1 : -1; }); // terbaru dulu
 
+  // Ringkasan nilai untuk penyedia: yang MASIH terutang/diproses (belum SELESAI)
+  // vs yang SUDAH dibayar (SP2D terbit → SELESAI). Dana penyedia dalam kampus
+  // cair lewat LS (DIAJUKAN → SELESAI), jadi non-SELESAI = terutang & diproses.
+  var ringkasanBayar = { dalam_proses: 0, sudah_dibayar: 0, total: 0 };
+  pembayaran.forEach(function (p) {
+    ringkasanBayar.total += p.nilai_total;
+    if (p.status === 'SELESAI') ringkasanBayar.sudah_dibayar += p.nilai_total;
+    else ringkasanBayar.dalam_proses += p.nilai_total;
+  });
+
   return {
     penyedia: { nama: penyedia.nama, kontak: penyedia.kontak, alamat: penyedia.alamat, status: penyedia.status },
     kontrak: kontrak,
     pesanan: pesanan,
     realisasi: realisasi,
-    pembayaran: pembayaran
+    pembayaran: pembayaran,
+    ringkasan_pembayaran: ringkasanBayar
   };
 }
 
