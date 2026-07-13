@@ -72,6 +72,43 @@ function kelompokProdiTingkat(rows: BarisForm07[]): { prodi: string; tingkat: st
     .sort((a, b) => (URUT_TINGKAT[a.tingkat] ?? 9) - (URUT_TINGKAT[b.tingkat] ?? 9) || a.prodi.localeCompare(b.prodi));
 }
 
+/**
+ * Unduh data blokir & pendebetan SATU bank sebagai file CSV yang terbuka rapi
+ * di Excel — data untuk dikirim ke bank. Satu file per bank (BNI/BSI terpisah,
+ * mengikuti suratnya). Optimasi tampilan Excel:
+ *  - awali BOM (﻿) + baris `sep=,` → Excel memakai koma sbg pemisah apa pun
+ *    locale-nya, dan nama ber-diakritik tampil benar;
+ *  - No. Rekening dibungkus `="..."` supaya Excel menampilkannya sebagai TEKS
+ *    (tidak jadi notasi ilmiah / kehilangan angka depan).
+ * TIDAK memanggil server: data sudah di memori (halaman ini TANPA cache Dexie).
+ */
+function unduhExcelBank(
+  bank: string, rows: BarisForm07[], bulan: string, rekSenat?: string, rekSenatNama?: string
+): void {
+  const q = (v: string | number) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const labelBank = bank === 'TANPA_REKENING' ? 'TANPA-REKENING' : bank;
+  const urut = rows.slice().sort(urutBaris);
+  const header = ['No', 'NIT', 'Nama Taruna', 'Prodi', 'Tingkat', 'Bank', 'No. Rekening',
+    'Nama Pemilik Rekening', 'Nilai Debet (Rp)', 'Rekening Tujuan (Senat)', 'Nama Rekening Senat'];
+  const barisData = urut.map((b, i) => [
+    q(i + 1), q(b.nit), q(b.nama), q(b.prodi), q(b.tingkat),
+    q(bank === 'TANPA_REKENING' ? '' : b.bank),
+    b.rekening_lengkap_ada ? `="${b.no_rekening_lengkap}"` : q('BELUM DIISI ADMIN'),
+    q(b.nama_pemilik || b.nama), b.nilai_debet,                       // nilai debet = angka polos (bisa di-SUM)
+    rekSenat ? `="${rekSenat}"` : q(''), q(rekSenatNama || '')
+  ].join(','));
+  const total = urut.reduce((s, b) => s + b.nilai_debet, 0);
+  const barisTotal = [q('TOTAL'), '', '', '', '', '', '', q(`${urut.length} taruna`), total, '', ''].join(',');
+  const teks = 'sep=,\r\n' + [header.map(q).join(','), ...barisData, barisTotal].join('\r\n') + '\r\n';
+  const blob = new Blob(['﻿' + teks], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Form07-Blokir-Bank-${labelBank}-${bulan}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 interface PembayaranRingkas {
   bayar_id: string; nilai_total: number; no_spm: string; tgl_spm: string; no_sp2d: string; tgl_sp2d: string; status: string;
 }
@@ -298,6 +335,21 @@ export function HalamanCetakForm07() {
 
       {data && (
         <div className="flex flex-col gap-4">
+          {/* Ekspor data untuk bank — satu file CSV (buka di Excel) per bank,
+              mengikuti pemisahan surat BNI/BSI. */}
+          <div className="flex flex-col gap-1 print:hidden">
+            <p className="text-xs font-semibold text-gray-600">Data untuk Bank (buka di Excel):</p>
+            <div className="flex flex-wrap gap-2">
+              {kelompokBank(barisBayar).map((g) => (
+                <Button key={g.bank} varian="garis"
+                  onClick={() => unduhExcelBank(g.bank, g.rows, data.bulan,
+                    g.bank === 'BNI' ? data.rekening_senat?.BNI : g.bank === 'BSI' ? data.rekening_senat?.BSI : '',
+                    g.bank === 'BNI' ? data.rekening_senat_nama?.BNI : g.bank === 'BSI' ? data.rekening_senat_nama?.BSI : '')}>
+                  ⬇️ Excel Bank {g.bank === 'TANPA_REKENING' ? '(Tanpa Rekening)' : g.bank} ({g.rows.length})
+                </Button>
+              ))}
+            </div>
+          </div>
           {barisBayar.some((b) => !b.rekening_lengkap_ada) && (
             <p className="text-xs text-red-600 print:hidden">
               ⚠️ Ada taruna yang rekening lengkapnya belum diisi Admin — lengkapi dulu di
