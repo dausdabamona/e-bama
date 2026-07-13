@@ -22,6 +22,22 @@ interface BarisForm07 {
   nama_pemilik: string; nominal: number; nilai_debet: number; hari_makan: number; rekening_lengkap_ada: boolean;
 }
 
+const BULAN_ID_F07 = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+/** '2026-07-08' → '8 Juli 2026'. */
+function tglIndoF07(s: string): string {
+  const p = (s || '').split('-');
+  if (p.length !== 3) return s || '';
+  return `${Number(p[2])} ${BULAN_ID_F07[Number(p[1]) - 1]} ${p[0]}`;
+}
+/** Tambah n hari ke tanggal 'YYYY-MM-DD' → 'YYYY-MM-DD'. */
+function tambahHariF07(iso: string, n: number): string {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
 const URUT_TINGKAT: Record<string, number> = { I: 1, II: 2, III: 3, '1': 1, '2': 2, '3': 3 };
 function urutBaris(a: BarisForm07, b: BarisForm07): number {
   return (URUT_TINGKAT[a.tingkat] ?? 9) - (URUT_TINGKAT[b.tingkat] ?? 9)
@@ -124,14 +140,17 @@ function useTanpaCache<T>(action: string, payload?: unknown) {
  * SPM per orang ke Rekening Senat, (3) teruskan total ke rekening penyedia.
  * Kolom Tanda Tangan taruna = pemberian kuasa mendebet.
  */
-function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia, rekSenatNama, rekPenyediaNama, lamaBlokir, noSurat, pisahHalaman }: {
+function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia, rekSenatNama, rekPenyediaNama, lamaBlokir, tglMulaiBlokir, noSurat, pisahHalaman }: {
   bank: string; rows: BarisForm07[]; bulan: string; pejabat: Form07Data['pejabat'];
-  rekSenat?: string; rekPenyedia?: string; rekSenatNama?: string; rekPenyediaNama?: string; lamaBlokir: string; noSurat?: string;
-  pisahHalaman: boolean;
+  rekSenat?: string; rekPenyedia?: string; rekSenatNama?: string; rekPenyediaNama?: string; lamaBlokir: string;
+  tglMulaiBlokir?: string; noSurat?: string; pisahHalaman: boolean;
 }) {
   const total = rows.reduce((s, b) => s + b.nilai_debet, 0);
   const labelBank = bank === 'TANPA_REKENING' ? 'BELUM ADA REKENING' : bank;
   const namaHari = lamaBlokir.trim() || '……';
+  const hari = parseInt(lamaBlokir, 10);
+  // Tanggal sampai = mulai + (N-1) hari (inklusif). Tampil hanya bila mulai diisi.
+  const tglSampai = (tglMulaiBlokir && hari > 0) ? tambahHariF07(tglMulaiBlokir, hari - 1) : '';
   return (
     <div className={`${pisahHalaman ? 'break-before-page ' : ''}flex flex-col gap-2`}>
       <KopSurat />
@@ -143,18 +162,29 @@ function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia,
       <p className="text-xs">
         Setelah dana bantuan biaya makan taruna bulan {labelBulan(bulan)} cair ke rekening masing-masing
         taruna, dengan ini kami mengajukan permohonan kepada Bank {labelBank} untuk: <strong>(1)</strong> memblokir
-        rekening taruna pada daftar di bawah selama <strong>{namaHari} hari</strong>; <strong>(2)</strong> mendebet dana sesuai nilai
+        rekening taruna pada daftar di bawah selama <strong>{namaHari} hari</strong>
+        {tglMulaiBlokir && tglSampai && <> (<strong>mulai {tglIndoF07(tglMulaiBlokir)} sampai {tglIndoF07(tglSampai)}</strong>)</>}; <strong>(2)</strong> mendebet dana sesuai nilai
         per orang ke <strong>Rekening Senat Taruna {bank}</strong> ({rekSenat || '…… belum diisi Admin'}
         {rekSenatNama ? ` a.n. ${rekSenatNama}` : ''});
         <strong> (3)</strong> meneruskan total dana yang berhasil didebet ke <strong>rekening penyedia jasa boga {bank}</strong>{' '}
         ({rekPenyedia || '…… belum diisi Admin'}{rekPenyediaNama ? ` a.n. ${rekPenyediaNama}` : ''}). Tanda tangan
         taruna pada kolom terakhir merupakan pemberian kuasa kepada bank untuk mendebet sesuai nilai tersebut.
       </p>
-      <table className="w-full border-collapse text-xs">
+      <table className="w-full table-fixed border-collapse text-xs">
+        {/* Kolom Tanda Tangan sengaja PALING LEBAR (memakai ruang kosong) supaya
+            cukup untuk tanda tangan basah taruna. */}
+        <colgroup>
+          <col style={{ width: '5%' }} />
+          <col style={{ width: '13%' }} />
+          <col style={{ width: '20%' }} />
+          <col style={{ width: '15%' }} />
+          <col style={{ width: '15%' }} />
+          <col style={{ width: '32%' }} />
+        </colgroup>
         <thead>
           <tr>
             {['No', 'NIT', 'Nama Taruna', 'No. Rekening', 'Nilai Debet (Rp)', 'Tanda Tangan Taruna (Kuasa Debet)'].map((h) => (
-              <th key={h} className="border border-gray-400 bg-[#D9E2F3] px-2 py-1 text-left font-semibold">{h}</th>
+              <th key={h} className="border border-gray-400 bg-[#D9E2F3] px-2 py-1 text-left align-top font-semibold">{h}</th>
             ))}
           </tr>
         </thead>
@@ -213,8 +243,10 @@ export function HalamanCetakForm07() {
   // Dua bank = dua surat terpisah = dua nomor surat.
   const [noSuratBNI, setNoSuratBNI] = useState('');
   const [noSuratBSI, setNoSuratBSI] = useState('');
-  // Lama blokir (hari) diisi manual — tidak dikirim ke server.
+  // Lama blokir (hari) + tanggal mulai diisi manual — tidak dikirim ke server.
+  // Tanggal sampai dihitung otomatis (mulai + lama-1 hari) & muncul di surat.
   const [lamaBlokir, setLamaBlokir] = useState('7');
+  const [tglMulaiBlokir, setTglMulaiBlokir] = useState('');
 
   // Abaikan taruna bernilai Rp0 (backend juga memfilter; ini jaga-jaga bila GAS
   // belum di-deploy ulang).
@@ -240,6 +272,12 @@ export function HalamanCetakForm07() {
           Lama blokir (hari):
           <input type="number" min={1} value={lamaBlokir} onChange={(e) => setLamaBlokir(e.target.value)}
             className="w-20 rounded border border-gray-300 px-2 py-1 text-sm" />
+        </label>
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <span className="w-40">Tanggal mulai blokir:</span>
+          <input type="date" value={tglMulaiBlokir} onChange={(e) => setTglMulaiBlokir(e.target.value)}
+            className="rounded border border-gray-300 px-2 py-1 text-sm" />
+          <span className="text-xs text-gray-400">(sampai dihitung otomatis)</span>
         </label>
         <label className="flex items-center gap-2 text-sm text-gray-700">
           <span className="w-40">No. Surat Bank BNI:</span>
@@ -277,7 +315,7 @@ export function HalamanCetakForm07() {
               tanpa break-before agar tak ada halaman kosong di depan. */}
           {kelompokBank(barisBayar).map((g, i) => (
             <LampiranBlokirBank key={g.bank} bank={g.bank} rows={g.rows} bulan={data.bulan} pejabat={data.pejabat}
-              lamaBlokir={lamaBlokir} pisahHalaman={i > 0}
+              lamaBlokir={lamaBlokir} tglMulaiBlokir={tglMulaiBlokir} pisahHalaman={i > 0}
               rekSenat={g.bank === 'BNI' ? data.rekening_senat?.BNI : g.bank === 'BSI' ? data.rekening_senat?.BSI : ''}
               rekPenyedia={g.bank === 'BNI' ? data.rekening_penyedia?.BNI : g.bank === 'BSI' ? data.rekening_penyedia?.BSI : ''}
               rekSenatNama={g.bank === 'BNI' ? data.rekening_senat_nama?.BNI : g.bank === 'BSI' ? data.rekening_senat_nama?.BSI : ''}
