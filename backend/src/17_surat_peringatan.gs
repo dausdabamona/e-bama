@@ -211,12 +211,16 @@ function spCetakMassal(payload, session) {
 
   var kb = getKebijakanSP();
   var pej = PEJABAT[kb.PENANDATANGAN['1']] || PEJABAT.PPK;
-  var rekSenat = PropertiesService.getScriptProperties().getProperty('REK_SENAT') ||
-    '(nomor rekening Senat — set Script Property REK_SENAT)';
+  // Rekening tujuan setor taruna = rekening Senat, SUMBER SAMA dgn Form-07/09
+  // (getRekeningInstansi — bukan Script Property REK_SENAT lama yg tak pernah
+  // diisi, itu sebabnya nomor rekening tak muncul di SP-1). Kedua bank
+  // ditampilkan supaya taruna bisa setor ke bank mana pun.
+  var rek = getRekeningInstansi();
 
   return {
     bulan_filter: bulanFilter,
-    rek_senat: rekSenat,
+    rekening_senat: rek.senat,             // {BNI, BSI}
+    rekening_senat_nama: rek.senat_nama,   // {BNI, BSI}
     penandatangan: { nama: pej.nama, nip: pej.nip },
     daftar: daftar
   };

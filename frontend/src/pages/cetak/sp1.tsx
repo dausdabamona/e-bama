@@ -19,8 +19,19 @@ interface BarisSp1 {
   nit: string; nama: string; prodi: string; tingkat: string; bulan: string; nominal: number;
   no_surat: string; tgl_terbit: string; tenggat: string; sudah_setor: boolean;
 }
+interface RekBank { BNI?: string; BSI?: string }
 interface Sp1Data {
-  bulan_filter: string; rek_senat: string; penandatangan: { nama: string; nip: string }; daftar: BarisSp1[];
+  bulan_filter: string;
+  rekening_senat?: RekBank; rekening_senat_nama?: RekBank;
+  penandatangan: { nama: string; nip: string }; daftar: BarisSp1[];
+}
+
+/** Rangkai rekening Senat kedua bank → "BNI 2026715541 atau BSI 7339443046". */
+function rangkaiRekSenat(rek?: RekBank): string {
+  const bagian: string[] = [];
+  if (rek?.BNI) bagian.push(`BNI ${rek.BNI}`);
+  if (rek?.BSI) bagian.push(`BSI ${rek.BSI}`);
+  return bagian.join(' atau ');
 }
 
 const BULAN_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -33,8 +44,8 @@ function tglIndo(s: string): string {
 }
 
 /** Satu surat SP-1 utuh untuk satu taruna. */
-function SuratSp1({ b, rekSenat, pejabat, pisahHalaman }: {
-  b: BarisSp1; rekSenat: string; pejabat: Sp1Data['penandatangan']; pisahHalaman: boolean;
+function SuratSp1({ b, rekSenat, rekSenatNama, pejabat, pisahHalaman }: {
+  b: BarisSp1; rekSenat: string; rekSenatNama: string; pejabat: Sp1Data['penandatangan']; pisahHalaman: boolean;
 }) {
   return (
     <div className={`${pisahHalaman ? 'break-before-page ' : ''}flex flex-col gap-2`}>
@@ -55,7 +66,8 @@ function SuratSp1({ b, rekSenat, pejabat, pisahHalaman }: {
         <strong>{labelBulan(b.bulan)}</strong>, tercatat kewajiban Saudara yang belum terselesaikan
         (gagal auto-debet) sebesar <strong>{formatRupiah(b.nominal)}</strong>{' '}
         (<em>{terbilangRupiah(b.nominal)}</em>). Sehubungan dengan hal tersebut, Saudara diminta
-        segera menyetorkan dana dimaksud ke <strong>rekening Senat Taruna {rekSenat}</strong>{' '}
+        segera menyetorkan dana dimaksud ke <strong>rekening Senat Taruna{rekSenatNama ? ` a.n. ${rekSenatNama}` : ''}
+        {rekSenat ? ` (${rekSenat})` : ''}</strong>{' '}
         selambat-lambatnya tanggal <strong>{tglIndo(b.tenggat)}</strong>. Apabila hingga batas waktu
         tersebut kewajiban belum diselesaikan, akan diterbitkan Surat Peringatan berikutnya sesuai
         ketentuan.
@@ -132,7 +144,9 @@ export function HalamanCetakSp1() {
         <div className="flex flex-col gap-4">
           <p className="text-xs text-gray-500 print:hidden">{tampil.length} surat SP-1 siap dicetak.</p>
           {tampil.map((b, i) => (
-            <SuratSp1 key={`${b.nit}|${b.no_surat}`} b={b} rekSenat={data.rek_senat}
+            <SuratSp1 key={`${b.nit}|${b.no_surat}`} b={b}
+              rekSenat={rangkaiRekSenat(data.rekening_senat)}
+              rekSenatNama={data.rekening_senat_nama?.BNI || data.rekening_senat_nama?.BSI || ''}
               pejabat={data.penandatangan} pisahHalaman={i > 0} />
           ))}
         </div>
