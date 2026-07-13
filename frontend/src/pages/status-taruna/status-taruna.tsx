@@ -191,7 +191,14 @@ export function HalamanStatusTaruna() {
               className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2.5" />
           </div>
         </div>
-        <p className="-mt-2 text-xs text-gray-400">Kosongkan "Sampai" jika hanya satu hari.</p>
+        {statusPilih === 'TANPA_KETERANGAN' ? (
+          <p className="-mt-2 text-xs text-amber-600">
+            Tanpa Keterangan: kosongkan "Sampai" → berlaku <strong>setiap hari sampai dicabut</strong>{' '}
+            (isi otomatis s/d akhir kontrak). Cabut lewat tombol "Tandai Sudah Kembali" saat taruna kembali.
+          </p>
+        ) : (
+          <p className="-mt-2 text-xs text-gray-400">Kosongkan "Sampai" jika hanya satu hari.</p>
+        )}
 
         <label className="block text-sm font-medium text-gray-700">Status</label>
         <select value={statusPilih} onChange={(e) => setStatusPilih(e.target.value)}

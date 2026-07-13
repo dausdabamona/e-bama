@@ -1662,7 +1662,36 @@ function tarunaUpsert(payload, session) {
  * `tgl_akhir` (opsional, status.set/status.batch) → isi rentang tanggal
  * sekaligus (satu baris STATUS_HARIAN per hari, lihat _daftarTanggal_ di
  * 05_master.gs) — mis. cuti 2 minggu tidak perlu diinput per hari.
+ *
+ * TANPA_KETERANGAN (absen tanpa alasan) khusus: kapan taruna kembali tidak
+ * diketahui, jadi bila `tgl_akhir` DIKOSONGKAN status ini di-isi maju sampai
+ * AKHIR KONTRAK KATERING AKTIF (fallback akhir bulan berjalan) — "berlaku
+ * sampai dicabut". Cabut lebih awal saat taruna kembali via status.tandai_kembali
+ * (menghapus baris ke depan). Status lain tanpa `tgl_akhir` tetap satu hari saja.
+ * (dikonfirmasi Firdaus). Lihat _horizonTanpaKeterangan_.
  */
+
+/**
+ * Horizon "berlaku sampai dicabut" untuk TANPA_KETERANGAN tanpa tgl_akhir:
+ * isi baris STATUS_HARIAN maju sampai akhir kontrak katering aktif (batas
+ * alami program makan). Fallback akhir bulan berjalan bila tidak ada kontrak
+ * aktif pada `tanggal`. Di-clamp maks 185 hari agar tidak menembus batas
+ * _daftarTanggal_ (186 hari) — kasus ekstrem taruna tak kembali >6 bulan
+ * cukup di-input ulang.
+ */
+function _horizonTanpaKeterangan_(tanggal) {
+  var horizon;
+  try {
+    horizon = _tglStr_(_kontrakAktifPada_(tanggal).tgl_akhir);
+  } catch (e) {
+    var p = String(tanggal).split('-');                       // akhir bulan berjalan
+    horizon = _tglStr_(new Date(Number(p[0]), Number(p[1]), 0));
+  }
+  var maks = _tambahHari_(tanggal, 185);
+  if (horizon > maks) horizon = maks;
+  if (horizon < tanggal) horizon = tanggal;                   // jaga-jaga
+  return horizon;
+}
 
 /** Upsert internal satu (tanggal, nit). Kembalikan {status_id, aksi:'BARU'|'UBAH'}. */
 function _statusUpsert_(session, tanggal, nit, status) {
@@ -1705,7 +1734,9 @@ function statusSet(payload, session) {
   var status = String((payload && payload.status) || '');
   var daftarTgl = (payload && payload.tgl_akhir)
     ? _daftarTanggal_(tanggal, _wajibTgl_(payload.tgl_akhir, 'tgl_akhir'))
-    : [tanggal];
+    : (status === 'TANPA_KETERANGAN'                          // open-ended → sampai dicabut
+        ? _daftarTanggal_(tanggal, _horizonTanpaKeterangan_(tanggal))
+        : [tanggal]);
 
   var hasil = daftarTgl.map(function (t) { return _statusUpsert_(session, t, nit, status); });
 
@@ -1725,7 +1756,9 @@ function statusBatch(payload, session) {
   var status = String((payload && payload.status) || '');
   var daftarTgl = (payload && payload.tgl_akhir)
     ? _daftarTanggal_(tanggal, _wajibTgl_(payload.tgl_akhir, 'tgl_akhir'))
-    : [tanggal];
+    : (status === 'TANPA_KETERANGAN'                          // open-ended → sampai dicabut
+        ? _daftarTanggal_(tanggal, _horizonTanpaKeterangan_(tanggal))
+        : [tanggal]);
 
   var hasil = [];
   daftar.forEach(function (nit) {
@@ -7624,4 +7657,3 @@ function _ensureFolder_(parent, nama) {
   if (cari.hasNext()) return cari.next();
   return parent ? parent.createFolder(nama) : DriveApp.createFolder(nama);
 }
-
