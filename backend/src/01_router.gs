@@ -147,6 +147,7 @@ var ACTION_MAP = {
   // Laporan & Audit (TAHAP 7)
   'laporan.bulanan':  { handler: laporanBulanan, roles: ['PPK', 'STAF_PPK', 'KPA', 'WADIR3', 'ADMIN'] },
   'laporan.resmi':    { handler: laporanResmi,   roles: ['PPK', 'STAF_PPK', 'KPA', 'WADIR3', 'ADMIN'] },
+  'laporan.konstanta_set': { handler: laporanKonstantaSet, roles: ['PPK', 'STAF_PPK', 'KPA', 'ADMIN'] },
 
   // Bantuan Luar Kampus (PKL/Magang/KPA/PTB) — TAHAP migrasi
   'blk.list':         { handler: blkList,   roles: ['PPK', 'STAF_PPK', 'ADMIN', 'KPA', 'WADIR3'] },

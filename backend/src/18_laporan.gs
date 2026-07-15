@@ -179,8 +179,39 @@ function laporanResmi(payload, session) {
     luar_kampus_total: luarKampusTotal,
     luar_kampus_orang: luarKampusOrang,
     jml_gagal_transfer: tagihan.length,
+    konstanta: getKonstantaLaporan(),
     pejabat: PEJABAT
   };
+}
+
+/**
+ * Konstanta perencanaan Laporan Resmi (Bagian III) yang RELATIF TETAP tiap
+ * bulan (DIPA, Pagu tahun, SBM, No. SK Kaban/KPA/PPK) — disimpan sekali,
+ * dipakai ulang. Pola sama getRekeningInstansi (Script Property, tanpa skema).
+ * "Alokasi bulan ini" TIDAK di sini (beda tiap bulan — dihitung/diketik di UI).
+ */
+var _KONSTANTA_LAPORAN_KEYS = ['dipa_no', 'pagu_tahun', 'sbm', 'sk_kaban', 'sk_kpa', 'sk_ppk'];
+function getKonstantaLaporan() {
+  var raw = PropertiesService.getScriptProperties().getProperty('LAPORAN_KONSTAN');
+  var d = raw ? JSON.parse(raw) : {};
+  var out = {};
+  _KONSTANTA_LAPORAN_KEYS.forEach(function (k) { out[k] = String(d[k] || ''); });
+  return out;
+}
+
+/** laporan.konstanta_set {dipa_no?, pagu_tahun?, sbm?, sk_kaban?, sk_kpa?, sk_ppk?}
+ *  — simpan konstanta perencanaan (merge per-kunci). Aksi tulis → withLock + AUDIT_LOG. */
+function laporanKonstantaSet(payload, session) {
+  return withLock(function () {
+    var cur = getKonstantaLaporan();
+    var baru = {};
+    _KONSTANTA_LAPORAN_KEYS.forEach(function (k) {
+      baru[k] = (payload && payload[k] !== undefined) ? String(payload[k]) : cur[k];
+    });
+    PropertiesService.getScriptProperties().setProperty('LAPORAN_KONSTAN', JSON.stringify(baru));
+    auditLog(session, 'laporan.konstanta_set', 'KONFIG', 'LAPORAN_KONSTAN', cur, baru);
+    return baru;
+  });
 }
 
 /** Daftar AUDIT_LOG, filter {dari?, sampai?, user_id?, aksi?}. Dibatasi 500 baris terbaru. */

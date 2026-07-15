@@ -3,8 +3,9 @@
 // sudah dilacak e-BAMA (Dalam Kampus) terisi OTOMATIS; sisanya (DIPA/SK,
 // rencana anggaran, Luar Kampus, Pengusulan, narasi) diisi MANUAL di sini,
 // TIDAK tersimpan ke server — isi lagi tiap kali sebelum cetak.
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../../lib/api';
 import { BulanPicker, bulanIni, labelBulan } from '../../components/bulan-picker';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
@@ -51,6 +52,7 @@ interface LaporanResmi {
   luar_kampus_total: number;
   luar_kampus_orang: number;
   jml_gagal_transfer: number;
+  konstanta: { dipa_no: string; pagu_tahun: string; sbm: string; sk_kaban: string; sk_kpa: string; sk_ppk: string };
   pejabat: { PPK: Pejabat; KPA: Pejabat };
 }
 
@@ -105,6 +107,39 @@ export function HalamanLaporanResmi() {
     : (kontrak ? (kontrak.harga_per_hari_efektif ?? 0) : 0);
   const totalRencana = rencanaHariEfektif && rencanaPenerima
     ? Math.round(Number(rencanaHariEfektif) * Number(rencanaPenerima) * rencanaBiaya) : 0;
+
+  // Prefill konstanta perencanaan (Bagian III) dari sistem — hanya isi yang
+  // MASIH kosong (jangan timpa ketikan user). Jalan saat data konstanta ada.
+  useEffect(() => {
+    const k = data?.konstanta;
+    if (!k) return;
+    setDipaNo((v) => v || k.dipa_no);
+    setPaguTahun((v) => v || k.pagu_tahun);
+    setSbm((v) => v || k.sbm);
+    setSkKaban((v) => v || k.sk_kaban);
+    setSkKpa((v) => v || k.sk_kpa);
+    setSkPpk((v) => v || k.sk_ppk);
+  }, [data?.konstanta]);
+
+  const [simpanMsg, setSimpanMsg] = useState('');
+  async function simpanKonstanta() {
+    setSimpanMsg('Menyimpan…');
+    try {
+      await api('laporan.konstanta_set', {
+        dipa_no: dipaNo, pagu_tahun: paguTahun, sbm,
+        sk_kaban: skKaban, sk_kpa: skKpa, sk_ppk: skPpk
+      });
+      setSimpanMsg('✓ Tersimpan — otomatis terisi di bulan berikutnya.');
+    } catch (e) {
+      setSimpanMsg(e instanceof Error ? e.message : 'Gagal menyimpan.');
+    }
+  }
+
+  // Saran "Alokasi Anggaran Bulan Ini" = jml taruna aktif × tarif/hari × hari.
+  // "hari" pakai Rencana Hari Efektif bila diisi; jika tidak, hari efektif tercatat.
+  const hariAlokasi = Number(rencanaHariEfektif) || (data?.jml_hari_efektif ?? 0);
+  const saranAlokasi = data && kontrak
+    ? Math.round(data.jml_taruna_aktif * (kontrak.harga_per_hari_efektif ?? 0) * hariAlokasi) : 0;
 
   const kontenRef = useRef<HTMLDivElement>(null);
 
@@ -203,11 +238,22 @@ export function HalamanLaporanResmi() {
             <p className="mb-1 text-xs font-semibold text-gray-500 print:text-black">A. Dasar Perencanaan (diisi manual)</p>
             <TabelManual label="DIPA Satuan Kerja Nomor" value={dipaNo} onChange={setDipaNo} />
             <TabelManual label="Pagu Anggaran Bantuan Biaya Makan Tahun Berjalan" value={paguTahun} onChange={setPaguTahun} />
-            <TabelManual label="Alokasi Anggaran Bulan Ini" value={alokasiBulan} onChange={setAlokasiBulan} />
+            <TabelManual label="Alokasi Anggaran Bulan Ini" value={alokasiBulan} onChange={setAlokasiBulan}
+              placeholder={saranAlokasi ? String(saranAlokasi) : ''}
+              keterangan={saranAlokasi
+                ? `Saran: ${data.jml_taruna_aktif} taruna × ${formatRupiah(kontrak?.harga_per_hari_efektif ?? 0)}/hari × ${hariAlokasi} hari = ${formatRupiah(saranAlokasi)}`
+                : 'Isi "Rencana Hari Efektif" dulu untuk saran otomatis'} />
             <TabelManual label="Standar Biaya Masukan (SBM/SBK)" value={sbm} onChange={setSbm} />
             <TabelManual label="SK Kepala Badan tentang Penetapan Penerima" value={skKaban} onChange={setSkKaban} />
             <TabelManual label="SK KPA tentang Penetapan Nama Penerima" value={skKpa} onChange={setSkKpa} />
             <TabelManual label="SK PPK tentang Nomor Rekening & Nilai Dibayarkan" value={skPpk} onChange={setSkPpk} />
+            <div className="mt-1 flex flex-wrap items-center gap-2 print:hidden">
+              <Button varian="garis" onClick={simpanKonstanta}>💾 Simpan sebagai default</Button>
+              {simpanMsg && <span className="text-xs text-gray-500">{simpanMsg}</span>}
+            </div>
+            <p className="text-[11px] text-gray-400 print:hidden">
+              DIPA, Pagu, SBM, &amp; No. SK disimpan di sistem — cukup isi sekali, otomatis muncul di bulan berikutnya.
+            </p>
 
             <p className="mb-1 mt-3 text-xs font-semibold text-gray-500 print:text-black">B. Rencana Kebutuhan Bulanan</p>
             <TabelManual label="Jumlah Peserta Didik Penerima Bantuan (rencana)" value={rencanaPenerima}
