@@ -608,13 +608,23 @@ function cetakForm09(payload, session) {
   var totalNominal = 0;
   perBank.forEach(function (b) { totalNominal += b.total; });
 
+  // Bukti Form-09 yang sudah ditandatangani (arsip) — LAMPIRAN ref PEMBAYARAN,
+  // jenis BUKTI_DEBET. Hanya metadata (nama+drive id), bukan isi berkas.
+  var buktiRows = lampiranList('PEMBAYARAN', pembayaran.bayar_id)
+    .filter(function (l) { return String(l.jenis) === 'BUKTI_DEBET'; })
+    .map(function (l) {
+      return { lamp_id: l.lamp_id, nama_file: l.nama_file, drive_file_id: l.drive_file_id, timestamp: _tglStr_(l.timestamp) };
+    });
+
   return {
     bulan: bulan,
+    bayar_id: pembayaran.bayar_id,
     penyedia_nama: penyediaNama,
     per_bank: perBank,
     total_nominal: totalNominal,
     nominal_terbilang: _terbilangRupiah_(totalNominal),
     biaya_admin_bank: biayaAdminBank,
+    bukti: buktiRows,
     pembayaran: {
       no_spm: pembayaran.no_spm, tgl_spm: _tglStr_(pembayaran.tgl_spm),
       no_sp2d: pembayaran.no_sp2d, tgl_sp2d: _tglStr_(pembayaran.tgl_sp2d),
@@ -627,6 +637,29 @@ function cetakForm09(payload, session) {
     },
     pejabat: PEJABAT
   };
+}
+
+/**
+ * form09.simpan_bukti {bulan, berkas:{base64, nama_file}} — unggah scan/foto
+ * surat Form-09 (Permohonan Pendebetan Senat→Penyedia) yang SUDAH ditandatangani
+ * & dicap, sebagai ARSIP bukti. Disimpan ke LAMPIRAN ref_type=PEMBAYARAN bulan
+ * itu, jenis BUKTI_DEBET. DOKUMEN-ONLY: TIDAK mengubah mesin status pembayaran
+ * (konsisten dgn keputusan Form-09). Roles SENAT/PPK/STAF_PPK/ADMIN. Aksi tulis
+ * → withLock + AUDIT_LOG (tanpa isi berkas, hanya metadata).
+ */
+function form09SimpanBukti(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  var berkas = payload && payload.berkas;
+  if (!berkas || !berkas.base64) throw _fail_('Berkas bukti wajib diunggah.');
+  return withLock(function () {
+    var pembayaran = sheetRead(SHEETS.PEMBAYARAN, function (r) { return _bulanStr_(r.bulan) === bulan; })[0];
+    if (!pembayaran) throw _fail_('Belum ada PEMBAYARAN untuk bulan ' + bulan + '.');
+    var namaFile = String(berkas.nama_file || ('Form09-' + bulan + '.pdf'));
+    var hasil = lampiranSave(session, 'PEMBAYARAN', pembayaran.bayar_id, 'BUKTI_DEBET', berkas.base64, namaFile);
+    auditLog(session, 'form09.simpan_bukti', 'PEMBAYARAN', pembayaran.bayar_id,
+      null, { lamp_id: hasil.lamp_id, nama_file: namaFile, jenis: 'BUKTI_DEBET' });
+    return { lamp_id: hasil.lamp_id, drive_file_id: hasil.drive_file_id };
+  });
 }
 
 /**

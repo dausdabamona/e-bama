@@ -13,16 +13,18 @@ import { Card } from '../../components/ui/card';
 import { ErrorMessage } from '../../components/ui/error-message';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
 import { api } from '../../lib/api';
+import { berkasKeBase64 } from '../../lib/berkas';
 import { formatRupiah } from '../tagihan/tipe';
 
 interface Pejabat { nama: string; nip: string }
+interface BuktiForm09 { lamp_id: string; nama_file: string; drive_file_id: string; timestamp: string }
 interface PerBank {
   bank: string; jml_taruna: number; total: number; rek_senat_sumber: string; rek_penyedia_tujuan: string;
   rek_senat_nama?: string; rek_penyedia_nama?: string;
 }
 interface Form09Data {
-  bulan: string; penyedia_nama: string; per_bank: PerBank[]; total_nominal: number; nominal_terbilang: string;
-  biaya_admin_bank: number;
+  bulan: string; bayar_id?: string; penyedia_nama: string; per_bank: PerBank[]; total_nominal: number; nominal_terbilang: string;
+  biaya_admin_bank: number; bukti?: BuktiForm09[];
   pembayaran: { no_spm: string; tgl_spm: string; no_sp2d: string; tgl_sp2d: string; status: string };
   kontrak?: { no_kontrak: string; tgl_kontrak: string; adendum: string };
   pejabat: { PPK: Pejabat; KPA: Pejabat; DIREKTUR: Pejabat; WADIR3: Pejabat };
@@ -61,6 +63,25 @@ export function HalamanCetakForm09() {
   const [bulan, setBulan] = useState(bulanParam || bulanIni());
   const { data, memuat, galat, refresh } = useTanpaCache<Form09Data>('cetak.form09', { bulan });
   const [noSurat, setNoSurat] = useState('');
+  const [mengunggah, setMengunggah] = useState(false);
+  const [pesanBukti, setPesanBukti] = useState('');
+
+  async function unggahBukti(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setMengunggah(true); setPesanBukti('');
+    try {
+      const base64 = await berkasKeBase64(file);
+      await api('form09.simpan_bukti', { bulan, berkas: { base64, nama_file: file.name } });
+      setPesanBukti('✓ Bukti berhasil diunggah & tersimpan sebagai arsip.');
+      refresh();
+    } catch (err) {
+      setPesanBukti(err instanceof Error ? err.message : 'Gagal mengunggah bukti.');
+    } finally {
+      setMengunggah(false);
+      e.target.value = '';
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -76,6 +97,34 @@ export function HalamanCetakForm09() {
 
       {memuat && !data && <LoadingSpinner label="Memuat data…" />}
       {galat && !data && <ErrorMessage pesan={galat} onRetry={refresh} />}
+
+      {data && (
+        <Card className="flex flex-col gap-2 print:hidden">
+          <p className="text-sm font-semibold text-gray-700">📎 Bukti Surat Bertanda Tangan</p>
+          <p className="text-xs text-gray-500">
+            Unggah scan/foto surat Form-09 yang sudah <strong>ditandatangani &amp; dicap</strong> (PDF/JPG/PNG, maks 5 MB)
+            sebagai arsip bulan {labelBulan(data.bulan)}. Dokumen-only — tidak mengubah status pembayaran.
+          </p>
+          <input type="file" accept="image/*,application/pdf" disabled={mengunggah}
+            onChange={(e) => void unggahBukti(e)}
+            className="min-h-tap rounded-xl border border-gray-300 px-3 py-2 text-sm" />
+          {mengunggah && <LoadingSpinner label="Mengunggah bukti…" />}
+          {pesanBukti && <p className="text-xs text-gray-600">{pesanBukti}</p>}
+          {(data.bukti ?? []).length > 0 ? (
+            <ul className="flex flex-col gap-1">
+              {(data.bukti ?? []).map((bk) => (
+                <li key={bk.lamp_id} className="text-xs">
+                  <a className="text-primary underline" href={`https://drive.google.com/file/d/${bk.drive_file_id}/view`}
+                    target="_blank" rel="noreferrer">📎 {bk.nama_file || bk.lamp_id}</a>
+                  {bk.timestamp && <span className="text-gray-400"> · {bk.timestamp}</span>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-gray-400">Belum ada bukti diunggah untuk bulan ini.</p>
+          )}
+        </Card>
+      )}
 
       {data && (
         <div className="flex flex-col gap-4">
