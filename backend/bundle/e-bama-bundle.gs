@@ -636,6 +636,7 @@ var ACTION_MAP = {
   'cetak.blokir_gagal_debet': { handler: cetakBlokirGagalDebet, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'cetak.pendebetan_penyedia': { handler: cetakPendebetanPenyedia, roles: ['SENAT', 'PPK', 'STAF_PPK', 'ADMIN'] },
   'cetak.surat_pendebetan_bank': { handler: cetakSuratPendebetanBank, roles: ['SENAT', 'PPK', 'STAF_PPK', 'ADMIN'] },
+  'cetak.laporan_penyaluran_penyedia': { handler: cetakLaporanPenyaluranPenyedia, roles: ['SENAT', 'PPK', 'STAF_PPK', 'ADMIN'] },
   'cetak.form08':     { handler: cetakForm08, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'cetak.form09':     { handler: cetakForm09, roles: ['SENAT', 'PPK', 'STAF_PPK', 'ADMIN', 'OPERATOR_SAKTI'] },
   'form09.simpan_bukti': { handler: form09SimpanBukti, roles: ['SENAT', 'PPK', 'STAF_PPK', 'ADMIN'] },
@@ -5632,6 +5633,54 @@ function cetakSuratPendebetanBank(payload, session) {
     jml_taruna: jmlTaruna,
     rekening_senat: rek.senat, rekening_senat_nama: rek.senat_nama,
     rekening_penyedia: rek.penyedia, rekening_penyedia_nama: rek.penyedia_nama,
+    pejabat: PEJABAT
+  };
+}
+
+/**
+ * Laporan Penyaluran ke PENYEDIA (Tahap 2 pemisahan dokumen tagih-ulang).
+ * Ditujukan ke PENYEDIA sebagai pertanggungjawaban — RINCIAN nama taruna yang
+ * sudah menyetor + jumlah + tanggal setor, TANPA nomor rekening taruna.
+ *
+ * Filter SAMA PERSIS dengan cetak.surat_pendebetan_bank (TAGIHAN LUNAS &
+ * belum diteruskan utk bulan itu; jumlah = nilai_transfer bila ada, jika tidak
+ * nominal) → `total_nominal` HARUS identik dengan surat ke bank & cocok dengan
+ * tagihan.summary.lunas_belum_diteruskan bulan itu. Diurutkan prodi → tingkat →
+ * nama. `bulan` WAJIB. Role SENAT/PPK/STAF_PPK/ADMIN. Tidak memuat rekening
+ * taruna → tidak melanggar §4, boleh di-cache, tanpa audit khusus.
+ */
+function cetakLaporanPenyaluranPenyedia(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+
+  var tarunaByNit = {};
+  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+
+  var baris = _tagihanJoin_().filter(function (t) {
+    return t.status === 'LUNAS' && !t.tgl_diteruskan_penyedia && t.bulan === bulan;
+  }).map(function (t) {
+    var tr = tarunaByNit[String(t.nit)] || {};
+    var jumlah = (Number(t.nilai_transfer) > 0) ? _int_(t.nilai_transfer, 'nilai_transfer') : _int_(t.nominal || 0, 'nominal');
+    // TANPA nomor rekening taruna — cukup nama + prodi/tingkat + tgl setor + jumlah.
+    return { nama: tr.nama || '', prodi: tr.prodi || '', tingkat: String(tr.tingkat || ''), tgl_setor: t.tgl_setor || '', jumlah: jumlah };
+  });
+
+  var urutTk = { 'I': 1, 'II': 2, 'III': 3, '1': 1, '2': 2, '3': 3 };
+  baris.sort(function (a, b) {
+    return String(a.prodi).localeCompare(String(b.prodi), 'id')
+      || ((urutTk[a.tingkat] || 9) - (urutTk[b.tingkat] || 9))
+      || String(a.nama).localeCompare(String(b.nama), 'id');
+  });
+
+  var totalNominal = 0;
+  baris.forEach(function (b) { totalNominal += b.jumlah; });
+
+  var rek = getRekeningInstansi();
+  var penyediaNama = (rek.penyedia_nama && (rek.penyedia_nama.BNI || rek.penyedia_nama.BSI)) || '';
+  return {
+    bulan: bulan,
+    baris: baris,
+    total_nominal: totalNominal,
+    penyedia_nama: penyediaNama,
     pejabat: PEJABAT
   };
 }
