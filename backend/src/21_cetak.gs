@@ -523,12 +523,21 @@ function cetakSuratPendebetanBank(payload, session) {
   });
 
   var rek = getRekeningInstansi();
+  // Rekening penyedia (tujuan akhir) diambil dari KONTRAK aktif bulan itu bila
+  // datanya diisi — konsisten dgn Form-07/09; fallback Script Property. Kontrak
+  // dicari pada pertengahan bulan (bulan-15) agar pasti dalam periode aktif.
+  var kontrak = null;
+  try { kontrak = _kontrakAktifPada_(bulan + '-15'); } catch (e) { kontrak = null; }
+  var rekPenyedia = {
+    BNI: (kontrak && kontrak.rek_penyedia_bni) ? String(kontrak.rek_penyedia_bni) : (rek.penyedia.BNI || ''),
+    BSI: (kontrak && kontrak.rek_penyedia_bsi) ? String(kontrak.rek_penyedia_bsi) : (rek.penyedia.BSI || '')
+  };
   return {
     bulan: bulan,
     total_nominal: totalNominal,
     jml_taruna: jmlTaruna,
     rekening_senat: rek.senat, rekening_senat_nama: rek.senat_nama,
-    rekening_penyedia: rek.penyedia, rekening_penyedia_nama: rek.penyedia_nama,
+    rekening_penyedia: rekPenyedia, rekening_penyedia_nama: rek.penyedia_nama,
     pejabat: PEJABAT
   };
 }
