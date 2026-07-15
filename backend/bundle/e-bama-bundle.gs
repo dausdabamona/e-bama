@@ -635,6 +635,7 @@ var ACTION_MAP = {
   'cetak.form07':     { handler: cetakForm07, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'cetak.blokir_gagal_debet': { handler: cetakBlokirGagalDebet, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'cetak.pendebetan_penyedia': { handler: cetakPendebetanPenyedia, roles: ['SENAT', 'PPK', 'STAF_PPK', 'ADMIN'] },
+  'cetak.surat_pendebetan_bank': { handler: cetakSuratPendebetanBank, roles: ['SENAT', 'PPK', 'STAF_PPK', 'ADMIN'] },
   'cetak.form08':     { handler: cetakForm08, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'cetak.form09':     { handler: cetakForm09, roles: ['SENAT', 'PPK', 'STAF_PPK', 'ADMIN', 'OPERATOR_SAKTI'] },
   'form09.simpan_bukti': { handler: form09SimpanBukti, roles: ['SENAT', 'PPK', 'STAF_PPK', 'ADMIN'] },
@@ -5590,6 +5591,45 @@ function cetakPendebetanPenyedia(payload, session) {
     bulan_filter: bulanFilter,
     baris: baris,
     total_nominal: totalNominal,
+    rekening_senat: rek.senat, rekening_senat_nama: rek.senat_nama,
+    rekening_penyedia: rek.penyedia, rekening_penyedia_nama: rek.penyedia_nama,
+    pejabat: PEJABAT
+  };
+}
+
+/**
+ * Surat Pendebetan ke BANK (Tahap 1 pemisahan dokumen tagih-ulang). Ditujukan
+ * ke BANK — hanya nominal TOTAL yang terkumpul untuk SATU bulan, TANPA nama
+ * taruna satu pun (bank cukup: debit rekening Senat → rekening penyedia sejumlah
+ * Rp X). Rincian per-taruna ada di dokumen terpisah "Laporan Penyaluran ke
+ * Penyedia" (cetak.laporan_penyaluran_penyedia) — audiens & isi beda.
+ *
+ * Sumber SAMA PERSIS dengan laporan penyaluran: TAGIHAN status LUNAS yang belum
+ * diteruskan (tgl_diteruskan_penyedia kosong) untuk bulan itu; nilai =
+ * nilai_transfer bila ada, jika tidak nominal → total kedua dokumen HARUS sama
+ * & cocok dengan tagihan.summary.lunas_belum_diteruskan bulan itu.
+ *
+ * `bulan` WAJIB (surat ke bank tidak boleh menggabung lintas bulan). Data
+ * non-sensitif (debit antar rekening INSTANSI, tanpa rekening/nama taruna) →
+ * boleh di-cache, tanpa audit khusus. Role SENAT/PPK/STAF_PPK/ADMIN.
+ */
+function cetakSuratPendebetanBank(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+
+  var totalNominal = 0;
+  var jmlTaruna = 0;
+  _tagihanJoin_().forEach(function (t) {
+    if (t.status !== 'LUNAS' || t.tgl_diteruskan_penyedia || t.bulan !== bulan) return;
+    var nilai = (Number(t.nilai_transfer) > 0) ? _int_(t.nilai_transfer, 'nilai_transfer') : _int_(t.nominal || 0, 'nominal');
+    totalNominal += nilai;
+    jmlTaruna += 1;
+  });
+
+  var rek = getRekeningInstansi();
+  return {
+    bulan: bulan,
+    total_nominal: totalNominal,
+    jml_taruna: jmlTaruna,
     rekening_senat: rek.senat, rekening_senat_nama: rek.senat_nama,
     rekening_penyedia: rek.penyedia, rekening_penyedia_nama: rek.penyedia_nama,
     pejabat: PEJABAT
