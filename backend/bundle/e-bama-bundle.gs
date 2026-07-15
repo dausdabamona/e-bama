@@ -5402,8 +5402,9 @@ function cetakForm07(payload, session) {
  *
  * "Belum disetor" = TAGIHAN status TERTAGIH dgn `tgl_setor` kosong (identik
  * definisi bucket `belum_disetor` di tagihanSummary, 16_tagihan.gs). Nilai
- * debet = nominal tunggakan PENUH (bukan dikurangi biaya admin — ini penagihan
- * utang, bukan mekanika LS Form-07).
+ * debet = nominal tunggakan DIKURANGI biaya admin bank per rekening
+ * (getKebijakanPendebetan, default Rp10.000 — sama kebijakan Form-07/09, sebab
+ * bank memotong biaya admin saat mendebet); `nominal` tetap utang penuh.
  */
 function cetakBlokirGagalDebet(payload, session) {
   _hanyaAdminPPK_(session);
@@ -5426,18 +5427,23 @@ function cetakBlokirGagalDebet(payload, session) {
     sheetRead(SHEETS.TARUNA_REKENING, function (r) { return nitList.indexOf(String(r.nit)) >= 0; })
       .forEach(function (r) { rekeningByNit[String(r.nit)] = r; });
 
+    // Nilai debet = nominal tunggakan DIKURANGI biaya admin bank per rekening
+    // (getKebijakanPendebetan, default Rp10.000 — sama kebijakan Form-07/09),
+    // sebab bank memotong biaya admin saat mendebet. `nominal` tetap nilai utang penuh.
+    var biayaAdminBank = getKebijakanPendebetan().biayaAdminBank;
     var totalNominal = 0;
     var baris = rows.map(function (t) {
       var nit = String(t.nit);
       var tr = tarunaByNit[nit] || {};
       var rek = rekeningByNit[nit];
-      totalNominal += t.nominal;
+      var nilaiDebet = Math.max(0, t.nominal - biayaAdminBank);
+      totalNominal += nilaiDebet;
       return {
         nit: nit, nama: tr.nama || '', prodi: tr.prodi || '', tingkat: tr.tingkat || '',
         bulan: t.bulan, sebab: t.sebab,
         bank: rek ? rek.bank : '', no_rekening_lengkap: rek ? rek.no_rekening_lengkap : '',
         nama_pemilik: rek ? rek.nama_pemilik : '',
-        nominal: t.nominal, nilai_debet: t.nominal, rekening_lengkap_ada: !!rek
+        nominal: t.nominal, nilai_debet: nilaiDebet, rekening_lengkap_ada: !!rek
       };
     });
 
@@ -5449,6 +5455,7 @@ function cetakBlokirGagalDebet(payload, session) {
       bulan_filter: bulanFilter,
       baris: baris,
       total_nominal: totalNominal,
+      biaya_admin_bank: biayaAdminBank,
       pejabat: PEJABAT,
       rekening_senat: rekInst.senat,
       rekening_senat_nama: rekInst.senat_nama
