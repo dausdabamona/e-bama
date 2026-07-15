@@ -5578,7 +5578,9 @@ function cetakPendebetanPenyedia(payload, session) {
   }).map(function (t) {
     var tr = tarunaByNit[String(t.nit)] || {};
     var nilai = (Number(t.nilai_transfer) > 0) ? _int_(t.nilai_transfer, 'nilai_transfer') : _int_(t.nominal || 0, 'nominal');
-    return { nit: String(t.nit), nama: tr.nama || '', prodi: tr.prodi || '', tingkat: tr.tingkat || '', bulan: t.bulan, nominal: nilai };
+    // tagihan_id disertakan supaya halaman bisa menandai "sudah diteruskan"
+    // (tagihan.teruskan_penyedia) langsung dari surat setelah bank memproses.
+    return { tagihan_id: t.tagihan_id, nit: String(t.nit), nama: tr.nama || '', prodi: tr.prodi || '', tingkat: tr.tingkat || '', bulan: t.bulan, nominal: nilai };
   });
   var totalNominal = 0;
   baris.forEach(function (b) { totalNominal += b.nominal; });

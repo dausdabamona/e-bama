@@ -9,16 +9,20 @@ import { labelBulan } from '../../components/bulan-picker';
 import { BlokTtd2Kolom, BlokTtdTengah } from '../../components/cetak/blok-ttd';
 import { KopSurat } from '../../components/cetak/kop-surat';
 import { SelCetak } from '../../components/cetak/tabel-cetak';
+import { ambilBerkasInput, berkasKeBase64 } from '../../lib/berkas';
+import { aksiTulis } from '../../lib/sync';
 import { Button } from '../../components/ui/button';
+import { Card } from '../../components/ui/card';
 import { EmptyState } from '../../components/ui/empty-state';
 import { ErrorMessage } from '../../components/ui/error-message';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
+import { useToast } from '../../components/ui/toast';
 import { useListCache } from '../../lib/use-list-cache';
 import { terbilangRupiah } from '../../lib/terbilang';
 import { formatRupiah } from '../tagihan/tipe';
 
 interface Pejabat { nama: string; nip: string }
-interface Baris { nit: string; nama: string; prodi: string; tingkat: string; bulan: string; nominal: number }
+interface Baris { tagihan_id: string; nit: string; nama: string; prodi: string; tingkat: string; bulan: string; nominal: number }
 interface RekBank { BNI?: string; BSI?: string }
 interface PendebetanData {
   bulan_filter: string; baris: Baris[]; total_nominal: number;
@@ -97,6 +101,103 @@ function SuratPendebetan({ bulan, rows, bank, rekSenat, rekSenatNama, rekPenyedi
   );
 }
 
+/**
+ * Panel "Konfirmasi Bank Sudah Proses" untuk SATU bulan (print:hidden). Setelah
+ * bank mendebet Senat → transfer ke Penyedia dan mengirim notifikasi, PPK/Senat
+ * mencentang taruna yang benar-benar sudah diproses (default semua), mengunggah
+ * notifikasi bank sebagai bukti, lalu menandainya lewat tagihan.teruskan_penyedia.
+ * Taruna itu langsung pindah ke "Lunas, sudah diteruskan" dan HILANG dari daftar
+ * tagihan aktif maupun dari surat ini. Mendukung konfirmasi sebagian (bila bank
+ * hanya memproses sebagian, mirip kasus gagal debet) — sisanya tetap di daftar.
+ */
+function PanelKonfirmasiBank({ bulan, rows, onSelesai }: {
+  bulan: string; rows: Baris[]; onSelesai: () => void;
+}) {
+  const { toast } = useToast();
+  const [terpilih, setTerpilih] = useState<Set<string>>(() => new Set(rows.map((r) => r.tagihan_id)));
+  const [fotoNama, setFotoNama] = useState('');
+  const [fotoBase64, setFotoBase64] = useState('');
+  const [proses, setProses] = useState(false);
+  const [galat, setGalat] = useState('');
+
+  const totalTerpilih = rows.filter((r) => terpilih.has(r.tagihan_id)).reduce((s, r) => s + r.nominal, 0);
+
+  function toggle(id: string) {
+    setTerpilih((s) => {
+      const baru = new Set(s);
+      if (baru.has(id)) baru.delete(id); else baru.add(id);
+      return baru;
+    });
+  }
+
+  async function pilihBerkas() {
+    const file = await ambilBerkasInput();
+    if (!file) return;
+    try {
+      setFotoNama(file.name);
+      setFotoBase64(await berkasKeBase64(file));
+    } catch (e) {
+      setGalat(e instanceof Error ? e.message : 'Gagal membaca berkas.');
+    }
+  }
+
+  async function kirim() {
+    if (terpilih.size === 0) { setGalat('Pilih minimal satu taruna.'); return; }
+    if (!fotoBase64) { setGalat('Unggah notifikasi/bukti dari bank dulu.'); return; }
+    setProses(true); setGalat('');
+    try {
+      const r = await aksiTulis('tagihan.teruskan_penyedia', {
+        tagihan_id_list: Array.from(terpilih),
+        berkas: { base64: fotoBase64, nama_file: fotoNama || `bukti-bank-${bulan}.jpg` },
+      });
+      toast(
+        r.antri
+          ? 'Disimpan lokal, akan dikirim otomatis saat online.'
+          : `${terpilih.size} taruna ditandai selesai — hilang dari daftar tagihan.`,
+        'sukses',
+      );
+      if (!r.antri) onSelesai();
+    } catch (e) {
+      setGalat(e instanceof Error ? e.message : 'Gagal menandai selesai.');
+    } finally {
+      setProses(false);
+    }
+  }
+
+  return (
+    <Card className="flex flex-col gap-3 border-teal-200 bg-teal-50/40 print:hidden">
+      <p className="text-sm font-semibold text-primary-dark">
+        ✅ Konfirmasi Bank Sudah Proses — {labelBulan(bulan)}
+      </p>
+      <p className="text-xs text-gray-500">
+        Centang taruna yang <b>sudah diproses bank</b> (default semua), lalu unggah notifikasi/bukti dari bank.
+        Taruna yang ditandai akan pindah ke <b>Lunas, sudah diteruskan</b> dan hilang dari daftar tagihan aktif.
+      </p>
+      <div className="flex items-center justify-between text-xs">
+        <button className="text-primary" onClick={() => setTerpilih(new Set(rows.map((r) => r.tagihan_id)))}>Pilih semua</button>
+        <button className="text-gray-500" onClick={() => setTerpilih(new Set())}>Kosongkan</button>
+      </div>
+      <div className="flex max-h-52 flex-col gap-1 overflow-y-auto rounded-xl border border-gray-200 p-2">
+        {rows.slice().sort(urut).map((r) => (
+          <label key={r.tagihan_id} className="flex min-h-tap items-center gap-2 pl-1 text-sm">
+            <input type="checkbox" className="h-5 w-5" checked={terpilih.has(r.tagihan_id)} onChange={() => toggle(r.tagihan_id)} />
+            <span className="flex-1">{r.nama} · {r.prodi}/{r.tingkat}</span>
+            <span className="text-gray-500">{formatRupiah(r.nominal)}</span>
+          </label>
+        ))}
+      </div>
+      <p className="text-sm">Total dipilih: <span className="font-bold">{formatRupiah(totalTerpilih)}</span> ({terpilih.size} taruna)</p>
+      <Button varian="garis" onClick={() => void pilihBerkas()}>
+        {fotoNama ? `📎 ${fotoNama}` : '📎 Unggah Notifikasi/Bukti Bank'}
+      </Button>
+      {galat && <p className="text-sm text-red-600">{galat}</p>}
+      <Button onClick={() => void kirim()} disabled={proses}>
+        {proses ? 'Memproses…' : `Tandai ${terpilih.size} Taruna Selesai`}
+      </Button>
+    </Card>
+  );
+}
+
 export function HalamanCetakPendebetanPenyedia() {
   const nav = useNavigate();
   const { data, memuat, galat, refresh } = useListCache<PendebetanData>('cetak.pendebetan_penyedia', {});
@@ -171,9 +272,12 @@ export function HalamanCetakPendebetanPenyedia() {
             </p>
           )}
           {grup.map((g, i) => (
-            <SuratPendebetan key={g.bulan} bulan={g.bulan} rows={g.rows} bank={bank}
-              rekSenat={rekSenat} rekSenatNama={rekSenatNama} rekPenyedia={rekPenyedia} rekPenyediaNama={rekPenyediaNama}
-              pejabat={data.pejabat} noSurat={noSurat} pisahHalaman={i > 0} />
+            <div key={g.bulan} className="flex flex-col gap-3">
+              <SuratPendebetan bulan={g.bulan} rows={g.rows} bank={bank}
+                rekSenat={rekSenat} rekSenatNama={rekSenatNama} rekPenyedia={rekPenyedia} rekPenyediaNama={rekPenyediaNama}
+                pejabat={data.pejabat} noSurat={noSurat} pisahHalaman={i > 0} />
+              <PanelKonfirmasiBank bulan={g.bulan} rows={g.rows} onSelesai={refresh} />
+            </div>
           ))}
         </div>
       )}
