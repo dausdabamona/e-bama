@@ -4621,6 +4621,56 @@ function laporanResmi(payload, session) {
   var bayar = sheetRead(SHEETS.PEMBAYARAN, function (r) { return _bulanStr_(r.bulan) === bulan; })[0] || null;
   var tagihan = sheetRead(SHEETS.TAGIHAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
 
+  // ── B.2 Rincian SP2D (Dalam & Luar Kampus) dari SP2D_MONITORING agregat ──
+  // PEMBAYARAN bulanan tak bisa memuat banyak No.SP2D (mis. Juni: 14 SP2D
+  // dipecah per Prodi/Tingkat), jadi rincian nomor SP2D/SPM diambil dari sheet
+  // monitoring (baris AGREGAT — tanpa nit; baris per-taruna dikecualikan agar
+  // tak dobel). Dikelompokkan/urut per Prodi → Tingkat.
+  var _RANK_TK_ = { I: 1, II: 2, III: 3, '1': 1, '2': 2, '3': 3 };
+  var sp2dBulan = sheetRead(SHEETS.SP2D_MONITORING, function (r) { return _bulanStr_(r.bulan) === bulan; });
+  function _sp2dAgregat_(kategori) {
+    return sp2dBulan.filter(function (r) {
+      return String(r.kategori) === kategori && !String(r.nit || '').trim();
+    }).map(function (r) {
+      return {
+        no_spm: String(r.no_spm || ''), no_sp2d: String(r.no_sp2d || ''),
+        tgl_sp2d: _tglStr_(r.tgl_sp2d), prodi: String(r.prodi || ''), tingkat: String(r.tingkat || ''),
+        kegiatan: String(r.kegiatan || ''), jumlah_orang: _int_(r.jumlah_orang || 0, 'jumlah_orang'),
+        nominal: _int_(r.jumlah_pembayaran || 0, 'jumlah_pembayaran'), status_sp2d: String(r.status_sp2d || '')
+      };
+    }).sort(function (a, b) {
+      return String(a.prodi).localeCompare(String(b.prodi)) ||
+             ((_RANK_TK_[a.tingkat] || 9) - (_RANK_TK_[b.tingkat] || 9)) ||
+             String(a.kegiatan).localeCompare(String(b.kegiatan));
+    });
+  }
+  var sp2dDalam = _sp2dAgregat_('DALAM_KAMPUS');
+  var sp2dLuar = _sp2dAgregat_('LUAR_KAMPUS');
+  var sp2dDalamTotal = 0; sp2dDalam.forEach(function (r) { sp2dDalamTotal += r.nominal; });
+  var sp2dLuarTotal = 0; sp2dLuar.forEach(function (r) { sp2dLuarTotal += r.nominal; });
+
+  // ── Luar Kampus (otomatis) dari BANTUAN_LUAR_KAMPUS bulan ini, dikelompokkan
+  // Kegiatan + Prodi + Tingkat (rincian + besaran). ──
+  var lkMap = {};
+  sheetRead(SHEETS.BANTUAN_LUAR_KAMPUS, function (r) { return _bulanStr_(r.bulan) === bulan; })
+    .forEach(function (r) {
+      var t = tarunaByNit[String(r.nit)] || {};
+      var key = String(r.kegiatan || '') + '|' + (t.prodi || '') + '|' + (t.tingkat || '');
+      if (!lkMap[key]) lkMap[key] = { kegiatan: String(r.kegiatan || ''), prodi: t.prodi || '', tingkat: t.tingkat || '', jml_taruna: 0, total_hari: 0, nilai_per_hari: 0, nominal: 0 };
+      var g = lkMap[key];
+      g.jml_taruna += 1;
+      g.total_hari += _int_(r.total_hari || 0, 'total_hari');
+      g.nilai_per_hari = _int_(r.nilai_per_hari || 0, 'nilai_per_hari');
+      g.nominal += _int_(r.nominal || 0, 'nominal');
+    });
+  var luarKampus = Object.keys(lkMap).map(function (k) { return lkMap[k]; }).sort(function (a, b) {
+    return String(a.kegiatan).localeCompare(String(b.kegiatan)) ||
+           String(a.prodi).localeCompare(String(b.prodi)) ||
+           ((_RANK_TK_[a.tingkat] || 9) - (_RANK_TK_[b.tingkat] || 9));
+  });
+  var luarKampusTotal = 0, luarKampusOrang = 0;
+  luarKampus.forEach(function (g) { luarKampusTotal += g.nominal; luarKampusOrang += g.jml_taruna; });
+
   return {
     bulan: bulan,
     jml_taruna_aktif: jmlAktif,
@@ -4638,6 +4688,13 @@ function laporanResmi(payload, session) {
     porsi_terealisasi: porsiTerealisasi,
     ketidaksesuaian: ketidaksesuaian,
     pembayaran: bayar,
+    sp2d_dalam_kampus: sp2dDalam,
+    sp2d_dalam_total: sp2dDalamTotal,
+    sp2d_luar_kampus: sp2dLuar,
+    sp2d_luar_total: sp2dLuarTotal,
+    luar_kampus: luarKampus,
+    luar_kampus_total: luarKampusTotal,
+    luar_kampus_orang: luarKampusOrang,
     jml_gagal_transfer: tagihan.length,
     pejabat: PEJABAT
   };

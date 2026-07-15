@@ -23,6 +23,14 @@ interface Pembayaran {
   no_spm: string; tgl_spm: string; no_sp2d: string; tgl_sp2d: string;
 }
 interface Pejabat { nama: string; nip: string }
+interface Sp2dRow {
+  no_spm: string; no_sp2d: string; tgl_sp2d: string; prodi: string; tingkat: string;
+  kegiatan: string; jumlah_orang: number; nominal: number; status_sp2d: string;
+}
+interface LuarKampusRow {
+  kegiatan: string; prodi: string; tingkat: string;
+  jml_taruna: number; total_hari: number; nilai_per_hari: number; nominal: number;
+}
 interface LaporanResmi {
   bulan: string;
   jml_taruna_aktif: number;
@@ -35,6 +43,13 @@ interface LaporanResmi {
   porsi_terealisasi: number;
   ketidaksesuaian: Ketidaksesuaian[];
   pembayaran: Pembayaran | null;
+  sp2d_dalam_kampus: Sp2dRow[];
+  sp2d_dalam_total: number;
+  sp2d_luar_kampus: Sp2dRow[];
+  sp2d_luar_total: number;
+  luar_kampus: LuarKampusRow[];
+  luar_kampus_total: number;
+  luar_kampus_orang: number;
   jml_gagal_transfer: number;
   pejabat: { PPK: Pejabat; KPA: Pejabat };
 }
@@ -258,40 +273,68 @@ export function HalamanLaporanResmi() {
               <thead>
                 <tr className="border-b border-gray-300 text-left">
                   <th className="py-1 pr-2">Uraian</th><th className="py-1 pr-2 text-right">Dalam Kampus (auto)</th>
-                  <th className="py-1 text-right">Luar Kampus (manual)</th>
+                  <th className="py-1 text-right">Luar Kampus (auto)</th>
                 </tr>
               </thead>
               <tbody>
                 <tr className="border-b border-gray-100">
                   <td className="py-1 pr-2">Jumlah Penerima</td>
                   <td className="py-1 pr-2 text-right">{data.penerima.length} Orang</td>
-                  <td className="py-1 text-right">…</td>
+                  <td className="py-1 text-right">{data.luar_kampus_orang} Orang</td>
                 </tr>
                 <tr className="border-b border-gray-100">
                   <td className="py-1 pr-2">Jumlah Hari Efektif</td>
                   <td className="py-1 pr-2 text-right">{data.jml_hari_efektif} Hari</td>
-                  <td className="py-1 text-right">…</td>
+                  <td className="py-1 text-right">—</td>
                 </tr>
                 <tr className="border-b border-gray-100">
                   <td className="py-1 pr-2">Total Hari Penerimaan (Orang×Hari)</td>
                   <td className="py-1 pr-2 text-right">{data.total_hari_makan} OH</td>
-                  <td className="py-1 text-right">…</td>
+                  <td className="py-1 text-right">{data.luar_kampus.reduce((s, g) => s + g.total_hari, 0)} OH</td>
                 </tr>
                 <tr className="border-b border-gray-100">
                   <td className="py-1 pr-2">Standar Biaya per Hari</td>
                   <td className="py-1 pr-2 text-right">{kontrak ? formatRupiah(kontrak.harga_per_hari_efektif ?? 0) : '-'}</td>
-                  <td className="py-1 text-right">…</td>
+                  <td className="py-1 text-right">bervariasi</td>
                 </tr>
                 <tr className="font-bold">
                   <td className="py-1 pr-2">Total Realisasi Penyaluran</td>
                   <td className="py-1 pr-2 text-right">{formatRupiah(data.total_nominal)}</td>
-                  <td className="py-1 text-right">…</td>
+                  <td className="py-1 text-right">{formatRupiah(data.luar_kampus_total)}</td>
                 </tr>
               </tbody>
             </table>
 
             <p className="mb-1 mt-3 text-xs font-semibold text-gray-500 print:text-black">B.2 Rincian Penyaluran ke Dalam Kampus (otomatis)</p>
-            {data.pembayaran ? (
+            {data.sp2d_dalam_kampus.length > 0 ? (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-300 text-left">
+                    <th className="py-1 pr-2">Prodi/Tk</th><th className="py-1 pr-2">No. SPM</th>
+                    <th className="py-1 pr-2">No. SP2D</th><th className="py-1 pr-2">Tgl SP2D</th>
+                    <th className="py-1 pr-2 text-right">Org</th><th className="py-1 text-right">Besaran Transfer</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.sp2d_dalam_kampus.map((s, i) => (
+                    <tr key={i} className="border-b border-gray-100">
+                      <td className="py-1 pr-2">{s.prodi}/{s.tingkat}</td>
+                      <td className="py-1 pr-2">{s.no_spm || '-'}</td>
+                      <td className="py-1 pr-2">{s.no_sp2d || '-'}</td>
+                      <td className="py-1 pr-2">{s.tgl_sp2d || '-'}</td>
+                      <td className="py-1 pr-2 text-right">{s.jumlah_orang}</td>
+                      <td className="py-1 text-right">{formatRupiah(s.nominal)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="font-bold">
+                    <td colSpan={5} className="pt-1">TOTAL ({data.sp2d_dalam_kampus.length} SP2D)</td>
+                    <td className="pt-1 text-right">{formatRupiah(data.sp2d_dalam_total)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            ) : data.pembayaran ? (
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-gray-300 text-left">
@@ -308,7 +351,7 @@ export function HalamanLaporanResmi() {
                   </tr>
                 </tbody>
               </table>
-            ) : <p className="text-xs text-gray-400">Belum ada pembayaran bulan ini.</p>}
+            ) : <p className="text-xs text-gray-400">Belum ada SP2D Dalam Kampus terimpor untuk bulan ini (impor di menu Laporan → Rekonsiliasi SP2D).</p>}
 
             <p className="mb-1 mt-3 text-xs font-semibold text-gray-500 print:text-black">C.1 Penggunaan Bantuan di Dalam Kampus (otomatis)</p>
             <TabelAuto label="Jumlah taruna yang didebit" nilai={`${data.penerima.length} Orang`} />
@@ -318,6 +361,65 @@ export function HalamanLaporanResmi() {
             <TabelAuto label="Jumlah porsi makan yang dipesan" nilai={`${data.porsi_dipesan} Porsi`} />
             <TabelAuto label="Jumlah porsi makan yang terealisasi" nilai={`${data.porsi_terealisasi} Porsi`} />
             <TabelAuto label="Total pembayaran ke penyedia" nilai={data.pembayaran ? formatRupiah(data.pembayaran.nilai_total) : '-'} />
+
+            <p className="mb-1 mt-3 text-xs font-semibold text-gray-500 print:text-black">B.3 Rincian Penyaluran ke Luar Kampus (otomatis)</p>
+            {data.luar_kampus.length > 0 ? (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-300 text-left">
+                    <th className="py-1 pr-2">Kegiatan</th><th className="py-1 pr-2">Prodi/Tk</th>
+                    <th className="py-1 pr-2 text-right">Org</th><th className="py-1 pr-2 text-right">Hari</th>
+                    <th className="py-1 pr-2 text-right">Tarif/Hari</th><th className="py-1 text-right">Nominal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.luar_kampus.map((g, i) => (
+                    <tr key={i} className="border-b border-gray-100">
+                      <td className="py-1 pr-2">{g.kegiatan}</td>
+                      <td className="py-1 pr-2">{g.prodi}/{g.tingkat}</td>
+                      <td className="py-1 pr-2 text-right">{g.jml_taruna}</td>
+                      <td className="py-1 pr-2 text-right">{g.total_hari}</td>
+                      <td className="py-1 pr-2 text-right">{formatRupiah(g.nilai_per_hari)}</td>
+                      <td className="py-1 text-right">{formatRupiah(g.nominal)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="font-bold">
+                    <td colSpan={5} className="pt-1">TOTAL ({data.luar_kampus_orang} orang)</td>
+                    <td className="pt-1 text-right">{formatRupiah(data.luar_kampus_total)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            ) : <p className="text-xs text-gray-400">Tidak ada bantuan Luar Kampus (PKL/KPA/PTB) untuk bulan ini.</p>}
+            {data.sp2d_luar_kampus.length > 0 && (
+              <>
+                <p className="mb-1 mt-2 text-xs font-semibold text-gray-500 print:text-black">SP2D Luar Kampus (dari monitoring)</p>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-300 text-left">
+                      <th className="py-1 pr-2">Kegiatan · Prodi/Tk</th><th className="py-1 pr-2">No. SPM</th>
+                      <th className="py-1 pr-2">No. SP2D</th><th className="py-1 pr-2">Tgl SP2D</th>
+                      <th className="py-1 text-right">Nominal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.sp2d_luar_kampus.map((s, i) => (
+                      <tr key={i} className="border-b border-gray-100">
+                        <td className="py-1 pr-2">{s.kegiatan} {s.prodi}/{s.tingkat}</td>
+                        <td className="py-1 pr-2">{s.no_spm || '-'}</td>
+                        <td className="py-1 pr-2">{s.no_sp2d || '-'}</td>
+                        <td className="py-1 pr-2">{s.tgl_sp2d || '-'}</td>
+                        <td className="py-1 text-right">{formatRupiah(s.nominal)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="font-bold"><td colSpan={4} className="pt-1">TOTAL SP2D Luar Kampus</td><td className="pt-1 text-right">{formatRupiah(data.sp2d_luar_total)}</td></tr>
+                  </tfoot>
+                </table>
+              </>
+            )}
           </Card>
 
           {/* VI. Permasalahan */}
