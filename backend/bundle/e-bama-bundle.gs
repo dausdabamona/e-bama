@@ -3788,19 +3788,21 @@ function _tagihanJoin_() {
 
   // BUKTI_SETOR per tagihan — baca LAMPIRAN SEKALI lalu peta by ref_id (BUKAN
   // lampiranList() per baris, yang membaca ulang seluruh sheet LAMPIRAN tiap
-  // tagihan → lambat/timeout saat LAMPIRAN besar). Ambil yang pertama (urutan
-  // sheet), sama seperti perilaku lama `filter(...)[0]`.
+  // tagihan → lambat/timeout saat LAMPIRAN besar). Kumpulkan SEMUA (taruna bisa
+  // transfer beberapa kali → beberapa bukti); `bukti_setor_drive_file_id`
+  // pertama tetap ada untuk kompat, `bukti_setor_ids` = seluruh daftar.
   var buktiPerTagihan = {};
   sheetRead(SHEETS.LAMPIRAN, function (l) {
     return String(l.ref_type) === 'TAGIHAN' && String(l.jenis) === 'BUKTI_SETOR';
   }).forEach(function (l) {
     var key = String(l.ref_id);
-    if (buktiPerTagihan[key] === undefined) buktiPerTagihan[key] = l.drive_file_id;
+    if (!buktiPerTagihan[key]) buktiPerTagihan[key] = [];
+    if (l.drive_file_id) buktiPerTagihan[key].push(String(l.drive_file_id));
   });
 
   var rows = sheetRead(SHEETS.TAGIHAN).map(function (t) {
     var sp = spPerTagihan[String(t.tagihan_id)];
-    var buktiDriveId = buktiPerTagihan[String(t.tagihan_id)];
+    var buktiIds = buktiPerTagihan[String(t.tagihan_id)] || [];
     var nominal = Number(t.nominal) || 0;
     var nilaiTransfer = Number(t.nilai_transfer) || 0;
     return {
@@ -3817,7 +3819,8 @@ function _tagihanJoin_() {
       // kurang bayar, dipakai frontend bandingkan dgn kebijakan.toleransiSelisihTransfer
       // dari tagihanList() (lihat getKebijakanTagihan, 00_config.gs).
       selisih_transfer: nominal - nilaiTransfer,
-      bukti_setor_drive_file_id: buktiDriveId || '',
+      bukti_setor_drive_file_id: buktiIds[0] || '',
+      bukti_setor_ids: buktiIds,
       level_aktif: sp ? sp.level : 0,
       tenggat_aktif: sp ? sp.tenggat : '',
       // Penerusan dana LUNAS ke penyedia — TERPISAH dari SP2D/SPM (jalur

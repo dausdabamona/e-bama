@@ -40,8 +40,7 @@ export function HalamanTagihanDetail() {
   const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', {});
 
   const [tglSetor, setTglSetor] = useState(hariIni());
-  const [fotoNama, setFotoNama] = useState('');
-  const [fotoBase64, setFotoBase64] = useState('');
+  const [fotoList, setFotoList] = useState<{ nama: string; base64: string }[]>([]);
   const [proses, setProses] = useState(false);
   const [galat, setGalat] = useState('');
   const [tampilHapus, setTampilHapus] = useState(false);
@@ -72,24 +71,31 @@ export function HalamanTagihanDetail() {
     const file = await ambilBerkasInput();
     if (!file) return;
     try {
-      setFotoNama(file.name);
-      setFotoBase64(await berkasKeBase64(file));
+      const base64 = await berkasKeBase64(file);
+      setFotoList((l) => [...l, { nama: file.name, base64 }]);
     } catch (e) {
       setGalat(e instanceof Error ? e.message : 'Gagal membaca berkas.');
     }
   }
 
   async function kirimSetor() {
-    if (!fotoBase64) { setGalat('Bukti setor wajib diunggah.'); return; }
+    if (fotoList.length === 0) { setGalat('Bukti setor wajib diunggah (minimal 1).'); return; }
     setProses(true); setGalat('');
     try {
-      const r = await aksiTulis('tagihan.setor', {
-        tagihan_id: t!.tagihan_id, tgl_setor: tglSetor,
-        berkas: { base64: fotoBase64, nama_file: fotoNama || 'bukti-setor.jpg' }
-      });
-      toast(r.antri ? 'Disimpan lokal, akan dikirim otomatis.' : 'Bukti setor terkirim, menunggu verifikasi.', 'sukses');
+      // Taruna bisa transfer beberapa kali → unggah tiap bukti (append lampiran).
+      let antri = false;
+      for (let i = 0; i < fotoList.length; i++) {
+        const f = fotoList[i];
+        const r = await aksiTulis('tagihan.setor', {
+          tagihan_id: t!.tagihan_id, tgl_setor: tglSetor,
+          berkas: { base64: f.base64, nama_file: f.nama || `bukti-setor-${i + 1}.jpg` }
+        });
+        if (r.antri) antri = true;
+      }
+      toast(antri ? 'Disimpan lokal, akan dikirim otomatis.'
+        : `${fotoList.length} bukti setor terkirim, menunggu verifikasi.`, 'sukses');
       tagihanQ.refresh();
-      setFotoNama(''); setFotoBase64('');
+      setFotoList([]);
     } catch (e) {
       setGalat(e instanceof Error ? e.message : 'Gagal.');
     } finally {
@@ -245,11 +251,21 @@ export function HalamanTagihanDetail() {
           <input type="date" value={tglSetor} onChange={(e) => setTglSetor(e.target.value)}
             className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2.5" />
           <Button varian="garis" onClick={() => void pilihBerkas()}>
-            {fotoNama ? `📎 ${fotoNama}` : '📎 Unggah Screenshot/Foto/PDF Bukti Transfer'}
+            ➕ Tambah Bukti Transfer (bisa beberapa — transfer bertahap)
           </Button>
+          {fotoList.length > 0 && (
+            <ul className="flex flex-col gap-1">
+              {fotoList.map((f, i) => (
+                <li key={i} className="flex items-center justify-between rounded-lg bg-gray-100 px-2 py-1 text-xs">
+                  <span className="truncate">📎 {f.nama}</span>
+                  <button className="ml-2 shrink-0 text-red-600" onClick={() => setFotoList((l) => l.filter((_, j) => j !== i))}>Hapus</button>
+                </li>
+              ))}
+            </ul>
+          )}
           {galat && <p className="text-sm text-red-600">{galat}</p>}
           <Button onClick={() => void kirimSetor()} disabled={proses}>
-            {proses ? 'Mengirim…' : 'Kirim Bukti Setor'}
+            {proses ? 'Mengirim…' : `Kirim Bukti Setor${fotoList.length > 1 ? ` (${fotoList.length})` : ''}`}
           </Button>
         </Card>
       )}
@@ -259,19 +275,30 @@ export function HalamanTagihanDetail() {
           <p className="text-sm font-semibold text-gray-600">
             Verifikasi Pelunasan {t.verif_1_oleh ? '(2/2 — memicu LUNAS)' : '(1/2)'}
           </p>
-          {t.bukti_setor_drive_file_id && (
-            <div className="flex flex-col gap-1">
-              <img
-                src={`https://drive.google.com/thumbnail?id=${t.bukti_setor_drive_file_id}&sz=w1000`}
-                alt="Bukti Setor"
-                className="max-h-96 w-full rounded-xl border border-gray-200 object-contain"
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-              />
-              <a href={urlDrive(t.bukti_setor_drive_file_id)} target="_blank" rel="noreferrer" className="text-sm text-primary underline">
-                🔍 Buka ukuran penuh
-              </a>
-            </div>
-          )}
+          {(() => {
+            const ids = (t.bukti_setor_ids && t.bukti_setor_ids.length > 0)
+              ? t.bukti_setor_ids
+              : (t.bukti_setor_drive_file_id ? [t.bukti_setor_drive_file_id] : []);
+            if (ids.length === 0) return null;
+            return (
+              <div className="flex flex-col gap-2">
+                {ids.length > 1 && <p className="text-xs font-medium text-gray-500">{ids.length} bukti transfer (transfer bertahap):</p>}
+                {ids.map((id, i) => (
+                  <div key={id} className="flex flex-col gap-1">
+                    <img
+                      src={`https://drive.google.com/thumbnail?id=${id}&sz=w1000`}
+                      alt={`Bukti Setor ${i + 1}`}
+                      className="max-h-96 w-full rounded-xl border border-gray-200 object-contain"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                    />
+                    <a href={urlDrive(id)} target="_blank" rel="noreferrer" className="text-sm text-primary underline">
+                      🔍 Buka ukuran penuh{ids.length > 1 ? ` (${i + 1})` : ''}
+                    </a>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
           <p className="text-xs text-gray-500">
             Cocokkan bukti di atas dengan mutasi rekening Senat, lalu masukkan nominal
             yang benar-benar masuk — boleh berbeda dari nominal tagihan (mis. potongan
