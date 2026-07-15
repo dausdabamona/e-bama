@@ -24,6 +24,8 @@ import { HalamanFormatSerahTerima } from './pages/cetak/format-serah-terima';
 import { HalamanCetakSp1 } from './pages/cetak/sp1';
 import { HalamanCetakBlokirGagalDebet } from './pages/cetak/blokir-gagal-debet';
 import { HalamanCetakPendebetanPenyedia } from './pages/cetak/pendebetan-penyedia';
+import { HalamanCetakSuratPendebetanBank } from './pages/cetak/surat-pendebetan-bank';
+import { HalamanCetakLaporanPenyaluranPenyedia } from './pages/cetak/laporan-penyaluran-penyedia';
 import { HalamanDashboardKpa } from './pages/dashboard-kpa/dashboard-kpa';
 import { HalamanKokpitPpk } from './pages/kokpit-ppk/kokpit-ppk';
 import { HalamanKontrak } from './pages/kontrak/kontrak';
@@ -131,6 +133,8 @@ export default function App() {
               <Route path="/cetak/sp1" element={<WajibLogin roles={['PPK', 'STAF_PPK', 'ADMIN']}><HalamanCetakSp1 /></WajibLogin>} />
               <Route path="/cetak/blokir-gagal-debet" element={<WajibLogin roles={['ADMIN', 'PPK', 'STAF_PPK']}><HalamanCetakBlokirGagalDebet /></WajibLogin>} />
               <Route path="/cetak/pendebetan-penyedia" element={<WajibLogin roles={['SENAT', 'ADMIN', 'PPK', 'STAF_PPK']}><HalamanCetakPendebetanPenyedia /></WajibLogin>} />
+              <Route path="/cetak/surat-pendebetan-bank/:bulan" element={<WajibLogin roles={['SENAT', 'ADMIN', 'PPK', 'STAF_PPK']}><HalamanCetakSuratPendebetanBank /></WajibLogin>} />
+              <Route path="/cetak/laporan-penyaluran/:bulan" element={<WajibLogin roles={['SENAT', 'ADMIN', 'PPK', 'STAF_PPK']}><HalamanCetakLaporanPenyaluranPenyedia /></WajibLogin>} />
               <Route path="/cetak/surat-pesanan/:id" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN']}><HalamanCetakSuratPesanan /></WajibLogin>} />
               <Route path="/cetak/form-02" element={<WajibLogin roles={['PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN']}><HalamanCetakForm02 /></WajibLogin>} />
               <Route path="/cetak/form-02/:tgl" element={<WajibLogin roles={['PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN']}><HalamanCetakForm02 /></WajibLogin>} />
