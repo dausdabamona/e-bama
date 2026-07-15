@@ -634,6 +634,7 @@ var ACTION_MAP = {
   'cetak.form06':     { handler: cetakForm06, roles: ['PPK', 'STAF_PPK', 'KPA', 'ADMIN', 'OPERATOR_SAKTI'] },
   'cetak.form07':     { handler: cetakForm07, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'cetak.blokir_gagal_debet': { handler: cetakBlokirGagalDebet, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
+  'cetak.pendebetan_penyedia': { handler: cetakPendebetanPenyedia, roles: ['SENAT', 'PPK', 'STAF_PPK', 'ADMIN'] },
   'cetak.form08':     { handler: cetakForm08, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'cetak.form09':     { handler: cetakForm09, roles: ['SENAT', 'PPK', 'STAF_PPK', 'ADMIN', 'OPERATOR_SAKTI'] },
   'form09.simpan_bukti': { handler: form09SimpanBukti, roles: ['SENAT', 'PPK', 'STAF_PPK', 'ADMIN'] },
@@ -5550,6 +5551,44 @@ function cetakBlokirGagalDebet(payload, session) {
       rekening_senat_nama: rekInst.senat_nama
     };
   });
+}
+
+/**
+ * cetak.pendebetan_penyedia {bulan?} — Surat permohonan pendebetan dari rekening
+ * SENAT ke rekening PENYEDIA untuk dana tagih-ulang GAGAL DEBET yang sudah LUNAS
+ * (sudah masuk rekening Senat) dan akan DITERUSKAN ke penyedia — jalur terpisah
+ * dari SP2D/SPM utama. Rincian per taruna (nama, prodi/tingkat, nilai yang
+ * diteruskan) sebagai lampiran; TIDAK memuat nomor rekening taruna (debit antar
+ * rekening INSTANSI), jadi bukan data sensitif §4 → boleh di-cache, tanpa audit
+ * khusus. `bulan` kosong = semua tagihan LUNAS yang belum diteruskan; diisi =
+ * bulan itu saja. Frontend memisah per bulan (satu surat per bulan). Nilai =
+ * `nilai_transfer` bila ada (dana riil masuk), jika tidak `nominal`.
+ * Role SENAT/PPK/STAF_PPK/ADMIN.
+ */
+function cetakPendebetanPenyedia(payload, session) {
+  var bulanFilter = payload && payload.bulan ? _bulanStr_(payload.bulan) : '';
+  var tarunaByNit = {};
+  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+
+  var baris = _tagihanJoin_().filter(function (t) {
+    return t.status === 'LUNAS' && !t.tgl_diteruskan_penyedia && (!bulanFilter || t.bulan === bulanFilter);
+  }).map(function (t) {
+    var tr = tarunaByNit[String(t.nit)] || {};
+    var nilai = (Number(t.nilai_transfer) > 0) ? _int_(t.nilai_transfer, 'nilai_transfer') : _int_(t.nominal || 0, 'nominal');
+    return { nit: String(t.nit), nama: tr.nama || '', prodi: tr.prodi || '', tingkat: tr.tingkat || '', bulan: t.bulan, nominal: nilai };
+  });
+  var totalNominal = 0;
+  baris.forEach(function (b) { totalNominal += b.nominal; });
+
+  var rek = getRekeningInstansi();
+  return {
+    bulan_filter: bulanFilter,
+    baris: baris,
+    total_nominal: totalNominal,
+    rekening_senat: rek.senat, rekening_senat_nama: rek.senat_nama,
+    rekening_penyedia: rek.penyedia, rekening_penyedia_nama: rek.penyedia_nama,
+    pejabat: PEJABAT
+  };
 }
 
 /**

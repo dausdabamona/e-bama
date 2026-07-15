@@ -87,7 +87,10 @@ export function HalamanTagihanTeruskanPenyedia() {
 
   return (
     <div className="flex flex-col gap-4">
-      <button className="text-sm text-primary" onClick={() => nav('/tagihan')}>← Kembali</button>
+      <div className="flex items-center justify-between">
+        <button className="text-sm text-primary" onClick={() => nav('/tagihan')}>← Kembali</button>
+        <button className="text-sm text-primary underline" onClick={() => nav('/cetak/pendebetan-penyedia')}>🏦 Surat Pendebetan ke Penyedia</button>
+      </div>
       <h1 className="text-xl font-bold text-primary-dark">Teruskan Dana ke Penyedia</h1>
       <p className="text-sm text-gray-500">
         Tandai tagihan yang sudah <b>LUNAS</b> (dana taruna sudah masuk rekening Senat) dan dananya
