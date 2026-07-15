@@ -12,9 +12,15 @@ import type { Tagihan } from './tipe';
 
 export type TahapBayar =
   | 'BELUM_SETOR' | 'MENUNGGU_VERIF_1' | 'PERLU_VERIFIKASI_ANDA'
-  | 'MENUNGGU_VERIFIKATOR_LAIN' | 'SELESAI';
+  | 'MENUNGGU_VERIFIKATOR_LAIN' | 'LUNAS_MENUNGGU_TERUSKAN' | 'TUNTAS' | 'SELESAI';
 
 export function tahapBayar(t: Tagihan, userId?: string): TahapBayar {
+  // LUNAS = taruna sudah setor ke Senat → TARUNA TIDAK BERHUTANG. Sisa hutang
+  // hanya Senat → Penyedia, yang beres saat tgl_diteruskan_penyedia terisi
+  // (lewat panel "Konfirmasi Bank Sudah Proses" / tagihan.teruskan_penyedia).
+  if (t.status === 'LUNAS') {
+    return t.tgl_diteruskan_penyedia ? 'TUNTAS' : 'LUNAS_MENUNGGU_TERUSKAN';
+  }
   if (t.status !== 'TERTAGIH') return 'SELESAI';
   if (!t.tgl_setor) return 'BELUM_SETOR';
   if (!t.verif_1_oleh) return 'MENUNGGU_VERIF_1';
@@ -24,9 +30,11 @@ export function tahapBayar(t: Tagihan, userId?: string): TahapBayar {
 
 // Urutan paling-butuh-tindakan dulu: siap Anda verifikasi (final), lalu
 // menunggu verifikasi ke-1 (siapa saja), lalu belum disetor, lalu yang
-// murni menunggu ORANG LAIN (tak ada yang bisa Anda lakukan), lalu selesai.
+// murni menunggu ORANG LAIN, lalu lunas-menunggu-diteruskan (butuh tindakan
+// Senat/PPK), lalu tuntas (tak ada hutang), lalu selesai/lainnya.
 export const URUTAN_TAHAP: TahapBayar[] = [
-  'PERLU_VERIFIKASI_ANDA', 'MENUNGGU_VERIF_1', 'BELUM_SETOR', 'MENUNGGU_VERIFIKATOR_LAIN', 'SELESAI'
+  'PERLU_VERIFIKASI_ANDA', 'MENUNGGU_VERIF_1', 'BELUM_SETOR', 'MENUNGGU_VERIFIKATOR_LAIN',
+  'LUNAS_MENUNGGU_TERUSKAN', 'TUNTAS', 'SELESAI'
 ];
 
 export const INFO_TAHAP: Record<TahapBayar, { label: string; kartu: string; catatan?: string }> = {
@@ -37,6 +45,16 @@ export const INFO_TAHAP: Record<TahapBayar, { label: string; kartu: string; cata
     label: 'Sudah Anda Verifikasi — Menunggu Orang Lain',
     kartu: 'border-l-4 border-purple-300 opacity-75',
     catatan: '✅ Anda sudah verifikasi ke-1'
+  },
+  LUNAS_MENUNGGU_TERUSKAN: {
+    label: 'Lunas — Taruna Beres, Dana di Senat (belum diteruskan ke penyedia)',
+    kartu: 'border-l-4 border-teal-400',
+    catatan: '🎓 Taruna tidak berhutang · Senat masih pegang dana'
+  },
+  TUNTAS: {
+    label: 'Tuntas — Tidak Ada Hutang (dana sudah ke penyedia)',
+    kartu: 'border-l-4 border-green-500',
+    catatan: '✅ Taruna & Senat lunas, dana diteruskan ke penyedia'
   },
   SELESAI: { label: 'Selesai / Lainnya', kartu: '' }
 };

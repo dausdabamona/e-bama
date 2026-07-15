@@ -227,6 +227,11 @@ export function HalamanTagihanList() {
                               Kurang {formatRupiah(t.selisih_transfer)}
                             </span>
                           )}
+                          {t.status === 'LUNAS' && (
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-bold text-white ${t.tgl_diteruskan_penyedia ? 'bg-green-600' : 'bg-teal-500'}`}>
+                              {t.tgl_diteruskan_penyedia ? '✅ TUNTAS' : 'Menunggu diteruskan'}
+                            </span>
+                          )}
                         </div>
                       </Card>
                     </Link>

@@ -205,6 +205,21 @@ export function HalamanTagihanDetail() {
             pendebetan bulan depan.
           </p>
         )}
+        {t.status === 'LUNAS' && (
+          t.tgl_diteruskan_penyedia ? (
+            <p className="rounded-lg bg-green-50 p-2 text-sm text-green-800">
+              ✅ <b>TUNTAS — tidak ada hutang.</b> Taruna sudah lunas (setor ke Senat) dan dana
+              telah <b>diteruskan ke penyedia</b> pada {t.tgl_diteruskan_penyedia}. Senat pun tidak
+              lagi berhutang.
+            </p>
+          ) : (
+            <p className="rounded-lg bg-teal-50 p-2 text-sm text-teal-800">
+              🎓 <b>Taruna sudah lunas — tidak berhutang.</b> Dana masih di rekening Senat, <b>belum
+              diteruskan</b> ke penyedia. Setelah bank memproses penerusan, konfirmasi lewat{' '}
+              <b>"Konfirmasi Bank Sudah Proses"</b> agar berstatus TUNTAS (Senat tidak berhutang).
+            </p>
+          )
+        )}
       </Card>
 
       {t.status === 'TERTAGIH' && (
