@@ -2,7 +2,7 @@
 // (PKL/Magang/KPA/PTB). Menampilkan nomor rekening PENUH (TARUNA_REKENING via
 // cetak.form08) — SENGAJA TIDAK memakai useListCache/Dexie seperti form-07,
 // supaya data sensitif ini tidak pernah singgah di IndexedDB.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BulanPicker, bulanIni, labelBulan } from '../../components/bulan-picker';
 import { BlokTtd2Kolom } from '../../components/cetak/blok-ttd';
@@ -14,6 +14,7 @@ import { ErrorMessage } from '../../components/ui/error-message';
 import { Input } from '../../components/ui/input';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
 import { api } from '../../lib/api';
+import { useListCache } from '../../lib/use-list-cache';
 import { formatRupiah } from '../tagihan/tipe';
 
 interface BarisForm08 {
@@ -62,6 +63,14 @@ export function HalamanCetakForm08() {
   const [kegiatan, setKegiatan] = useState('');
   const { data, memuat, galat, refresh } = useTanpaCache<Form08Data>('cetak.form08', { bulan, kegiatan: kegiatan || undefined });
 
+  // Daftar Prodi utk dropdown "Program Studi" — dari taruna.list (hanya kolom
+  // prodi, bukan data rekening → boleh di-cache). Distinct + urut.
+  const tarunaQ = useListCache<{ taruna: { prodi: string }[] }>('taruna.list', {});
+  const daftarProdi = useMemo(
+    () => Array.from(new Set((tarunaQ.data?.taruna ?? []).map((t) => t.prodi).filter(Boolean))).sort(),
+    [tarunaQ.data],
+  );
+
   // ── Identitas kegiatan diisi manual — belum dilacak sistem (state lokal, TIDAK dikirim ke server) ──
   const [lokasi, setLokasi] = useState('');
   const [noSuratTugas, setNoSuratTugas] = useState('');
@@ -101,7 +110,14 @@ export function HalamanCetakForm08() {
             <Input label="Jenis Kegiatan / Lokasi Penempatan" value={lokasi} onChange={(e) => setLokasi(e.target.value)} />
             <Input label="Nomor Surat Tugas Direktur" value={noSuratTugas} onChange={(e) => setNoSuratTugas(e.target.value)} />
             <Input label="Jangka Waktu Kegiatan" value={jangkaWaktu} onChange={(e) => setJangkaWaktu(e.target.value)} placeholder="mis. 9 s/d 31 Maret 2026" />
-            <Input label="Program Studi" value={prodi} onChange={(e) => setProdi(e.target.value)} />
+            <div className="w-full">
+              <label className="mb-1 block text-sm font-medium text-gray-700">Program Studi</label>
+              <select value={prodi} onChange={(e) => setProdi(e.target.value)}
+                className="min-h-tap w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-base focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light">
+                <option value="">— pilih program studi —</option>
+                {daftarProdi.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
           </Card>
 
           <Card className="overflow-x-auto print:border-0 print:p-0 print:shadow-none">
