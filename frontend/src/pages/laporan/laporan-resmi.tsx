@@ -3,7 +3,7 @@
 // sudah dilacak e-BAMA (Dalam Kampus) terisi OTOMATIS; sisanya (DIPA/SK,
 // rencana anggaran, Luar Kampus, Pengusulan, narasi) diisi MANUAL di sini,
 // TIDAK tersimpan ke server — isi lagi tiap kali sebelum cetak.
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BulanPicker, bulanIni, labelBulan } from '../../components/bulan-picker';
 import { Button } from '../../components/ui/button';
@@ -91,11 +91,56 @@ export function HalamanLaporanResmi() {
   const totalRencana = rencanaHariEfektif && rencanaPenerima
     ? Math.round(Number(rencanaHariEfektif) * Number(rencanaPenerima) * rencanaBiaya) : 0;
 
+  const kontenRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Ekspor laporan yang sedang tampil ke file .doc yang dibuka MS Word.
+   * Pendekatan HTML-as-.doc (tanpa library): klon DOM laporan, ganti <input>
+   * dengan nilai ketikan, buang elemen hanya-layar, tampilkan kop cetak, lalu
+   * bungkus HTML kompatibel Word (baris label/nilai flex → sel tabel di Word).
+   */
+  function unduhWord() {
+    const el = kontenRef.current;
+    if (!el) return;
+    const klon = el.cloneNode(true) as HTMLElement;
+    klon.querySelectorAll('input').forEach((inp) => {
+      const span = document.createElement('span');
+      span.textContent = (inp as HTMLInputElement).value || '……';
+      inp.replaceWith(span);
+    });
+    klon.querySelectorAll('.print\\:hidden').forEach((n) => n.remove());   // hilangkan elemen hanya-layar
+    klon.querySelectorAll('.hidden').forEach((n) => (n as HTMLElement).classList.remove('hidden')); // tampilkan kop cetak
+    const html = `<!doctype html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>Laporan Resmi ${labelBulan(bulan)}</title>
+<style>
+  body{font-family:'Times New Roman',serif;font-size:11pt;color:#000;margin:0}
+  h1,h2{margin:4px 0;text-align:center}
+  p{margin:2px 0}
+  table{border-collapse:collapse;width:100%}
+  td,th{border:1px solid #000;padding:3px 6px;font-size:10pt;vertical-align:top}
+  /* Baris label/nilai (flex justify-between) → 2 kolom tabel supaya sejajar di Word */
+  div[class*="justify-between"]{display:table;width:100%;border-bottom:1px solid #ccc}
+  div[class*="justify-between"]>*{display:table-cell;padding:2px 0;vertical-align:top}
+  div[class*="justify-between"]>*:last-child{text-align:right;font-weight:bold}
+</style></head><body>${klon.innerHTML}</body></html>`;
+    const blob = new Blob(['﻿' + html], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Laporan-Resmi-${bulan}.doc`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between print:hidden">
         <button className="text-sm text-primary" onClick={() => nav('/laporan')}>← Kembali</button>
-        {data && <Button varian="garis" onClick={() => window.print()}>🖨️ Cetak</Button>}
+        {data && (
+          <div className="flex gap-2">
+            <Button varian="garis" onClick={unduhWord}>⬇️ Word</Button>
+            <Button varian="garis" onClick={() => window.print()}>🖨️ Cetak</Button>
+          </div>
+        )}
       </div>
       <h1 className="text-xl font-bold text-primary-dark print:hidden">Laporan Bulanan Resmi</h1>
       <div className="print:hidden"><BulanPicker bulan={bulan} onChange={setBulan} /></div>
