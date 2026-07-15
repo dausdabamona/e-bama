@@ -108,11 +108,22 @@ function SuratBlokirBank({ bank, rows, pejabat, rekSenat, rekSenatNama, lamaBlok
         ({rekSenat || '…… belum diisi Admin'}{rekSenatNama ? ` a.n. ${rekSenatNama}` : ''}). Tanda tangan
         taruna pada kolom terakhir merupakan pemberian kuasa kepada bank untuk mendebet sesuai nilai tersebut.
       </p>
-      <table className="w-full border-collapse text-xs">
+      <table className="w-full table-fixed border-collapse text-xs">
+        {/* Kolom Tanda Tangan sengaja PALING LEBAR (memanfaatkan ruang kertas)
+            supaya cukup untuk tanda tangan basah taruna. */}
+        <colgroup>
+          <col style={{ width: '4%' }} />
+          <col style={{ width: '13%' }} />
+          <col style={{ width: '19%' }} />
+          <col style={{ width: '8%' }} />
+          <col style={{ width: '16%' }} />
+          <col style={{ width: '12%' }} />
+          <col style={{ width: '28%' }} />
+        </colgroup>
         <thead>
           <tr>
             {['No', 'NIT', 'Nama Taruna', 'Bulan', 'No. Rekening', 'Nilai Debet (Rp)', 'Tanda Tangan Taruna (Kuasa Debet)'].map((h) => (
-              <th key={h} className="border border-gray-400 bg-[#D9E2F3] px-2 py-1 text-left font-semibold">{h}</th>
+              <th key={h} className="border border-gray-400 bg-[#D9E2F3] px-2 py-1 text-left align-top font-semibold">{h}</th>
             ))}
           </tr>
         </thead>

@@ -27,8 +27,8 @@ html, body {
  * Chrome/Edge; browser lain jatuh kembali ke default portrait).
  */
 @media print {
-  @page { size: A4 portrait; margin: 1.5cm 2cm 1.5cm 2.5cm; }
-  @page cetak-landscape { size: A4 landscape; margin: 1.5cm 2cm 1.5cm 2.5cm; }
+  @page { size: A4 portrait; margin: 1.2cm; }
+  @page cetak-landscape { size: A4 landscape; margin: 1.2cm; }
   .cetak-landscape { page: cetak-landscape; }
 
   header, nav, aside { display: none !important; }
