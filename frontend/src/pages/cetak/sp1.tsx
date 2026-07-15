@@ -1,8 +1,9 @@
-// /cetak/sp1 (PPK, Staf PPK, Admin) — CETAK MASSAL Surat Peringatan ke-1 (SP-1).
-// Merender setiap surat SP-1 taruna yang masih di level SP-1 (memakai NOMOR
-// SURAT RESMI yang sudah terbit di SURAT_PERINGATAN), sekali klik Cetak. Filter
-// layar default "belum setor ke Senat". Data SP tidak memuat rekening taruna
-// (hanya nominal + rekening Senat), jadi boleh di-cache seperti daftar biasa.
+// /cetak/sp1 (PPK, Staf PPK, Admin) — CETAK MASSAL Surat Peringatan SP-1/2/3.
+// Pemilih Level (SP-1/2/3) memuat surat taruna yang masih di level itu (memakai
+// NOMOR SURAT RESMI yang sudah terbit di SURAT_PERINGATAN), sekali klik Cetak.
+// Hasil DIBAGI PER BULAN: tiap bulan mulai di halaman baru dgn judul bulan.
+// Filter layar default "belum setor ke Senat". Data SP tidak memuat rekening
+// taruna (hanya nominal + rekening Senat), jadi boleh di-cache seperti biasa.
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { labelBulan } from '../../components/bulan-picker';
@@ -21,10 +22,13 @@ interface BarisSp1 {
 }
 interface RekBank { BNI?: string; BSI?: string }
 interface Sp1Data {
+  level?: number;
   bulan_filter: string;
   rekening_senat?: RekBank; rekening_senat_nama?: RekBank;
-  penandatangan: { nama: string; nip: string }; daftar: BarisSp1[];
+  penandatangan: { nama: string; nip: string; jabatan?: string }; daftar: BarisSp1[];
 }
+
+const KATA_LEVEL: Record<number, string> = { 1: 'PERTAMA', 2: 'KEDUA', 3: 'KETIGA' };
 
 /** Rangkai rekening Senat kedua bank → "BNI 2026715541 atau BSI 7339443046". */
 function rangkaiRekSenat(rek?: RekBank): string {
@@ -43,16 +47,24 @@ function tglIndo(s: string): string {
   return `${Number(p[2])} ${BULAN_ID[Number(p[1]) - 1]} ${p[0]}`;
 }
 
-/** Satu surat SP-1 utuh untuk satu taruna. */
-function SuratSp1({ b, rekSenat, rekSenatNama, pejabat, pisahHalaman }: {
-  b: BarisSp1; rekSenat: string; rekSenatNama: string; pejabat: Sp1Data['penandatangan']; pisahHalaman: boolean;
+/** Satu surat SP (level 1/2/3) utuh untuk satu taruna. `judulBulan` diisi hanya
+ *  pada surat PERTAMA tiap kelompok bulan → tampil sebagai penanda batch bulan. */
+function SuratSp1({ b, level, rekSenat, rekSenatNama, pejabat, judulBulan, pisahHalaman }: {
+  b: BarisSp1; level: number; rekSenat: string; rekSenatNama: string;
+  pejabat: Sp1Data['penandatangan']; judulBulan?: string; pisahHalaman: boolean;
 }) {
+  const kata = KATA_LEVEL[level] || 'PERTAMA';
   return (
     <div className={`${pisahHalaman ? 'break-before-page ' : ''}flex flex-col gap-2`}>
+      {judulBulan && (
+        <div className="rounded bg-primary-light px-3 py-1 text-center text-xs font-semibold text-primary-dark print:bg-transparent print:font-bold print:text-black print:underline">
+          Berkas Surat Peringatan Ke-{level} — Bulan {judulBulan}
+        </div>
+      )}
       <KopSurat />
       <div className="text-center">
-        <h2 className="text-sm font-bold underline">SURAT PERINGATAN PERTAMA (SP-1)</h2>
-        <p className="text-xs">Nomor: {b.no_surat || 'B. ______ /PKPS/SP1/…/2026'}</p>
+        <h2 className="text-sm font-bold underline">SURAT PERINGATAN {kata} (SP-{level})</h2>
+        <p className="text-xs">Nomor: {b.no_surat || `B. ______ /PKPS/SP${level}/…/2026`}</p>
       </div>
       <p className="text-right text-xs">Sorong, {tglIndo(b.tgl_terbit)}</p>
       <div className="text-xs">
@@ -68,14 +80,14 @@ function SuratSp1({ b, rekSenat, rekSenatNama, pejabat, pisahHalaman }: {
         (<em>{terbilangRupiah(b.nominal)}</em>). Sehubungan dengan hal tersebut, Saudara diminta
         segera menyetorkan dana dimaksud ke <strong>rekening Senat Taruna{rekSenatNama ? ` a.n. ${rekSenatNama}` : ''}
         {rekSenat ? ` (${rekSenat})` : ''}</strong>{' '}
-        selambat-lambatnya tanggal <strong>{tglIndo(b.tenggat)}</strong>. Apabila hingga batas waktu
-        tersebut kewajiban belum diselesaikan, akan diterbitkan Surat Peringatan berikutnya sesuai
-        ketentuan.
+        selambat-lambatnya tanggal <strong>{tglIndo(b.tenggat)}</strong>. {level < 3
+          ? 'Apabila hingga batas waktu tersebut kewajiban belum diselesaikan, akan diterbitkan Surat Peringatan berikutnya sesuai ketentuan.'
+          : 'Surat Peringatan ini merupakan peringatan TERAKHIR. Apabila hingga batas waktu tersebut kewajiban belum diselesaikan, akan diproses lebih lanjut sesuai ketentuan yang berlaku.'}
       </p>
       <p className="text-xs">Demikian surat peringatan ini disampaikan untuk dilaksanakan sebagaimana mestinya.</p>
       <div className="mt-4 flex justify-end">
         <div className="text-center text-xs">
-          <p>Pejabat Pembuat Komitmen,</p>
+          <p>{pejabat.jabatan || 'Pejabat Pembuat Komitmen'},</p>
           <div className="h-16" />
           <p className="font-semibold underline">{pejabat.nama}</p>
           <p>NIP {pejabat.nip}</p>
@@ -87,7 +99,8 @@ function SuratSp1({ b, rekSenat, rekSenatNama, pejabat, pisahHalaman }: {
 
 export function HalamanCetakSp1() {
   const nav = useNavigate();
-  const { data, memuat, galat, refresh } = useListCache<Sp1Data>('sp.cetak_massal', {});
+  const [level, setLevel] = useState(1);
+  const { data, memuat, galat, refresh } = useListCache<Sp1Data>('sp.cetak_massal', { level });
   const [filterSetor, setFilterSetor] = useState<'belum' | 'semua'>('belum');
   const [filterBulan, setFilterBulan] = useState('');
 
@@ -101,54 +114,79 @@ export function HalamanCetakSp1() {
       .filter((b) => !filterBulan || b.bulan === filterBulan);
   }, [data, filterSetor, filterBulan]);
 
+  // Bagi per bulan (urut bulan menaik) — tiap bulan jadi kelompok tersendiri.
+  const grupBulan = useMemo(() => {
+    const map = new Map<string, BarisSp1[]>();
+    tampil.forEach((b) => { if (!map.has(b.bulan)) map.set(b.bulan, []); map.get(b.bulan)!.push(b); });
+    return Array.from(map.entries())
+      .sort((a, c) => a[0].localeCompare(c[0]))
+      .map(([bulan, rows]) => ({ bulan, rows }));
+  }, [tampil]);
+
+  const levelEfektif = data?.level ?? level;
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between print:hidden">
         <button className="text-sm text-primary" onClick={() => nav(-1)}>← Kembali</button>
-        {data && tampil.length > 0 && <Button varian="garis" onClick={() => window.print()}>🖨️ Cetak {tampil.length} SP-1</Button>}
+        {data && tampil.length > 0 && <Button varian="garis" onClick={() => window.print()}>🖨️ Cetak {tampil.length} SP-{levelEfektif}</Button>}
       </div>
-      <h1 className="text-xl font-bold text-primary-dark print:hidden">Cetak Massal Surat Peringatan ke-1 (SP-1)</h1>
+      <h1 className="text-xl font-bold text-primary-dark print:hidden">Cetak Massal Surat Peringatan (SP-1/2/3)</h1>
       <p className="text-xs text-gray-500 print:hidden">
-        Memakai nomor surat SP-1 yang <strong>sudah terbit</strong> di sistem — bukan menerbitkan nomor
-        baru. Hanya taruna yang masih di level SP-1 (belum naik SP-2/3). Tiap surat dicetak di halaman sendiri.
+        Memakai nomor surat yang <strong>sudah terbit</strong> di sistem — bukan menerbitkan nomor baru.
+        Hanya taruna yang masih di level yang dipilih. Hasil <strong>dibagi per bulan</strong> (tiap bulan
+        mulai di halaman baru). Tiap surat dicetak di halaman sendiri.
       </p>
 
       <div className="flex flex-wrap gap-4 print:hidden">
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <span>Level:</span>
+          <select value={level} onChange={(e) => setLevel(Number(e.target.value))}
+            className="min-h-tap rounded-xl border border-gray-300 px-3 py-1.5 text-sm">
+            <option value={1}>SP-1</option>
+            <option value={2}>SP-2</option>
+            <option value={3}>SP-3</option>
+          </select>
+        </label>
         <label className="flex items-center gap-2 text-sm text-gray-700">
           <span>Tampilkan:</span>
           <select value={filterSetor} onChange={(e) => setFilterSetor(e.target.value as 'belum' | 'semua')}
             className="min-h-tap rounded-xl border border-gray-300 px-3 py-1.5 text-sm">
             <option value="belum">Belum setor ke Senat</option>
-            <option value="semua">Semua SP-1</option>
+            <option value="semua">Semua SP-{level}</option>
           </select>
         </label>
         <label className="flex items-center gap-2 text-sm text-gray-700">
           <span>Bulan:</span>
           <select value={filterBulan} onChange={(e) => setFilterBulan(e.target.value)}
             className="min-h-tap rounded-xl border border-gray-300 px-3 py-1.5 text-sm">
-            <option value="">Semua bulan</option>
+            <option value="">Semua bulan (dibagi per bulan)</option>
             {daftarBulan.map((b) => <option key={b} value={b}>{labelBulan(b)}</option>)}
           </select>
         </label>
       </div>
 
-      {memuat && !data && <LoadingSpinner label="Memuat data SP-1…" />}
+      {memuat && !data && <LoadingSpinner label={`Memuat data SP-${level}…`} />}
       {galat && !data && <ErrorMessage pesan={galat} onRetry={refresh} />}
       {data && tampil.length === 0 && (
         <EmptyState pesan={filterSetor === 'belum'
-          ? 'Tidak ada taruna SP-1 yang belum menyetor untuk filter ini.'
-          : 'Tidak ada surat SP-1 untuk filter ini.'} />
+          ? `Tidak ada taruna SP-${levelEfektif} yang belum menyetor untuk filter ini.`
+          : `Tidak ada surat SP-${levelEfektif} untuk filter ini.`} />
       )}
 
       {data && tampil.length > 0 && (
         <div className="flex flex-col gap-4">
-          <p className="text-xs text-gray-500 print:hidden">{tampil.length} surat SP-1 siap dicetak.</p>
-          {tampil.map((b, i) => (
-            <SuratSp1 key={`${b.nit}|${b.no_surat}`} b={b}
+          <p className="text-xs text-gray-500 print:hidden">
+            {tampil.length} surat SP-{levelEfektif} siap dicetak · dibagi {grupBulan.length} bulan.
+          </p>
+          {grupBulan.flatMap((g, gi) => g.rows.map((b, i) => (
+            <SuratSp1 key={`${b.nit}|${b.no_surat}`} b={b} level={levelEfektif}
               rekSenat={rangkaiRekSenat(data.rekening_senat)}
               rekSenatNama={data.rekening_senat_nama?.BNI || data.rekening_senat_nama?.BSI || ''}
-              pejabat={data.penandatangan} pisahHalaman={i > 0} />
-          ))}
+              pejabat={data.penandatangan}
+              judulBulan={i === 0 ? labelBulan(g.bulan) : undefined}
+              pisahHalaman={!(gi === 0 && i === 0)} />
+          )))}
         </div>
       )}
     </div>

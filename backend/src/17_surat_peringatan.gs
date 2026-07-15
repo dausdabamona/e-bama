@@ -160,28 +160,33 @@ function tagihanRegenerateSp(payload, session) {
 }
 
 /**
- * sp.cetak_massal {bulan?} — data untuk CETAK MASSAL surat SP-1 di aplikasi
- * (halaman React /cetak/sp1), READ-ONLY. Mengumpulkan tagihan TERTAGIH yang
- * level aktifnya masih SP-1, memakai NOMOR SURAT SP-1 yang SUDAH terbit di
- * SURAT_PERINGATAN (TIDAK membuat nomor baru — beda dari tagihan.regenerate_sp).
- * Frontend memfilter di layar (belum setor / semua) & mencetak sekaligus.
+ * sp.cetak_massal {bulan?, level?} — data untuk CETAK MASSAL surat SP di
+ * aplikasi (halaman React /cetak/sp1), READ-ONLY. `level` 1/2/3 (default 1) →
+ * mengumpulkan tagihan TERTAGIH yang level aktifnya = level tsb, memakai NOMOR
+ * SURAT level itu yang SUDAH terbit di SURAT_PERINGATAN (TIDAK membuat nomor
+ * baru — beda dari tagihan.regenerate_sp). Penandatangan mengikuti level
+ * (SP-1/2 = PPK, SP-3 = KPA, via getKebijakanSP().PENANDATANGAN).
+ * Frontend memfilter di layar (belum setor / semua), MEMBAGI per bulan, & mencetak sekaligus.
  * Surat SP hanya memuat nominal + rekening Senat (BUKAN rekening taruna), jadi
  * tanpa audit khusus & boleh di-cache (beda dari Form-07/08/10). Bila `bulan`
  * diisi, hanya bulan itu; kosong = semua bulan. Roles: PPK/STAF_PPK/ADMIN.
  */
 function spCetakMassal(payload, session) {
   var bulanFilter = payload && payload.bulan ? _bulanStr_(payload.bulan) : '';
+  // Level SP yang dicetak (1/2/3). Default 1 (kompatibel pemanggilan lama).
+  var level = Number(payload && payload.level) || 1;
+  if ([1, 2, 3].indexOf(level) < 0) throw _fail_('level harus 1, 2, atau 3.');
 
-  // SP-1 per tagihan — kalau pernah diterbitkan ulang, ambil yang tgl_terbit
-  // paling baru (no_surat terbaru yang sah).
-  var sp1ByTagihan = {};
-  sheetRead(SHEETS.SURAT_PERINGATAN, function (s) { return Number(s.level) === 1; })
+  // Surat level ini per tagihan — kalau pernah diterbitkan ulang, ambil yang
+  // tgl_terbit paling baru (no_surat terbaru yang sah).
+  var spByTagihan = {};
+  sheetRead(SHEETS.SURAT_PERINGATAN, function (s) { return Number(s.level) === level; })
     .forEach(function (s) {
       var id = String(s.tagihan_id);
       var tgl = _tglStr_(s.tgl_terbit);
-      var ada = sp1ByTagihan[id];
+      var ada = spByTagihan[id];
       if (!ada || tgl >= ada.tgl_terbit) {
-        sp1ByTagihan[id] = { no_surat: s.no_surat, tgl_terbit: tgl, tenggat: _tglStr_(s.tenggat) };
+        spByTagihan[id] = { no_surat: s.no_surat, tgl_terbit: tgl, tenggat: _tglStr_(s.tenggat) };
       }
     });
 
@@ -190,10 +195,10 @@ function spCetakMassal(payload, session) {
 
   var daftar = [];
   _tagihanJoin_().forEach(function (t) {
-    if (t.status !== 'TERTAGIH' || t.level_aktif !== 1) return;   // hanya yg masih SP-1
+    if (t.status !== 'TERTAGIH' || t.level_aktif !== level) return;   // hanya yg masih di level ini
     if (bulanFilter && t.bulan !== bulanFilter) return;
-    var sp = sp1ByTagihan[String(t.tagihan_id)];
-    if (!sp) return;                                              // belum ada SP-1 tercatat
+    var sp = spByTagihan[String(t.tagihan_id)];
+    if (!sp) return;                                                  // belum ada surat level ini tercatat
     var tr = tarunaByNit[String(t.nit)] || {};
     daftar.push({
       nit: String(t.nit), nama: tr.nama || '', prodi: tr.prodi || '', tingkat: tr.tingkat || '',
@@ -210,18 +215,21 @@ function spCetakMassal(payload, session) {
   });
 
   var kb = getKebijakanSP();
-  var pej = PEJABAT[kb.PENANDATANGAN['1']] || PEJABAT.PPK;
+  var peranTtd = kb.PENANDATANGAN[String(level)] || 'PPK';     // SP-1/2 = PPK, SP-3 = KPA (default)
+  var pej = PEJABAT[peranTtd] || PEJABAT.PPK;
+  var JABATAN_TTD = { PPK: 'Pejabat Pembuat Komitmen', KPA: 'Kuasa Pengguna Anggaran' };
   // Rekening tujuan setor taruna = rekening Senat, SUMBER SAMA dgn Form-07/09
   // (getRekeningInstansi — bukan Script Property REK_SENAT lama yg tak pernah
-  // diisi, itu sebabnya nomor rekening tak muncul di SP-1). Kedua bank
+  // diisi, itu sebabnya nomor rekening tak muncul di SP). Kedua bank
   // ditampilkan supaya taruna bisa setor ke bank mana pun.
   var rek = getRekeningInstansi();
 
   return {
+    level: level,
     bulan_filter: bulanFilter,
     rekening_senat: rek.senat,             // {BNI, BSI}
     rekening_senat_nama: rek.senat_nama,   // {BNI, BSI}
-    penandatangan: { nama: pej.nama, nip: pej.nip },
+    penandatangan: { nama: pej.nama, nip: pej.nip, jabatan: JABATAN_TTD[peranTtd] || peranTtd },
     daftar: daftar
   };
 }
