@@ -217,6 +217,82 @@ function _hariLuarPerNitBulan_(bulan) {
 }
 
 /**
+ * MIGRASI (Tahap 5, ADMIN, sekali jalan): kolaps baris STATUS_HARIAN berstatus
+ * luar kampus menjadi baris PERIODE_LUAR (rentang berurutan). Hari yang
+ * berturut-turut per (nit, status) digabung jadi satu periode; jeda (mis. hadir
+ * di tengah PKL) memecah jadi periode terpisah — hari efektif TETAP SAMA.
+ * Menghapus baris legacy dengan MENULIS ULANG sheet (bukan deleteRow per baris —
+ * itu timeout utk ribuan baris). Payload {dry_run?} untuk pratinjau tanpa ubah.
+ * Aman diulang: pembacaan hari selalu dedup per-tanggal, jadi duplikat (bila
+ * pernah gagal separuh) tak menggandakan angka.
+ */
+function migrasiLuarKePeriode(payload, session) {
+  if (!session || session.role !== 'ADMIN') throw _fail_('Hanya ADMIN yang boleh migrasi periode.');
+  var dryRun = !!(payload && payload.dry_run);
+
+  return withLock(function () {
+    var sh = _sheet_(SHEETS.STATUS_HARIAN);
+    var lastCol = sh.getLastColumn();
+    var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    var last = sh.getLastRow();
+    var data = last >= 2 ? sh.getRange(2, 1, last - 1, lastCol).getValues() : [];
+    var iTgl = headers.indexOf('tanggal'), iNit = headers.indexOf('nit'), iStatus = headers.indexOf('status');
+
+    var luar = [], keep = [];
+    data.forEach(function (row) {
+      if (STATUS_LUAR_KAMPUS.indexOf(row[iStatus]) >= 0) luar.push(row); else keep.push(row);
+    });
+    if (!luar.length) return { migrasi: 0, periode: 0, sisa_status_harian: keep.length };
+
+    // Kelompokkan per (nit, status) → tanggal urut unik.
+    var grup = {};
+    luar.forEach(function (row) {
+      var key = String(row[iNit]) + '|' + row[iStatus];
+      if (!grup[key]) grup[key] = { nit: String(row[iNit]), status: row[iStatus], tgls: [] };
+      grup[key].tgls.push(_tglStr_(row[iTgl]));
+    });
+
+    // Kolaps hari berturut-turut jadi rentang.
+    var periodeBaru = [];
+    Object.keys(grup).forEach(function (k) {
+      var g = grup[k];
+      var uniq = [];
+      g.tgls.slice().sort().forEach(function (t) { if (uniq[uniq.length - 1] !== t) uniq.push(t); });
+      var runStart = uniq[0], prev = uniq[0];
+      for (var i = 1; i <= uniq.length; i++) {
+        var cur = uniq[i];
+        if (cur && _tambahHari_(prev, 1) === cur) { prev = cur; continue; }
+        periodeBaru.push({ nit: g.nit, status: g.status, tgl_mulai: runStart, tgl_akhir: prev });
+        runStart = cur; prev = cur;
+      }
+    });
+
+    if (dryRun) {
+      return {
+        dry_run: true, luar_rows: luar.length, periode: periodeBaru.length,
+        sisa_status_harian: keep.length, contoh: periodeBaru.slice(0, 8)
+      };
+    }
+
+    // 1) Tambah periode dulu (bila gagal separuh, union read tetap benar).
+    var now = new Date();
+    periodeBaru.forEach(function (p) {
+      sheetAppend(SHEETS.PERIODE_LUAR, {
+        periode_id: nextId('PLR'), nit: p.nit, status: p.status,
+        tgl_mulai: p.tgl_mulai, tgl_akhir: p.tgl_akhir, input_by: session.user_id, timestamp: now
+      });
+    });
+    // 2) Tulis ulang STATUS_HARIAN hanya baris non-luar (hapus legacy luar).
+    if (last >= 2) sh.getRange(2, 1, last - 1, lastCol).clearContent();
+    if (keep.length) sh.getRange(2, 1, keep.length, lastCol).setValues(keep);
+
+    auditLog(session, 'luar.migrasi_periode', 'STATUS_HARIAN', null,
+      { luar_rows: luar.length }, { periode: periodeBaru.length, sisa: keep.length });
+    return { migrasi: luar.length, periode: periodeBaru.length, sisa_status_harian: keep.length };
+  });
+}
+
+/**
  * Set NIT yang TIDAK makan di kampus pada satu tanggal = STATUS_HARIAN (SEMUA
  * status: pesiar/cuti/sakit/luar/dst) ∪ PERIODE_LUAR yang mencakup tanggal.
  * Dipakai konsumen HARIAN pesanan (hitung jml_taruna, derivasi porsi) agar

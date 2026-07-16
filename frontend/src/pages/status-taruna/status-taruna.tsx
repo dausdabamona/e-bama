@@ -2,6 +2,8 @@
 // massal per kelas; BAAK juga pakai ini untuk surat taruna keluar kampus
 // (PKL) & surat penarikan kembali, lampirkan lewat "Surat Pendukung".
 import { useMemo, useState } from 'react';
+import { useAuth } from '../../auth/auth-context';
+import { api } from '../../lib/api';
 import { ambilFotoInput, kompresFotoBase64 } from '../../lib/foto';
 import { aksiTulis } from '../../lib/sync';
 import { Badge } from '../../components/ui/badge';
@@ -173,6 +175,8 @@ export function HalamanStatusTaruna() {
     <div className="flex flex-col gap-4">
       <h1 className="text-xl font-bold text-primary-dark">Status Taruna</h1>
 
+      <KartuMigrasiPeriode />
+
       <Card className="flex flex-col gap-3">
         <div className="flex gap-2">
           <Button varian={mode === 'individu' ? 'utama' : 'garis'} className="flex-1" onClick={() => setMode('individu')}>Individu</Button>
@@ -307,5 +311,71 @@ export function HalamanStatusTaruna() {
           })}
       </div>
     </div>
+  );
+}
+
+interface HasilMigrasi {
+  dry_run?: boolean; luar_rows?: number; periode?: number; sisa_status_harian?: number;
+  migrasi?: number; contoh?: { nit: string; status: string; tgl_mulai: string; tgl_akhir: string }[];
+}
+
+/** ADMIN saja: migrasi baris STATUS_HARIAN luar kampus (per hari) → PERIODE_LUAR
+ * (rentang). Dry-run dulu untuk pratinjau, lalu jalankan. */
+function KartuMigrasiPeriode() {
+  const { session } = useAuth();
+  const { toast } = useToast();
+  const [pratinjau, setPratinjau] = useState<HasilMigrasi | null>(null);
+  const [proses, setProses] = useState(false);
+  if (session?.role !== 'ADMIN') return null;
+
+  async function jalankan(dryRun: boolean) {
+    if (!dryRun && !window.confirm(
+      'Migrasi akan mengubah baris STATUS_HARIAN luar kampus (per hari) menjadi PERIODE_LUAR (rentang) dan menghapus baris harian tsb. Hari efektif tetap sama. Lanjut?'
+    )) return;
+    setProses(true);
+    try {
+      const r = await api<HasilMigrasi>('luar.migrasi_periode', { dry_run: dryRun });
+      if (dryRun) {
+        setPratinjau(r);
+        toast(`Pratinjau: ${r.luar_rows} baris → ${r.periode} periode (sisa harian ${r.sisa_status_harian}).`, 'sukses');
+      } else {
+        setPratinjau(null);
+        toast(`Migrasi selesai: ${r.migrasi} baris → ${r.periode} periode.`, 'sukses');
+      }
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
+    } finally {
+      setProses(false);
+    }
+  }
+
+  return (
+    <Card className="flex flex-col gap-2 border-amber-200 bg-amber-50/40">
+      <p className="text-sm font-semibold text-amber-800">🛠️ Migrasi Luar Kampus → Periode (Admin, sekali jalan)</p>
+      <p className="text-xs text-gray-600">
+        Mengubah status luar kampus (PKL/KPA/Magang/PTB) dari per-hari menjadi 1 baris periode per taruna — hemat &amp;
+        cepat. Hari efektif tidak berubah. Klik <b>Pratinjau</b> dulu.
+      </p>
+      {pratinjau && (
+        <div className="rounded-lg bg-white p-2 text-xs text-gray-700">
+          <p><b>{pratinjau.luar_rows}</b> baris harian luar kampus → <b>{pratinjau.periode}</b> periode · sisa harian non-luar: {pratinjau.sisa_status_harian}</p>
+          {pratinjau.contoh && pratinjau.contoh.length > 0 && (
+            <ul className="mt-1 list-disc pl-4">
+              {pratinjau.contoh.map((c, i) => (
+                <li key={i}>{c.nit} · {c.status.replace(/_/g, ' ')} · {c.tgl_mulai} s.d {c.tgl_akhir}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <Button varian="garis" className="flex-1" disabled={proses} onClick={() => void jalankan(true)}>
+          {proses ? '…' : '🔍 Pratinjau'}
+        </Button>
+        <Button className="flex-1" disabled={proses || !pratinjau || !pratinjau.periode} onClick={() => void jalankan(false)}>
+          {proses ? 'Memproses…' : 'Jalankan Migrasi'}
+        </Button>
+      </div>
+    </Card>
   );
 }

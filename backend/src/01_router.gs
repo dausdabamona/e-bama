@@ -40,6 +40,7 @@ var ACTION_MAP = {
   'status.batch':     { handler: statusBatch,    roles: ['ADMIN', 'PEMBINA', 'BAAK'] },
   'status.list':      { handler: statusList,     roles: [] },
   'status.tandai_kembali': { handler: statusTandaiKembali, roles: ['ADMIN', 'PEMBINA', 'BAAK'] },
+  'luar.migrasi_periode': { handler: migrasiLuarKePeriode, roles: ['ADMIN'] },
 
   // Ketua Jurusan (luar kampus) — role KETUA_JURUSAN, scope prodi (25_ketua_jurusan.gs)
   'kajur.taruna_list':  { handler: kajurTarunaList,  roles: ['KETUA_JURUSAN'] },
