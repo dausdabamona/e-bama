@@ -84,11 +84,8 @@ function kajurStatusBatch(payload, session) {
     ? _daftarTanggal_(tanggal, _wajibTgl_(payload.tgl_akhir, 'tgl_akhir'))
     : [tanggal];
   return withLock(function () {
-    var n = 0;
-    daftar.forEach(function (nit) {
-      daftarTgl.forEach(function (t) { _statusUpsert_(session, t, String(nit).trim(), status); n++; });
-    });
-    return { jml: n };
+    // Tulis MASSAL sekali jalan (hindari timeout: 25 taruna × 30 hari = 750 baris).
+    return _statusTulisBatch_(session, daftarTgl, daftar, status, 'kajur.status_batch');
   });
 }
 

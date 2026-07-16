@@ -80,6 +80,73 @@ function _statusUpsert_(session, tanggal, nit, status) {
 }
 
 /**
+ * Tulis status MASSAL (banyak nit × banyak tanggal) dalam SATU operasi — hindari
+ * O(n²) yang membuat input sekelas/serentang bulan TIMEOUT. Baca STATUS_HARIAN
+ * sekali, kumpulkan baris baru + update di memori, tulis sekali (setValues),
+ * dan catat SATU baris AUDIT_LOG ringkas (bukan per baris). Dipakai statusBatch
+ * & kajurStatusBatch. Panggil DI DALAM withLock (baca-ubah-tulis rawan balapan).
+ */
+function _statusTulisBatch_(session, daftarTgl, nitList, status, aksiLabel) {
+  if (ENUM.STATUS_HARIAN.indexOf(status) < 0) {
+    throw _fail_('status harus salah satu: ' + ENUM.STATUS_HARIAN.join(' / '));
+  }
+  var tarunaSet = {};
+  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaSet[String(t.nit)] = true; });
+  var nits = nitList.map(function (n) { return String(n).trim(); });
+  nits.forEach(function (nit) { if (!tarunaSet[nit]) throw _fail_('Taruna tidak ditemukan: ' + nit); });
+
+  var sh = _sheet_(SHEETS.STATUS_HARIAN);
+  var lastCol = sh.getLastColumn();
+  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  var last = sh.getLastRow();
+  var data = last >= 2 ? sh.getRange(2, 1, last - 1, lastCol).getValues() : [];
+  var iTgl = headers.indexOf('tanggal'), iNit = headers.indexOf('nit'),
+      iStatus = headers.indexOf('status'), iInputBy = headers.indexOf('input_by'),
+      iTs = headers.indexOf('timestamp');
+
+  var idx = {}; // 'tgl|nit' -> index di data (>=0), atau -1 bila baris baru sudah diantrikan
+  for (var i = 0; i < data.length; i++) {
+    idx[_tglStr_(data[i][iTgl]) + '|' + String(data[i][iNit])] = i;
+  }
+
+  var now = new Date();
+  var barisBaru = [];
+  var adaUpdate = false, jmlBaru = 0, jmlUbah = 0;
+  nits.forEach(function (nit) {
+    daftarTgl.forEach(function (t) {
+      var key = t + '|' + nit;
+      var pos = idx[key];
+      if (pos === undefined) {
+        var nilai = {
+          status_id: nextId('STH'), tanggal: t, nit: nit, status: status,
+          input_by: session.user_id, timestamp: now
+        };
+        barisBaru.push(headers.map(function (h) { return nilai[h] !== undefined ? nilai[h] : ''; }));
+        idx[key] = -1;
+        jmlBaru++;
+      } else if (pos >= 0) {
+        var r = data[pos];
+        r[iStatus] = status;
+        if (iInputBy >= 0) r[iInputBy] = session.user_id;
+        if (iTs >= 0) r[iTs] = now;
+        adaUpdate = true;
+        jmlUbah++;
+      } // pos === -1: sudah diantrikan di batch ini → lewati
+    });
+  });
+
+  if (adaUpdate && data.length) sh.getRange(2, 1, data.length, lastCol).setValues(data);
+  if (barisBaru.length) sh.getRange(sh.getLastRow() + 1, 1, barisBaru.length, lastCol).setValues(barisBaru);
+
+  // Satu baris AUDIT_LOG ringkas untuk seluruh batch (bukan per baris → cepat).
+  auditLog(session, aksiLabel || 'status.batch', 'STATUS_HARIAN', null, null, {
+    status: status, jml_baru: jmlBaru, jml_ubah: jmlUbah,
+    tgl_dari: daftarTgl[0], tgl_sampai: daftarTgl[daftarTgl.length - 1], nit: nits
+  });
+  return { jml: jmlBaru + jmlUbah, jml_baru: jmlBaru, jml_ubah: jmlUbah };
+}
+
+/**
  * Set status satu taruna. Payload {tanggal, nit, status, berkas?, tgl_akhir?}.
  * `tgl_akhir` opsional → isi rentang tanggal, satu baris STATUS_HARIAN per hari
  * (mis. cuti 2 minggu sekali input, bukan per hari).
@@ -117,18 +184,20 @@ function statusBatch(payload, session) {
         ? _daftarTanggal_(tanggal, _horizonTanpaKeterangan_(tanggal))
         : [tanggal]);
 
-  var hasil = [];
-  daftar.forEach(function (nit) {
-    daftarTgl.forEach(function (t) {
-      hasil.push(_statusUpsert_(session, t, String(nit).trim(), status));
-    });
+  return withLock(function () {
+    var r = _statusTulisBatch_(session, daftarTgl, daftar, status, 'status.batch');
+    if (payload.berkas && payload.berkas.base64) {
+      // Satu surat pendukung untuk batch → tautkan ke entri pertama (tgl & nit awal).
+      var pertama = sheetRead(SHEETS.STATUS_HARIAN, function (row) {
+        return _tglStr_(row.tanggal) === daftarTgl[0] && String(row.nit) === String(daftar[0]).trim();
+      })[0];
+      if (pertama) {
+        lampiranSave(session, 'STATUS_HARIAN', pertama.status_id,
+          payload.berkas.jenis || 'SURAT', payload.berkas.base64, payload.berkas.nama_file);
+      }
+    }
+    return { jml: r.jml };
   });
-  if (payload.berkas && payload.berkas.base64 && hasil.length) {
-    // Satu surat pendukung untuk batch → tautkan ke entri pertama
-    lampiranSave(session, 'STATUS_HARIAN', hasil[0].status_id,
-      payload.berkas.jenis || 'SURAT', payload.berkas.base64, payload.berkas.nama_file);
-  }
-  return { jml: hasil.length };
 }
 
 /** Daftar status per rentang tanggal: {dari, sampai, nit?}. */
