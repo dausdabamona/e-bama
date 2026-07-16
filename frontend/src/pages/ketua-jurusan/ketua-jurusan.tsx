@@ -3,6 +3,7 @@
 // (BANTUAN_LUAR_KAMPUS DRAFT→DISETUJUI_KAJUR). Semua di-scope ke prodi akun oleh
 // backend (25_ketua_jurusan.gs); frontend hanya menyajikan.
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { BulanPicker, bulanIni, labelBulan } from '../../components/bulan-picker';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
@@ -431,7 +432,12 @@ export function HalamanKetuaJurusan() {
 
       {/* ── Rekap bulan ── */}
       <Card className="flex flex-col gap-2 overflow-x-auto">
-        <p className="text-sm font-semibold text-gray-700">Rekap Luar Kampus — {labelBulan(bulan)}</p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold text-gray-700">Rekap Luar Kampus — {labelBulan(bulan)}</p>
+          {baris.length > 0 && (
+            <Link to={`/luar-kampus-kajur/cetak/${bulan}`} className="text-sm text-primary underline">🖨️ Cetak Rekap</Link>
+          )}
+        </div>
         {rekapQ.memuat && !rekapQ.data && <LoadingSpinner label="Memuat rekap…" />}
         {rekapQ.galat && !rekapQ.data && <ErrorMessage pesan={rekapQ.galat} onRetry={rekapQ.refresh} />}
         {rekapQ.data && baris.length === 0 && <EmptyState pesan="Belum ada aktivitas luar kampus bulan ini." />}

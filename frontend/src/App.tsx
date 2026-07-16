@@ -37,6 +37,7 @@ import { HalamanPembayaran } from './pages/pembayaran/pembayaran';
 import { HalamanPengguna } from './pages/pengguna/pengguna';
 import { HalamanPenyediaPortal } from './pages/penyedia-portal/penyedia-portal';
 import { HalamanKetuaJurusan } from './pages/ketua-jurusan/ketua-jurusan';
+import { HalamanCetakRekapKajur } from './pages/ketua-jurusan/cetak-rekap-kajur';
 import { HalamanPesananList } from './pages/pesanan/pesanan-list';
 import { HalamanPesananBuat } from './pages/pesanan/pesanan-buat';
 import { HalamanPesananDetail } from './pages/pesanan/pesanan-detail';
@@ -121,6 +122,7 @@ export default function App() {
               <Route path="/penyedia-portal" element={<WajibLogin roles={['PENYEDIA']}><HalamanPenyediaPortal /></WajibLogin>} />
               {/* Ketua Jurusan — input absen luar kampus + approve rekap (scope prodi) */}
               <Route path="/luar-kampus-kajur" element={<WajibLogin roles={['KETUA_JURUSAN']}><HalamanKetuaJurusan /></WajibLogin>} />
+              <Route path="/luar-kampus-kajur/cetak/:bulan" element={<WajibLogin roles={['KETUA_JURUSAN']}><HalamanCetakRekapKajur /></WajibLogin>} />
               {/* Admin, PPK, KPA, Wadir3 */}
               <Route path="/audit" element={<WajibLogin roles={['ADMIN', 'PPK', 'STAF_PPK', 'KPA', 'WADIR3']}><HalamanAudit /></WajibLogin>} />
               {/* Semua role */}
