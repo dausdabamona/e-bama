@@ -1804,6 +1804,73 @@ function _statusTulisBatch_(session, daftarTgl, nitList, status, aksiLabel) {
   return { jml: jmlBaru + jmlUbah, jml_baru: jmlBaru, jml_ubah: jmlUbah };
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// MODEL PERIODE LUAR KAMPUS (Tahap 2) — helper BACA terpadu.
+// Menggabungkan PERIODE_LUAR (1 baris/taruna/periode) + STATUS_HARIAN luar
+// kampus LEGACY (per hari) sehingga data lama tetap benar selama transisi.
+// BELUM dipakai konsumen (itu Tahap 4) — aman ditambah.
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Baca PERIODE_LUAR → [{periode_id, nit, status, tgl_mulai, tgl_akhir}]. */
+function _periodeLuarRows_() {
+  return sheetRead(SHEETS.PERIODE_LUAR).map(function (r) {
+    return {
+      periode_id: r.periode_id, nit: String(r.nit), status: r.status,
+      tgl_mulai: _tglStr_(r.tgl_mulai), tgl_akhir: _tglStr_(r.tgl_akhir)
+    };
+  });
+}
+
+/**
+ * NIT yang sedang luar kampus pada satu tanggal — GABUNGAN periode (rentang
+ * mencakup tanggal) + STATUS_HARIAN legacy. Kembalikan map { nit: status }.
+ * Dipakai konsumen HARIAN (pengecualian pesanan, rekap harian).
+ */
+function _nitLuarPadaTanggal_(tanggal) {
+  var t = _tglStr_(tanggal);
+  var set = {};
+  _periodeLuarRows_().forEach(function (p) {
+    if (p.tgl_mulai && p.tgl_akhir && p.tgl_mulai <= t && t <= p.tgl_akhir) set[p.nit] = p.status;
+  });
+  sheetRead(SHEETS.STATUS_HARIAN, function (r) {
+    return _tglStr_(r.tanggal) === t && STATUS_LUAR_KAMPUS.indexOf(r.status) >= 0;
+  }).forEach(function (r) { set[String(r.nit)] = r.status; });
+  return set;
+}
+
+/**
+ * Jumlah HARI luar kampus per NIT pada satu bulan — GABUNGAN periode (irisan
+ * rentang × bulan) + STATUS_HARIAN legacy, dihitung HARI UNIK (tak dobel bila
+ * keduanya kebetulan ada). Kembalikan map { nit: {hari, status} }.
+ * Dipakai konsumen BULANAN (kajur.rekap, Form-08).
+ */
+function _hariLuarPerNitBulan_(bulan) {
+  var awal = bulan + '-01';
+  var p = bulan.split('-');
+  var akhir = _tglStr_(new Date(Number(p[0]), Number(p[1]), 0)); // hari terakhir bulan
+  var byNit = {}; // nit -> { dates:{tgl:true}, status:'' }
+  function tambah(nit, tgl, status) {
+    if (!byNit[nit]) byNit[nit] = { dates: {}, status: status || '' };
+    byNit[nit].dates[tgl] = true;
+    if (status) byNit[nit].status = status;
+  }
+  _periodeLuarRows_().forEach(function (pr) {
+    if (!pr.tgl_mulai || !pr.tgl_akhir) return;
+    var d0 = pr.tgl_mulai > awal ? pr.tgl_mulai : awal;
+    var d1 = pr.tgl_akhir < akhir ? pr.tgl_akhir : akhir;
+    if (d1 < d0) return;
+    _daftarTanggal_(d0, d1).forEach(function (t) { tambah(pr.nit, t, pr.status); });
+  });
+  sheetRead(SHEETS.STATUS_HARIAN, function (r) {
+    return _bulanStr_(r.tanggal) === bulan && STATUS_LUAR_KAMPUS.indexOf(r.status) >= 0;
+  }).forEach(function (r) { tambah(String(r.nit), _tglStr_(r.tanggal), r.status); });
+  var out = {};
+  Object.keys(byNit).forEach(function (nit) {
+    out[nit] = { hari: Object.keys(byNit[nit].dates).length, status: byNit[nit].status };
+  });
+  return out;
+}
+
 /**
  * Set status satu taruna. Payload {tanggal, nit, status, berkas?, tgl_akhir?}.
  * `tgl_akhir` opsional → isi rentang tanggal, satu baris STATUS_HARIAN per hari
