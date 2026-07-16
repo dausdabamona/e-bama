@@ -1811,8 +1811,11 @@ function _statusTulisBatch_(session, daftarTgl, nitList, status, aksiLabel) {
 // BELUM dipakai konsumen (itu Tahap 4) — aman ditambah.
 // ════════════════════════════════════════════════════════════════════════════
 
-/** Baca PERIODE_LUAR → [{periode_id, nit, status, tgl_mulai, tgl_akhir}]. */
+/** Baca PERIODE_LUAR → [{periode_id, nit, status, tgl_mulai, tgl_akhir}].
+ * Toleran: bila sheet belum dibuat (setupDatabase belum dijalankan pasca-deploy)
+ * anggap KOSONG — agar konsumen (rekap/Form-08) tetap jalan pakai data legacy. */
 function _periodeLuarRows_() {
+  if (!_getSpreadsheet_().getSheetByName(SHEETS.PERIODE_LUAR)) return [];
   return sheetRead(SHEETS.PERIODE_LUAR).map(function (r) {
     return {
       periode_id: r.periode_id, nit: String(r.nit), status: r.status,
@@ -5869,15 +5872,12 @@ function cetakForm08(payload, session) {
       throw _fail_('Belum ada data Bantuan Luar Kampus untuk bulan ' + bulan + (kegiatan ? (' kegiatan ' + kegiatan) : '') + '.');
     }
 
-    // Hitung ulang jml hari dari STATUS_HARIAN — sumber kebenaran (dikonfirmasi Firdaus),
-    // bukan total_hari hasil impor CSV.
+    // Hitung ulang jml hari luar kampus dari model terpadu (PERIODE_LUAR +
+    // STATUS_HARIAN legacy) — sumber kebenaran (dikonfirmasi Firdaus), bukan
+    // total_hari hasil impor CSV. Helper menghitung hari UNIK (tak dobel).
+    var hariMap = _hariLuarPerNitBulan_(bulan);
     var hariStatusHarianByNit = {};
-    sheetRead(SHEETS.STATUS_HARIAN, function (r) {
-      return _bulanStr_(r.tanggal) === bulan && STATUS_LUAR_KAMPUS.indexOf(r.status) >= 0;
-    }).forEach(function (r) {
-      var nit = String(r.nit);
-      hariStatusHarianByNit[nit] = (hariStatusHarianByNit[nit] || 0) + 1;
-    });
+    Object.keys(hariMap).forEach(function (nit) { hariStatusHarianByNit[nit] = hariMap[nit].hari; });
 
     var tarunaByNit = {};
     sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
@@ -7456,13 +7456,12 @@ function kajurRekap(payload, session) {
   var nitSet = {};
   _tarunaProdi_(prodi).forEach(function (t) { nitSet[String(t.nit)] = t; });
 
-  // Hari luar kampus per nit dari STATUS_HARIAN bulan itu (prodi ini saja).
+  // Hari luar kampus per nit dari model terpadu (PERIODE_LUAR + STATUS_HARIAN
+  // legacy), disaring ke prodi ini. Helper menghitung hari UNIK (tak dobel).
+  var hariMap = _hariLuarPerNitBulan_(bulan);
   var hariByNit = {};
-  sheetRead(SHEETS.STATUS_HARIAN, function (r) {
-    return _bulanStr_(r.tanggal) === bulan && STATUS_LUAR_KAMPUS.indexOf(r.status) >= 0 && nitSet[String(r.nit)];
-  }).forEach(function (r) {
-    var nit = String(r.nit);
-    hariByNit[nit] = (hariByNit[nit] || 0) + 1;
+  Object.keys(hariMap).forEach(function (nit) {
+    if (nitSet[nit]) hariByNit[nit] = hariMap[nit].hari;
   });
 
   // Join BANTUAN_LUAR_KAMPUS (bulan itu, prodi ini) untuk kegiatan/tarif/nominal/status.

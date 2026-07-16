@@ -153,8 +153,11 @@ function _statusTulisBatch_(session, daftarTgl, nitList, status, aksiLabel) {
 // BELUM dipakai konsumen (itu Tahap 4) — aman ditambah.
 // ════════════════════════════════════════════════════════════════════════════
 
-/** Baca PERIODE_LUAR → [{periode_id, nit, status, tgl_mulai, tgl_akhir}]. */
+/** Baca PERIODE_LUAR → [{periode_id, nit, status, tgl_mulai, tgl_akhir}].
+ * Toleran: bila sheet belum dibuat (setupDatabase belum dijalankan pasca-deploy)
+ * anggap KOSONG — agar konsumen (rekap/Form-08) tetap jalan pakai data legacy. */
 function _periodeLuarRows_() {
+  if (!_getSpreadsheet_().getSheetByName(SHEETS.PERIODE_LUAR)) return [];
   return sheetRead(SHEETS.PERIODE_LUAR).map(function (r) {
     return {
       periode_id: r.periode_id, nit: String(r.nit), status: r.status,

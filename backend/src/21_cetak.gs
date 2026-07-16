@@ -619,15 +619,12 @@ function cetakForm08(payload, session) {
       throw _fail_('Belum ada data Bantuan Luar Kampus untuk bulan ' + bulan + (kegiatan ? (' kegiatan ' + kegiatan) : '') + '.');
     }
 
-    // Hitung ulang jml hari dari STATUS_HARIAN — sumber kebenaran (dikonfirmasi Firdaus),
-    // bukan total_hari hasil impor CSV.
+    // Hitung ulang jml hari luar kampus dari model terpadu (PERIODE_LUAR +
+    // STATUS_HARIAN legacy) — sumber kebenaran (dikonfirmasi Firdaus), bukan
+    // total_hari hasil impor CSV. Helper menghitung hari UNIK (tak dobel).
+    var hariMap = _hariLuarPerNitBulan_(bulan);
     var hariStatusHarianByNit = {};
-    sheetRead(SHEETS.STATUS_HARIAN, function (r) {
-      return _bulanStr_(r.tanggal) === bulan && STATUS_LUAR_KAMPUS.indexOf(r.status) >= 0;
-    }).forEach(function (r) {
-      var nit = String(r.nit);
-      hariStatusHarianByNit[nit] = (hariStatusHarianByNit[nit] || 0) + 1;
-    });
+    Object.keys(hariMap).forEach(function (nit) { hariStatusHarianByNit[nit] = hariMap[nit].hari; });
 
     var tarunaByNit = {};
     sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });

@@ -101,13 +101,12 @@ function kajurRekap(payload, session) {
   var nitSet = {};
   _tarunaProdi_(prodi).forEach(function (t) { nitSet[String(t.nit)] = t; });
 
-  // Hari luar kampus per nit dari STATUS_HARIAN bulan itu (prodi ini saja).
+  // Hari luar kampus per nit dari model terpadu (PERIODE_LUAR + STATUS_HARIAN
+  // legacy), disaring ke prodi ini. Helper menghitung hari UNIK (tak dobel).
+  var hariMap = _hariLuarPerNitBulan_(bulan);
   var hariByNit = {};
-  sheetRead(SHEETS.STATUS_HARIAN, function (r) {
-    return _bulanStr_(r.tanggal) === bulan && STATUS_LUAR_KAMPUS.indexOf(r.status) >= 0 && nitSet[String(r.nit)];
-  }).forEach(function (r) {
-    var nit = String(r.nit);
-    hariByNit[nit] = (hariByNit[nit] || 0) + 1;
+  Object.keys(hariMap).forEach(function (nit) {
+    if (nitSet[nit]) hariByNit[nit] = hariMap[nit].hari;
   });
 
   // Join BANTUAN_LUAR_KAMPUS (bulan itu, prodi ini) untuk kegiatan/tarif/nominal/status.
