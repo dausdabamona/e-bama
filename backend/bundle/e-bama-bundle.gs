@@ -35,6 +35,10 @@ var SHEETS = {
   KONTRAK:          'KONTRAK',
   MENU_KONTRAK:     'MENU_KONTRAK',
   STATUS_HARIAN:    'STATUS_HARIAN',
+  // Periode luar kampus (PKL/KPA berbulan-bulan): 1 baris per taruna per periode
+  // (tgl_mulai–tgl_akhir) — pengganti hemat dari ribuan baris STATUS_HARIAN per
+  // hari. Hari & "siapa di luar hari ini" DIHITUNG dari rentang.
+  PERIODE_LUAR:     'PERIODE_LUAR',
   PESANAN:          'PESANAN',
   REALISASI:        'REALISASI',
   PEMBAYARAN:       'PEMBAYARAN',
@@ -7834,6 +7838,13 @@ function _skema_() {
     [SHEETS.STATUS_HARIAN, [
       ['status_id','s'], ['tanggal','d'], ['nit','s'], ['status', E.STATUS_HARIAN],
       ['input_by','s'], ['timestamp','dt']
+    ]],
+    // Periode luar kampus (PKL/KPA jangka panjang) — 1 baris per taruna per
+    // periode. status ∈ STATUS_LUAR_KAMPUS. Hari dihitung dari irisan
+    // [tgl_mulai..tgl_akhir] dengan bulan (lihat rencana model periode).
+    [SHEETS.PERIODE_LUAR, [
+      ['periode_id','s'], ['nit','s'], ['status', E.STATUS_HARIAN],
+      ['tgl_mulai','d'], ['tgl_akhir','d'], ['input_by','s'], ['timestamp','dt']
     ]],
     [SHEETS.PESANAN, [
       ['pesanan_id','s'], ['tgl_makan','d'], ['kontrak_id','s'], ['jml_taruna','i'],

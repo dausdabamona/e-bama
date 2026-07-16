@@ -25,6 +25,10 @@ var SHEETS = {
   KONTRAK:          'KONTRAK',
   MENU_KONTRAK:     'MENU_KONTRAK',
   STATUS_HARIAN:    'STATUS_HARIAN',
+  // Periode luar kampus (PKL/KPA berbulan-bulan): 1 baris per taruna per periode
+  // (tgl_mulai–tgl_akhir) — pengganti hemat dari ribuan baris STATUS_HARIAN per
+  // hari. Hari & "siapa di luar hari ini" DIHITUNG dari rentang.
+  PERIODE_LUAR:     'PERIODE_LUAR',
   PESANAN:          'PESANAN',
   REALISASI:        'REALISASI',
   PEMBAYARAN:       'PEMBAYARAN',

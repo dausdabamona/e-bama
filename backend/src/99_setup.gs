@@ -83,6 +83,13 @@ function _skema_() {
       ['status_id','s'], ['tanggal','d'], ['nit','s'], ['status', E.STATUS_HARIAN],
       ['input_by','s'], ['timestamp','dt']
     ]],
+    // Periode luar kampus (PKL/KPA jangka panjang) — 1 baris per taruna per
+    // periode. status ∈ STATUS_LUAR_KAMPUS. Hari dihitung dari irisan
+    // [tgl_mulai..tgl_akhir] dengan bulan (lihat rencana model periode).
+    [SHEETS.PERIODE_LUAR, [
+      ['periode_id','s'], ['nit','s'], ['status', E.STATUS_HARIAN],
+      ['tgl_mulai','d'], ['tgl_akhir','d'], ['input_by','s'], ['timestamp','dt']
+    ]],
     [SHEETS.PESANAN, [
       ['pesanan_id','s'], ['tgl_makan','d'], ['kontrak_id','s'], ['jml_taruna','i'],
       ['menu','s'], ['catatan','s'], ['status', E.PESANAN_STATUS],

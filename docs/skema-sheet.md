@@ -468,6 +468,42 @@ cetak). Nomor rekening taruna **TIDAK** disalin dari dokumen sumber (dokumen
 kertas Ketua Jurusan/panitia sering memuat rekening lengkap — DILARANG masuk
 sistem, lihat aturan `rek_mask` di sheet TARUNA).
 
+### 15b. PERIODE_LUAR — status luar kampus jangka panjang (model periode)
+
+**Latar belakang:** menyimpan status luar kampus PKL/KPA berbulan-bulan sebagai
+satu baris STATUS_HARIAN **per hari** meledak jumlahnya — mis. 85 taruna × 141
+hari (1 Jan–21 Mei) = **±11.985 baris untuk satu input saja**. Google Sheets
+masih muat (batas ~10 juta sel), tapi satu operasi tulis sebesar itu rawan
+timeout dan menumpuk memperlambat semua operasi harian.
+
+**Solusi:** sheet ini menyimpan **1 baris per taruna per periode** luar kampus
+(`tgl_mulai`–`tgl_akhir`). Jumlah hari & "siapa di luar kampus hari ini"
+**DIHITUNG** dari irisan rentang dengan tanggal/bulan, bukan disimpan per hari.
+Model periode HANYA untuk luar kampus jangka panjang; Pesiar/Cuti/Sakit dan
+absen dalam kampus TETAP per-hari di STATUS_HARIAN.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| periode_id | string | kunci; `PLR-000001` |
+| nit | FK → TARUNA | |
+| status | enum STATUS_HARIAN | HARUS ∈ STATUS_LUAR_KAMPUS (PKL_1/2/3, KPA, MAGANG, PTB, KEGIATAN_LUAR_KAMPUS) |
+| tgl_mulai | date | awal periode (inklusif) |
+| tgl_akhir | date | akhir periode (inklusif) — dipotong (diperkecil) bila taruna berhenti lebih awal |
+| input_by | FK → PENGGUNA | |
+| timestamp | datetime | |
+
+**Rencana bertahap penerapan** (Tahap 1 = sheet ini dibuat; belum ada logika
+yang membacanya, nol risiko):
+- T2 — helper baca terpadu `_periodeLuarPada_(tanggal)` (union PERIODE_LUAR +
+  STATUS_HARIAN luar-kampus legacy) & `_hariLuarBulan_(nit, bulan)` (irisan).
+- T3 — action tulis periode (`kajur.periode_set`/`list`/`hapus`) + input rentang
+  di UI Kajur → 1 baris/taruna (bukan status_batch per hari).
+- T4 — alihkan konsumen (kajurRekap, cetakForm08, rekap harian §14, pengecualian
+  pesanan §12) baca dari helper terpadu.
+- T5 — migrasi STATUS_HARIAN luar-kampus lama → periode (kolaps run berurutan) +
+  editor pengecualian per-tanggal (hari hadir di tengah PKL).
+- T6 — input luar kampus berhenti menulis STATUS_HARIAN per hari.
+
 ### 16. TARUNA_REKENING — pengecualian TERBATAS aturan rekening lengkap
 
 **Latar belakang:** Form-07 (Usulan Penahanan & Pendebetan Bank) dan Form-08
