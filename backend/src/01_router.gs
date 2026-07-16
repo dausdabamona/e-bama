@@ -47,6 +47,7 @@ var ACTION_MAP = {
   'kajur.status_batch': { handler: kajurStatusBatch, roles: ['KETUA_JURUSAN'] },
   'kajur.rekap':        { handler: kajurRekap,       roles: ['KETUA_JURUSAN'] },
   'kajur.set_tarif':    { handler: kajurSetTarif,    roles: ['KETUA_JURUSAN'] },
+  'kajur.hapus_absen':  { handler: kajurHapusAbsen,  roles: ['KETUA_JURUSAN'] },
   'kajur.approve':      { handler: kajurApprove,     roles: ['KETUA_JURUSAN'] },
 
   // Pesanan (TAHAP 3)
@@ -221,6 +222,7 @@ var KETUA_JURUSAN_ACTIONS = {
   'kajur.status_batch': true,
   'kajur.rekap':        true,
   'kajur.set_tarif':    true,
+  'kajur.hapus_absen':  true,
   'kajur.approve':      true,
   'auth.logout':        true,
   'auth.change_pin':    true

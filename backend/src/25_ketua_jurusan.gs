@@ -215,6 +215,37 @@ function kajurSetTarif(payload, session) {
 }
 
 /**
+ * KOREKSI: hapus absen luar kampus SATU taruna untuk SATU bulan (menghapus baris
+ * STATUS_HARIAN berstatus ∈ STATUS_LUAR_KAMPUS pada bulan itu). Dipakai bila
+ * absen salah input (mis. taruna sebenarnya tidak PKL, atau salah bulan). BEDA
+ * dari status.tandai_kembali yang hanya menghapus hari KE DEPAN — koreksi ini
+ * boleh menghapus tanggal LAMPAU (memang untuk memperbaiki kesalahan input).
+ * HANYA menyentuh status luar kampus (tidak mengutak-atik Pesiar/Cuti/Sakit).
+ * Di-scope ke prodi Ketua Jurusan; withLock + audit. Payload {nit, bulan}.
+ */
+function kajurHapusAbsen(payload, session) {
+  var prodi = _hanyaKajur_(session);
+  var nit = String((payload && payload.nit) || '').trim();
+  if (!nit) throw _fail_('nit wajib diisi.');
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  _pastikanTarunaProdi_(nit, prodi);
+
+  return withLock(function () {
+    var target = sheetRead(SHEETS.STATUS_HARIAN, function (r) {
+      return String(r.nit) === nit && _bulanStr_(r.tanggal) === bulan &&
+        STATUS_LUAR_KAMPUS.indexOf(r.status) >= 0;
+    });
+    if (!target.length) return { jml_dihapus: 0 };
+    var dihapus = sheetDeleteRows(SHEETS.STATUS_HARIAN, 'status_id',
+      target.map(function (r) { return r.status_id; }));
+    auditLog(session, 'kajur.hapus_absen', 'STATUS_HARIAN', nit,
+      { baris: dihapus.map(function (r) { return { tanggal: _tglStr_(r.tanggal), status: r.status }; }) },
+      { nit: nit, bulan: bulan, prodi: prodi });
+    return { jml_dihapus: dihapus.length, nit: nit, bulan: bulan };
+  });
+}
+
+/**
  * Setujui rekap luar kampus prodi untuk bulan: set BANTUAN_LUAR_KAMPUS.status
  * (baris nit berprodi session.prodi & bulan itu) DRAFT → DISETUJUI_KAJUR.
  * Payload {bulan}.

@@ -171,6 +171,23 @@ export function HalamanKetuaJurusan() {
     }
   }
 
+  async function hapusAbsenTaruna(b: BarisRekap) {
+    if (!window.confirm(
+      `Hapus SEMUA absen luar kampus ${b.nama || b.nit} untuk ${labelBulan(bulan)} (${b.hari_luar_kampus} hari)?\n\n` +
+      'Dipakai bila absen salah input. Riwayat hari luar kampus taruna ini pada bulan itu akan dihapus.'
+    )) return;
+    setProses(true);
+    try {
+      const r = await api<{ jml_dihapus: number }>('kajur.hapus_absen', { nit: b.nit, bulan });
+      toast(`${r.jml_dihapus} hari absen ${b.nama || b.nit} dihapus.`, 'sukses');
+      rekapQ.refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal menghapus.', 'galat');
+    } finally {
+      setProses(false);
+    }
+  }
+
   async function setujuiRekap() {
     setProses(true);
     try {
@@ -331,11 +348,20 @@ export function HalamanKetuaJurusan() {
                         </td>
                         <td className="py-1 pr-2 text-right">{formatRupiah(nominalRow(b))}</td>
                         <td className="py-1">
-                          {!b.ada_blk
-                            ? <span className="text-gray-400">belum ada tarif</span>
-                            : b.disetujui_kajur
-                              ? <span className="text-green-700">Disetujui</span>
-                              : <span className="text-amber-600">Belum disetujui</span>}
+                          <div className="flex items-center gap-2">
+                            <span className="flex-1">
+                              {!b.ada_blk
+                                ? <span className="text-gray-400">belum ada tarif</span>
+                                : b.disetujui_kajur
+                                  ? <span className="text-green-700">Disetujui</span>
+                                  : <span className="text-amber-600">Belum disetujui</span>}
+                            </span>
+                            {b.hari_luar_kampus > 0 && (
+                              <button title="Hapus absen luar kampus taruna ini (koreksi)" disabled={proses}
+                                className="rounded-lg px-1.5 py-0.5 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                                onClick={() => void hapusAbsenTaruna(b)}>🗑</button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
