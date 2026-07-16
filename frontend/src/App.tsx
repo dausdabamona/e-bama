@@ -82,9 +82,9 @@ export default function App() {
               <Route path="/pesanan/baru" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanPesananBuat /></WajibLogin>} />
               <Route path="/pesanan/:id" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanPesananDetail /></WajibLogin>} />
               {/* Senat + Pembina */}
-              <Route path="/realisasi" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanRealisasiList /></WajibLogin>} />
+              <Route path="/realisasi" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK']}><HalamanRealisasiList /></WajibLogin>} />
               <Route path="/realisasi/baru/:pesananId" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanRealisasiBuat /></WajibLogin>} />
-              <Route path="/realisasi/:id" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanRealisasiDetail /></WajibLogin>} />
+              <Route path="/realisasi/:id" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK']}><HalamanRealisasiDetail /></WajibLogin>} />
               <Route path="/menu-hari-ini" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanMenuHariIni /></WajibLogin>} />
               {/* Pembina */}
               <Route path="/verifikasi" element={<WajibLogin roles={['PEMBINA']}><HalamanVerifikasi /></WajibLogin>} />
