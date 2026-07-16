@@ -51,6 +51,7 @@ export function HalamanKetuaJurusan() {
   const [tglAkhir, setTglAkhir] = useState('');
   const [status, setStatus] = useState(STATUS_LUAR_KAMPUS[0]);
   const [terpilih, setTerpilih] = useState<Record<string, boolean>>({});
+  const [filterKelas, setFilterKelas] = useState(''); // '' = semua kelas
 
   const prodi = rekapQ.data?.prodi || tarunaQ.data?.prodi || '';
   const baris = rekapQ.data?.baris ?? [];
@@ -68,6 +69,36 @@ export function HalamanKetuaJurusan() {
   })();
   const daftarTaruna = tarunaQ.data?.taruna ?? [];
   const nitTerpilih = Object.keys(terpilih).filter((n) => terpilih[n]);
+
+  // ── Kelas = Tingkat (+ kelas bila ada), untuk filter & input per-kelas ──
+  const kelasKey = (t: TarunaKajur) => `${t.tingkat || '?'}${t.kelas ? '/' + t.kelas : ''}`;
+  const urutKelas = (a: string, b: string) =>
+    urutTingkat(a.split('/')[0]) - urutTingkat(b.split('/')[0]) || a.localeCompare(b, 'id');
+  const daftarKelas = Array.from(new Set(daftarTaruna.map(kelasKey))).sort(urutKelas);
+  const tarunaTampil = daftarTaruna.filter((t) => !filterKelas || kelasKey(t) === filterKelas);
+  const grupKelas = (() => {
+    const map = new Map<string, TarunaKajur[]>();
+    tarunaTampil.forEach((t) => {
+      const k = kelasKey(t);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(t);
+    });
+    return Array.from(map.entries())
+      .map(([kelas, rows]) => ({
+        kelas,
+        // urutkan taruna per abjad nama (fallback NIT bila nama kosong)
+        rows: rows.slice().sort((a, b) => (a.nama || a.nit).localeCompare(b.nama || b.nit, 'id')),
+      }))
+      .sort((a, b) => urutKelas(a.kelas, b.kelas));
+  })();
+  const kelasSemuaTerpilih = (rows: TarunaKajur[]) => rows.length > 0 && rows.every((t) => terpilih[t.nit]);
+  function pilihKelas(rows: TarunaKajur[], pilih: boolean) {
+    setTerpilih((prev) => {
+      const n = { ...prev };
+      rows.forEach((t) => { n[t.nit] = pilih; });
+      return n;
+    });
+  }
 
   async function simpanAbsen() {
     if (!tanggal) { toast('Pilih tanggal.', 'galat'); return; }
@@ -137,17 +168,44 @@ export function HalamanKetuaJurusan() {
         </div>
         <p className="-mt-2 text-xs text-gray-400">Kosongkan "Sampai" jika hanya satu hari.</p>
 
+        {daftarTaruna.length > 0 && (
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">Kelas:</label>
+            <select value={filterKelas} onChange={(e) => setFilterKelas(e.target.value)}
+              className="min-h-tap flex-1 rounded-xl border border-gray-300 px-3 py-2 text-sm">
+              <option value="">Semua kelas ({daftarTaruna.length} taruna)</option>
+              {daftarKelas.map((k) => (
+                <option key={k} value={k}>Tingkat {k} ({daftarTaruna.filter((t) => kelasKey(t) === k).length})</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {tarunaQ.memuat && !tarunaQ.data && <LoadingSpinner label="Memuat taruna…" />}
         {tarunaQ.data && daftarTaruna.length === 0 && <EmptyState pesan="Belum ada taruna di prodi ini." />}
         {daftarTaruna.length > 0 && (
           <div className="max-h-64 overflow-y-auto rounded-xl border border-gray-100">
-            {daftarTaruna.map((t) => (
-              <label key={t.nit} className="flex items-center gap-2 border-b border-gray-50 px-3 py-2 text-sm">
-                <input type="checkbox" className="h-5 w-5" checked={!!terpilih[t.nit]}
-                  onChange={(e) => setTerpilih((prev) => ({ ...prev, [t.nit]: e.target.checked }))} />
-                <span className="flex-1">{t.nama || t.nit}</span>
-                <span className="text-xs text-gray-400">{t.tingkat}{t.kelas ? `/${t.kelas}` : ''}</span>
-              </label>
+            {grupKelas.map((g) => (
+              <div key={g.kelas}>
+                {/* Header kelas — centang untuk pilih SATU KELAS sekaligus */}
+                <label className="sticky top-0 flex items-center gap-2 border-b border-gray-200 bg-primary-light/40 px-3 py-2 text-sm font-semibold text-primary-dark">
+                  <input type="checkbox" className="h-5 w-5"
+                    checked={kelasSemuaTerpilih(g.rows)}
+                    onChange={(e) => pilihKelas(g.rows, e.target.checked)} />
+                  <span className="flex-1">Tingkat {g.kelas}</span>
+                  <span className="text-xs font-normal text-gray-500">
+                    {g.rows.filter((t) => terpilih[t.nit]).length}/{g.rows.length} dipilih
+                  </span>
+                </label>
+                {g.rows.map((t) => (
+                  <label key={t.nit} className="flex items-center gap-2 border-b border-gray-50 px-3 py-2 pl-6 text-sm">
+                    <input type="checkbox" className="h-5 w-5" checked={!!terpilih[t.nit]}
+                      onChange={(e) => setTerpilih((prev) => ({ ...prev, [t.nit]: e.target.checked }))} />
+                    <span className="flex-1">{t.nama || t.nit}</span>
+                    <span className="text-xs text-gray-400">{t.tingkat}{t.kelas ? `/${t.kelas}` : ''}</span>
+                  </label>
+                ))}
+              </div>
             ))}
           </div>
         )}
