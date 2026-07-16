@@ -2,7 +2,7 @@
 // (boleh tanggal lampau), lihat REKAP (tanpa rekening), dan setujui rekap bulan
 // (BANTUAN_LUAR_KAMPUS DRAFT→DISETUJUI_KAJUR). Semua di-scope ke prodi akun oleh
 // backend (25_ketua_jurusan.gs); frontend hanya menyajikan.
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { BulanPicker, bulanIni, labelBulan } from '../../components/bulan-picker';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
@@ -38,12 +38,139 @@ function jmlHari(dari: string, sampai: string): number {
   return Math.round((b.getTime() - a.getTime()) / 86400000) + 1;
 }
 
+interface TanggalTaruna { tanggal: { tanggal: string; status: string }[]; hari: number; min: string; max: string }
+
+function pad2(n: number): string { return String(n).padStart(2, '0'); }
+
+/**
+ * Editor kalender per taruna: lihat tanggal mana saja "di luar kampus" pada bulan
+ * itu, ketuk untuk tambah/hapus satu hari, atau potong satu RENTANG sekaligus
+ * (mis. taruna berhenti KPA lebih awal). Menyimpan tetap per-tanggal (robust),
+ * tapi pengguna melihatnya sebagai satu periode.
+ */
+function ModalKalenderTaruna({ baris, bulan, onClose, onChanged }: {
+  baris: BarisRekap; bulan: string; onClose: () => void; onChanged: () => void;
+}) {
+  const { toast } = useToast();
+  const [data, setData] = useState<TanggalTaruna | null>(null);
+  const [status, setStatus] = useState(STATUS_LUAR_KAMPUS[0]);
+  const [dari, setDari] = useState('');
+  const [sampai, setSampai] = useState('');
+  const [proses, setProses] = useState(false);
+
+  const muat = useCallback(async () => {
+    try {
+      const r = await api<TanggalTaruna>('kajur.tanggal_taruna', { nit: baris.nit, bulan });
+      setData(r);
+      if (r.tanggal.length) setStatus(r.tanggal[0].status);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal memuat.', 'galat');
+    }
+  }, [baris.nit, bulan, toast]);
+  useEffect(() => { void muat(); }, [muat]);
+
+  const statusByTgl = new Map((data?.tanggal ?? []).map((t) => [t.tanggal, t.status]));
+  const [y, m] = bulan.split('-').map(Number);
+  const jmlHariBulan = new Date(y, m, 0).getDate();
+  const offset = new Date(y, m - 1, 1).getDay();
+  const sel: (number | null)[] = [];
+  for (let i = 0; i < offset; i++) sel.push(null);
+  for (let d = 1; d <= jmlHariBulan; d++) sel.push(d);
+
+  async function toggleHari(d: number) {
+    const tgl = `${bulan}-${pad2(d)}`;
+    setProses(true);
+    try {
+      if (statusByTgl.has(tgl)) {
+        await api('kajur.hapus_absen', { nit: baris.nit, bulan, tanggal: tgl });
+      } else {
+        await api('kajur.status_batch', { tanggal: tgl, status, nit: [baris.nit] });
+      }
+      await muat(); onChanged();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
+    } finally {
+      setProses(false);
+    }
+  }
+
+  async function potongRentang() {
+    if (!dari || !sampai) { toast('Isi tanggal dari & sampai.', 'galat'); return; }
+    if (sampai < dari) { toast('Sampai tidak boleh sebelum dari.', 'galat'); return; }
+    setProses(true);
+    try {
+      const r = await api<{ jml_dihapus: number }>('kajur.hapus_absen', { nit: baris.nit, dari, sampai });
+      toast(`${r.jml_dihapus} hari luar kampus dihapus (${dari} s.d ${sampai}).`, 'sukses');
+      setDari(''); setSampai(''); await muat(); onChanged();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
+    } finally {
+      setProses(false);
+    }
+  }
+
+  return (
+    <Modal judul={`Kalender Luar Kampus — ${baris.nama || baris.nit}`} onClose={onClose}>
+      <div className="flex flex-col gap-3">
+        <p className="text-xs text-gray-500">
+          {labelBulan(bulan)} · <b>{data?.hari ?? 0} hari</b>
+          {data && data.min ? ` · periode ${data.min} s.d ${data.max}` : ''}. Ketuk tanggal untuk
+          tambah/hapus satu hari.
+        </p>
+
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-700">Kegiatan (untuk tambah):</label>
+          <select value={status} onChange={(e) => setStatus(e.target.value)}
+            className="min-h-tap flex-1 rounded-xl border border-gray-300 px-2 py-1.5 text-sm">
+            {STATUS_LUAR_KAMPUS.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+          </select>
+        </div>
+
+        <div className="grid grid-cols-7 gap-1 text-center text-xs">
+          {['M', 'S', 'S', 'R', 'K', 'J', 'S'].map((h, i) => (
+            <div key={i} className="py-1 font-semibold text-gray-400">{h}</div>
+          ))}
+          {sel.map((d, i) => {
+            if (d === null) return <div key={`e${i}`} />;
+            const tgl = `${bulan}-${pad2(d)}`;
+            const ada = statusByTgl.has(tgl);
+            return (
+              <button key={tgl} disabled={proses} onClick={() => void toggleHari(d)}
+                title={ada ? `${statusByTgl.get(tgl)} — ketuk untuk hapus` : 'ketuk untuk tambah'}
+                className={`min-h-tap rounded-lg border py-1.5 text-sm disabled:opacity-50 ${
+                  ada ? 'border-teal-500 bg-teal-500 font-bold text-white' : 'border-gray-200 text-gray-700 hover:bg-gray-50'}`}>
+                {d}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3">
+          <p className="text-sm font-medium text-amber-800">Potong periode (berhenti lebih awal)</p>
+          <p className="mb-2 text-xs text-gray-500">
+            Hapus semua hari luar kampus dalam rentang sekaligus — mis. taruna berhenti KPA lebih awal.
+            Boleh lintas bulan.
+          </p>
+          <div className="flex flex-wrap items-end gap-2">
+            <Input label="Dari" type="date" value={dari} onChange={(e) => setDari(e.target.value)} />
+            <Input label="Sampai" type="date" value={sampai} min={dari} onChange={(e) => setSampai(e.target.value)} />
+            <Button varian="garis" onClick={() => void potongRentang()} disabled={proses || !dari || !sampai}>
+              Hapus Rentang
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 export function HalamanKetuaJurusan() {
   const { toast } = useToast();
   const [bulan, setBulan] = useState(bulanIni());
   const rekapQ = useListCache<{ bulan: string; prodi: string; baris: BarisRekap[]; total_nominal: number }>('kajur.rekap', { bulan });
   const tarunaQ = useListCache<{ taruna: TarunaKajur[]; prodi: string }>('kajur.taruna_list', {});
   const [tampilKonfirmasi, setTampilKonfirmasi] = useState(false);
+  const [kalenderBaris, setKalenderBaris] = useState<BarisRekap | null>(null);
   const [proses, setProses] = useState(false);
 
   // ── Form input absen ──
@@ -356,6 +483,9 @@ export function HalamanKetuaJurusan() {
                                   ? <span className="text-green-700">Disetujui</span>
                                   : <span className="text-amber-600">Belum disetujui</span>}
                             </span>
+                            <button title="Kalender: atur tanggal / potong periode" disabled={proses}
+                              className="rounded-lg px-1.5 py-0.5 text-primary hover:bg-primary-light/30 disabled:opacity-50"
+                              onClick={() => setKalenderBaris(b)}>📅</button>
                             {b.hari_luar_kampus > 0 && (
                               <button title="Hapus absen luar kampus taruna ini (koreksi)" disabled={proses}
                                 className="rounded-lg px-1.5 py-0.5 text-red-600 hover:bg-red-50 disabled:opacity-50"
@@ -389,6 +519,11 @@ export function HalamanKetuaJurusan() {
         <Button onClick={() => setTampilKonfirmasi(true)} disabled={!adaBelumSetuju}>
           {adaBelumSetuju ? 'Setujui Rekap Bulan Ini' : '✅ Semua sudah disetujui'}
         </Button>
+      )}
+
+      {kalenderBaris && (
+        <ModalKalenderTaruna baris={kalenderBaris} bulan={bulan}
+          onClose={() => setKalenderBaris(null)} onChanged={() => rekapQ.refresh()} />
       )}
 
       {tampilKonfirmasi && (
