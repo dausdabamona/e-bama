@@ -52,6 +52,9 @@ export function HalamanKetuaJurusan() {
   const [status, setStatus] = useState(STATUS_LUAR_KAMPUS[0]);
   const [terpilih, setTerpilih] = useState<Record<string, boolean>>({});
   const [filterKelas, setFilterKelas] = useState(''); // '' = semua kelas
+  // ── Form harga satuan (tarif per hari) ──
+  const [tarifKegiatan, setTarifKegiatan] = useState(STATUS_LUAR_KAMPUS[0]);
+  const [tarifNilai, setTarifNilai] = useState('');
 
   const prodi = rekapQ.data?.prodi || tarunaQ.data?.prodi || '';
   const baris = rekapQ.data?.baris ?? [];
@@ -119,6 +122,25 @@ export function HalamanKetuaJurusan() {
       rekapQ.refresh();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Gagal menyimpan.', 'galat');
+    } finally {
+      setProses(false);
+    }
+  }
+
+  async function terapkanTarif() {
+    if (nitTerpilih.length === 0) { toast('Centang taruna di daftar atas dulu.', 'galat'); return; }
+    const nilai = Math.round(Number(tarifNilai) || 0);
+    if (nilai <= 0) { toast('Isi harga satuan (lebih dari 0).', 'galat'); return; }
+    setProses(true);
+    try {
+      const r = await api<{ jml: number }>('kajur.set_tarif', {
+        bulan, kegiatan: tarifKegiatan, nilai_per_hari: nilai, nit_list: nitTerpilih,
+      });
+      toast(`Harga satuan ${formatRupiah(nilai)}/hari diterapkan ke ${r.jml} taruna.`, 'sukses');
+      setTarifNilai('');
+      rekapQ.refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
     } finally {
       setProses(false);
     }
@@ -211,6 +233,30 @@ export function HalamanKetuaJurusan() {
         )}
         <Button onClick={() => void simpanAbsen()} disabled={proses || nitTerpilih.length === 0}>
           {proses ? 'Menyimpan…' : `Simpan Absen (${nitTerpilih.length} taruna)`}
+        </Button>
+      </Card>
+
+      {/* ── Isi harga satuan (tarif per hari) ── */}
+      <Card className="flex flex-col gap-3">
+        <p className="text-sm font-semibold text-gray-700">Isi Harga Satuan (Tarif per Hari)</p>
+        <p className="text-xs text-gray-500">
+          <b>Centang taruna di daftar atas</b>, pilih kegiatan &amp; isi harga daerah setempat, lalu terapkan.
+          Nominal dihitung otomatis = jumlah hari (dari absen) × tarif. Mengubah tarif membuat rekap
+          <b> perlu disetujui ulang</b>.
+        </p>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex-1">
+            <label className="mb-1 block text-sm font-medium text-gray-700">Kegiatan</label>
+            <select value={tarifKegiatan} onChange={(e) => setTarifKegiatan(e.target.value)}
+              className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2.5">
+              {STATUS_LUAR_KAMPUS.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+            </select>
+          </div>
+          <Input label="Harga / Hari (Rp)" type="number" inputMode="numeric" min={0}
+            value={tarifNilai} onChange={(e) => setTarifNilai(e.target.value)} />
+        </div>
+        <Button varian="garis" onClick={() => void terapkanTarif()} disabled={proses || nitTerpilih.length === 0}>
+          {proses ? 'Menyimpan…' : `Terapkan Tarif ke ${nitTerpilih.length} Taruna`}
         </Button>
       </Card>
 

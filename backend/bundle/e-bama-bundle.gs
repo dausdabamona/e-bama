@@ -517,6 +517,7 @@ var ACTION_MAP = {
   'kajur.status_set':   { handler: kajurStatusSet,   roles: ['KETUA_JURUSAN'] },
   'kajur.status_batch': { handler: kajurStatusBatch, roles: ['KETUA_JURUSAN'] },
   'kajur.rekap':        { handler: kajurRekap,       roles: ['KETUA_JURUSAN'] },
+  'kajur.set_tarif':    { handler: kajurSetTarif,    roles: ['KETUA_JURUSAN'] },
   'kajur.approve':      { handler: kajurApprove,     roles: ['KETUA_JURUSAN'] },
 
   // Pesanan (TAHAP 3)
@@ -690,6 +691,7 @@ var KETUA_JURUSAN_ACTIONS = {
   'kajur.status_set':   true,
   'kajur.status_batch': true,
   'kajur.rekap':        true,
+  'kajur.set_tarif':    true,
   'kajur.approve':      true,
   'auth.logout':        true,
   'auth.change_pin':    true
@@ -7355,6 +7357,72 @@ function kajurRekap(payload, session) {
   var totalNominal = 0;
   baris.forEach(function (b) { totalNominal += b.nominal; });
   return { bulan: bulan, prodi: prodi, baris: baris, total_nominal: totalNominal };
+}
+
+/**
+ * Set HARGA SATUAN (tarif per hari) luar kampus di aplikasi — tanpa impor CSV.
+ * Ketua Jurusan mengetahui harga daerah setempat, jadi boleh mengisinya untuk
+ * taruna prodinya. Payload {bulan, kegiatan, nilai_per_hari, nit_list:[],
+ * pembayaran_ke?}. Upsert baris BANTUAN_LUAR_KAMPUS per (nit, kegiatan, bulan,
+ * pembayaran_ke); total_hari & nominal DI-SNAPSHOT dari STATUS_HARIAN saat ini
+ * (rekap tetap menghitung ulang hari × tarif, jadi angka konsisten). Mengubah
+ * tarif mengembalikan status ke DRAFT (butuh persetujuan ulang karena nominal
+ * berubah). Di-scope ke prodi Ketua Jurusan; withLock + audit per baris.
+ */
+function kajurSetTarif(payload, session) {
+  var prodi = _hanyaKajur_(session);
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  var kegiatan = String((payload && payload.kegiatan) || '').trim();
+  if (!kegiatan) throw _fail_('kegiatan wajib diisi.');
+  var nilaiPerHari = _int_(payload && payload.nilai_per_hari, 'nilai_per_hari');
+  if (nilaiPerHari <= 0) throw _fail_('nilai_per_hari (harga satuan) harus lebih dari 0.');
+  var daftar = (payload && payload.nit_list) || [];
+  if (!daftar.length) throw _fail_('nit_list harus berupa daftar minimal 1 taruna.');
+  var bayarKe = _int_((payload && payload.pembayaran_ke) || 1, 'pembayaran_ke');
+
+  // Validasi semua nit dalam prodi DULU (all-or-nothing sebelum menulis).
+  var prodiNit = {};
+  _tarunaProdi_(prodi).forEach(function (t) { prodiNit[String(t.nit)] = true; });
+  daftar.forEach(function (nit) {
+    if (!prodiNit[String(nit).trim()]) throw _fail_('Taruna di luar prodi Anda: ' + nit);
+  });
+
+  return withLock(function () {
+    // Snapshot jml hari luar kampus per nit dari STATUS_HARIAN bulan itu.
+    var hariByNit = {};
+    sheetRead(SHEETS.STATUS_HARIAN, function (r) {
+      return _bulanStr_(r.tanggal) === bulan && STATUS_LUAR_KAMPUS.indexOf(r.status) >= 0 && prodiNit[String(r.nit)];
+    }).forEach(function (r) { var n = String(r.nit); hariByNit[n] = (hariByNit[n] || 0) + 1; });
+
+    var n = 0;
+    daftar.forEach(function (nitRaw) {
+      var nit = String(nitRaw).trim();
+      var totalHari = hariByNit[nit] || 0;
+      var nominal = Math.round(totalHari * nilaiPerHari);
+      var ada = sheetRead(SHEETS.BANTUAN_LUAR_KAMPUS, function (r) {
+        return String(r.nit) === nit && String(r.kegiatan) === kegiatan &&
+          _bulanStr_(r.bulan) === bulan && _int_(r.pembayaran_ke || 1, 'pembayaran_ke') === bayarKe;
+      })[0];
+      if (ada) {
+        sheetUpdate(SHEETS.BANTUAN_LUAR_KAMPUS, 'bantuan_id', ada.bantuan_id,
+          { nilai_per_hari: nilaiPerHari, total_hari: totalHari, nominal: nominal, status: 'DRAFT' });
+        auditLog(session, 'kajur.set_tarif', 'BANTUAN_LUAR_KAMPUS', ada.bantuan_id,
+          { nilai_per_hari: _int_(ada.nilai_per_hari || 0, 'nilai_per_hari') },
+          { nilai_per_hari: nilaiPerHari, kegiatan: kegiatan, bulan: bulan });
+      } else {
+        var id = nextId('BLK');
+        sheetAppend(SHEETS.BANTUAN_LUAR_KAMPUS, {
+          bantuan_id: id, nit: nit, kegiatan: kegiatan, bulan: bulan, periode: '',
+          total_hari: totalHari, nilai_per_hari: nilaiPerHari, nominal: nominal,
+          pembayaran_ke: bayarKe, keterangan: '', status: 'DRAFT'
+        });
+        auditLog(session, 'kajur.set_tarif', 'BANTUAN_LUAR_KAMPUS', id, null,
+          { nit: nit, kegiatan: kegiatan, bulan: bulan, nilai_per_hari: nilaiPerHari });
+      }
+      n++;
+    });
+    return { jml: n, nilai_per_hari: nilaiPerHari, kegiatan: kegiatan };
+  });
 }
 
 /**
