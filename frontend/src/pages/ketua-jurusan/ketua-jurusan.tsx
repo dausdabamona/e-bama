@@ -22,6 +22,7 @@ import { formatRupiah } from '../tagihan/tipe';
 const STATUS_LUAR_KAMPUS = ['KEGIATAN_LUAR_KAMPUS', 'PKL_1', 'PKL_2', 'PKL_3', 'KPA', 'MAGANG', 'PTB'];
 
 interface TarunaKajur { nit: string; nama: string; prodi: string; tingkat: string; kelas: string }
+interface PeriodeLuar { periode_id: string; nit: string; nama: string; tingkat: string; status: string; tgl_mulai: string; tgl_akhir: string }
 interface BarisRekap {
   nit: string; nama: string; tingkat: string; kelas: string; kegiatan: string;
   hari_luar_kampus: number; nilai_per_hari: number; nominal: number; ada_blk: boolean; disetujui_kajur: boolean;
@@ -170,6 +171,7 @@ export function HalamanKetuaJurusan() {
   const [bulan, setBulan] = useState(bulanIni());
   const rekapQ = useListCache<{ bulan: string; prodi: string; baris: BarisRekap[]; total_nominal: number }>('kajur.rekap', { bulan });
   const tarunaQ = useListCache<{ taruna: TarunaKajur[]; prodi: string }>('kajur.taruna_list', {});
+  const periodeQ = useListCache<{ prodi: string; periode: PeriodeLuar[] }>('kajur.periode_list', {});
   const [tampilKonfirmasi, setTampilKonfirmasi] = useState(false);
   const [kalenderBaris, setKalenderBaris] = useState<BarisRekap | null>(null);
   const [proses, setProses] = useState(false);
@@ -232,25 +234,55 @@ export function HalamanKetuaJurusan() {
     });
   }
 
-  async function simpanAbsen() {
-    if (!tanggal) { toast('Pilih tanggal.', 'galat'); return; }
-    if (tglAkhir && tglAkhir < tanggal) { toast('Tanggal Sampai tidak boleh sebelum Mulai.', 'galat'); return; }
+  async function simpanPeriode() {
+    if (!tanggal) { toast('Pilih tanggal Mulai.', 'galat'); return; }
+    const akhir = tglAkhir || tanggal; // kosong = periode 1 hari
+    if (akhir < tanggal) { toast('Tanggal Sampai tidak boleh sebelum Mulai.', 'galat'); return; }
     if (nitTerpilih.length === 0) { toast('Pilih minimal satu taruna.', 'galat'); return; }
     setProses(true);
     try {
-      const tgl_akhir = tglAkhir || undefined;
-      if (nitTerpilih.length === 1) {
-        await api('kajur.status_set', { tanggal, tgl_akhir, nit: nitTerpilih[0], status });
-      } else {
-        await api('kajur.status_batch', { tanggal, tgl_akhir, status, nit: nitTerpilih });
-      }
-      const hari = tglAkhir ? jmlHari(tanggal, tglAkhir) : 1;
-      const rentang = hari > 1 ? `${tanggal} s.d. ${tglAkhir} (${hari} hari)` : tanggal;
-      toast(`Absen ${status.replace(/_/g, ' ')} tersimpan untuk ${nitTerpilih.length} taruna (${rentang}).`, 'sukses');
+      const r = await api<{ jml: number }>('kajur.periode_set', {
+        nit_list: nitTerpilih, status, tgl_mulai: tanggal, tgl_akhir: akhir,
+      });
+      const hari = jmlHari(tanggal, akhir);
+      toast(`${r.jml} periode ${status.replace(/_/g, ' ')} dibuat (${tanggal} s.d. ${akhir}, ${hari} hari).`, 'sukses');
       setTerpilih({}); setTglAkhir('');
-      rekapQ.refresh();
+      rekapQ.refresh(); periodeQ.refresh();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Gagal menyimpan.', 'galat');
+    } finally {
+      setProses(false);
+    }
+  }
+
+  async function potongPeriode(p: PeriodeLuar) {
+    const baru = window.prompt(
+      `Potong/ubah tanggal AKHIR periode ${p.nama} (${p.status.replace(/_/g, ' ')}).\n` +
+      `Mulai ${p.tgl_mulai}. Isi tanggal akhir baru (YYYY-MM-DD):`, p.tgl_akhir);
+    if (!baru) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(baru)) { toast('Format tanggal salah (YYYY-MM-DD).', 'galat'); return; }
+    if (baru < p.tgl_mulai) { toast('Akhir tidak boleh sebelum mulai.', 'galat'); return; }
+    setProses(true);
+    try {
+      await api('kajur.periode_set', { periode_id: p.periode_id, status: p.status, tgl_mulai: p.tgl_mulai, tgl_akhir: baru });
+      toast(`Periode ${p.nama} dipotong sampai ${baru}.`, 'sukses');
+      rekapQ.refresh(); periodeQ.refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
+    } finally {
+      setProses(false);
+    }
+  }
+
+  async function hapusPeriode(p: PeriodeLuar) {
+    if (!window.confirm(`Hapus periode ${p.nama} (${p.status.replace(/_/g, ' ')}, ${p.tgl_mulai} s.d ${p.tgl_akhir})?`)) return;
+    setProses(true);
+    try {
+      await api('kajur.periode_hapus', { periode_id: p.periode_id });
+      toast(`Periode ${p.nama} dihapus.`, 'sukses');
+      rekapQ.refresh(); periodeQ.refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
     } finally {
       setProses(false);
     }
@@ -342,10 +374,11 @@ export function HalamanKetuaJurusan() {
 
       {/* ── Input absen luar kampus ── */}
       <Card className="flex flex-col gap-3">
-        <p className="text-sm font-semibold text-gray-700">Input Absen Luar Kampus</p>
+        <p className="text-sm font-semibold text-gray-700">Input Periode Luar Kampus</p>
         <p className="text-xs text-gray-500">
-          Absen taruna PKL/KPA/Magang/PTB yang berada di luar kampus. Boleh diisi untuk
-          tanggal yang sudah lewat.
+          Taruna PKL/KPA/Magang/PTB di luar kampus. Isi <b>Mulai–Sampai</b> (satu periode,
+          hemat: 1 baris per taruna walau berbulan-bulan). Boleh tanggal lampau. Kosongkan
+          "Sampai" untuk 1 hari.
         </p>
         <div className="flex flex-wrap gap-2">
           <Input label="Mulai" type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
@@ -401,10 +434,33 @@ export function HalamanKetuaJurusan() {
             ))}
           </div>
         )}
-        <Button onClick={() => void simpanAbsen()} disabled={proses || nitTerpilih.length === 0}>
-          {proses ? 'Menyimpan…' : `Simpan Absen (${nitTerpilih.length} taruna)`}
+        <Button onClick={() => void simpanPeriode()} disabled={proses || nitTerpilih.length === 0}>
+          {proses ? 'Menyimpan…' : `Buat Periode (${nitTerpilih.length} taruna)`}
         </Button>
       </Card>
+
+      {/* ── Periode luar kampus aktif ── */}
+      {(periodeQ.data?.periode?.length ?? 0) > 0 && (
+        <Card className="flex flex-col gap-2">
+          <p className="text-sm font-semibold text-gray-700">Periode Luar Kampus Aktif ({periodeQ.data!.periode.length})</p>
+          <div className="flex flex-col gap-1">
+            {periodeQ.data!.periode.map((p) => (
+              <div key={p.periode_id} className="flex items-center gap-2 rounded-lg border border-gray-100 px-3 py-2 text-sm">
+                <div className="flex-1">
+                  <p className="font-medium">{p.nama || p.nit} · Tk {p.tingkat}</p>
+                  <p className="text-xs text-gray-500">{p.status.replace(/_/g, ' ')} · {p.tgl_mulai} s.d {p.tgl_akhir} ({jmlHari(p.tgl_mulai, p.tgl_akhir)} hari)</p>
+                </div>
+                <button title="Potong / ubah tanggal akhir" disabled={proses}
+                  className="rounded-lg px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                  onClick={() => void potongPeriode(p)}>✂️ Potong</button>
+                <button title="Hapus periode" disabled={proses}
+                  className="rounded-lg px-2 py-1 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  onClick={() => void hapusPeriode(p)}>🗑</button>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* ── Isi harga satuan (tarif per hari) ── */}
       <Card className="flex flex-col gap-3">

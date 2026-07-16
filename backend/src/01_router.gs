@@ -49,6 +49,9 @@ var ACTION_MAP = {
   'kajur.set_tarif':    { handler: kajurSetTarif,    roles: ['KETUA_JURUSAN'] },
   'kajur.tanggal_taruna': { handler: kajurTanggalTaruna, roles: ['KETUA_JURUSAN'] },
   'kajur.hapus_absen':  { handler: kajurHapusAbsen,  roles: ['KETUA_JURUSAN'] },
+  'kajur.periode_set':  { handler: kajurPeriodeSet,  roles: ['KETUA_JURUSAN'] },
+  'kajur.periode_list': { handler: kajurPeriodeList, roles: ['KETUA_JURUSAN'] },
+  'kajur.periode_hapus':{ handler: kajurPeriodeHapus, roles: ['KETUA_JURUSAN'] },
   'kajur.approve':      { handler: kajurApprove,     roles: ['KETUA_JURUSAN'] },
 
   // Pesanan (TAHAP 3)
@@ -225,6 +228,9 @@ var KETUA_JURUSAN_ACTIONS = {
   'kajur.set_tarif':    true,
   'kajur.tanggal_taruna': true,
   'kajur.hapus_absen':  true,
+  'kajur.periode_set':  true,
+  'kajur.periode_list': true,
+  'kajur.periode_hapus':true,
   'kajur.approve':      true,
   'auth.logout':        true,
   'auth.change_pin':    true

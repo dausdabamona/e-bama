@@ -279,6 +279,92 @@ function kajurHapusAbsen(payload, session) {
 }
 
 /**
+ * MODEL PERIODE — buat/ubah periode luar kampus (1 baris per taruna, hemat).
+ * Tanpa `periode_id` → CREATE untuk `nit_list` (payload {nit_list, status,
+ * tgl_mulai, tgl_akhir}). Dengan `periode_id` → UPDATE satu periode (mis.
+ * potong: ubah tgl_akhir). Di-scope prodi; withLock + audit per baris.
+ */
+function kajurPeriodeSet(payload, session) {
+  var prodi = _hanyaKajur_(session);
+  var status = String((payload && payload.status) || '');
+  if (STATUS_LUAR_KAMPUS.indexOf(status) < 0) {
+    throw _fail_('status harus luar kampus: ' + STATUS_LUAR_KAMPUS.join(' / '));
+  }
+  var tglMulai = _wajibTgl_(payload && payload.tgl_mulai, 'tgl_mulai');
+  var tglAkhir = _wajibTgl_(payload && payload.tgl_akhir, 'tgl_akhir');
+  if (tglAkhir < tglMulai) throw _fail_('tgl_akhir tidak boleh sebelum tgl_mulai.');
+  var periodeId = payload && payload.periode_id ? String(payload.periode_id) : '';
+
+  return withLock(function () {
+    if (periodeId) {
+      var ada = sheetRead(SHEETS.PERIODE_LUAR, function (r) { return String(r.periode_id) === periodeId; })[0];
+      if (!ada) throw _fail_('Periode tidak ditemukan: ' + periodeId);
+      _pastikanTarunaProdi_(ada.nit, prodi);
+      sheetUpdate(SHEETS.PERIODE_LUAR, 'periode_id', periodeId,
+        { status: status, tgl_mulai: tglMulai, tgl_akhir: tglAkhir, input_by: session.user_id, timestamp: new Date() });
+      auditLog(session, 'kajur.periode_set', 'PERIODE_LUAR', periodeId,
+        { status: ada.status, tgl_mulai: _tglStr_(ada.tgl_mulai), tgl_akhir: _tglStr_(ada.tgl_akhir) },
+        { status: status, tgl_mulai: tglMulai, tgl_akhir: tglAkhir });
+      return { jml: 1, periode_id: periodeId };
+    }
+    var daftar = (payload && payload.nit_list) || [];
+    if (!daftar.length) throw _fail_('nit_list harus berupa daftar minimal 1 taruna.');
+    var prodiNit = {};
+    _tarunaProdi_(prodi).forEach(function (t) { prodiNit[String(t.nit)] = true; });
+    daftar.forEach(function (nit) { if (!prodiNit[String(nit).trim()]) throw _fail_('Taruna di luar prodi Anda: ' + nit); });
+    var now = new Date();
+    var n = 0;
+    daftar.forEach(function (nitRaw) {
+      var nit = String(nitRaw).trim();
+      var id = nextId('PLR');
+      sheetAppend(SHEETS.PERIODE_LUAR, {
+        periode_id: id, nit: nit, status: status, tgl_mulai: tglMulai, tgl_akhir: tglAkhir,
+        input_by: session.user_id, timestamp: now
+      });
+      auditLog(session, 'kajur.periode_set', 'PERIODE_LUAR', id, null,
+        { nit: nit, status: status, tgl_mulai: tglMulai, tgl_akhir: tglAkhir });
+      n++;
+    });
+    return { jml: n, status: status };
+  });
+}
+
+/** Daftar periode luar kampus prodi (join nama/tingkat). READ, scope prodi. */
+function kajurPeriodeList(payload, session) {
+  var prodi = _hanyaKajur_(session);
+  var nitSet = {};
+  _tarunaProdi_(prodi).forEach(function (t) { nitSet[String(t.nit)] = t; });
+  var rows = _periodeLuarRows_().filter(function (p) { return nitSet[p.nit]; }).map(function (p) {
+    var t = nitSet[p.nit] || {};
+    return {
+      periode_id: p.periode_id, nit: p.nit, nama: t.nama || '', tingkat: t.tingkat || '',
+      status: p.status, tgl_mulai: p.tgl_mulai, tgl_akhir: p.tgl_akhir
+    };
+  });
+  rows.sort(function (a, b) {
+    return String(a.tingkat).localeCompare(String(b.tingkat)) ||
+      String(a.nama).localeCompare(String(b.nama), 'id') || a.tgl_mulai.localeCompare(b.tgl_mulai);
+  });
+  return { prodi: prodi, periode: rows };
+}
+
+/** Hapus satu periode luar kampus. Payload {periode_id}. Scope prodi; withLock + audit. */
+function kajurPeriodeHapus(payload, session) {
+  var prodi = _hanyaKajur_(session);
+  var periodeId = String((payload && payload.periode_id) || '').trim();
+  if (!periodeId) throw _fail_('periode_id wajib diisi.');
+  return withLock(function () {
+    var ada = sheetRead(SHEETS.PERIODE_LUAR, function (r) { return String(r.periode_id) === periodeId; })[0];
+    if (!ada) return { jml_dihapus: 0 };
+    _pastikanTarunaProdi_(ada.nit, prodi);
+    sheetDeleteRows(SHEETS.PERIODE_LUAR, 'periode_id', [periodeId]);
+    auditLog(session, 'kajur.periode_hapus', 'PERIODE_LUAR', periodeId,
+      { nit: ada.nit, status: ada.status, tgl_mulai: _tglStr_(ada.tgl_mulai), tgl_akhir: _tglStr_(ada.tgl_akhir) }, null);
+    return { jml_dihapus: 1 };
+  });
+}
+
+/**
  * Setujui rekap luar kampus prodi untuk bulan: set BANTUAN_LUAR_KAMPUS.status
  * (baris nit berprodi session.prodi & bulan itu) DRAFT → DISETUJUI_KAJUR.
  * Payload {bulan}.
