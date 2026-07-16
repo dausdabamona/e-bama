@@ -55,6 +55,7 @@ export function HalamanKetuaJurusan() {
   // ── Form harga satuan (tarif per hari) ──
   const [tarifKegiatan, setTarifKegiatan] = useState(STATUS_LUAR_KAMPUS[0]);
   const [tarifNilai, setTarifNilai] = useState('');
+  const [tarifRow, setTarifRow] = useState<Record<string, string>>({}); // tarif edit per taruna
 
   const prodi = rekapQ.data?.prodi || tarunaQ.data?.prodi || '';
   const baris = rekapQ.data?.baris ?? [];
@@ -138,6 +139,30 @@ export function HalamanKetuaJurusan() {
       });
       toast(`Harga satuan ${formatRupiah(nilai)}/hari diterapkan ke ${r.jml} taruna.`, 'sukses');
       setTarifNilai('');
+      rekapQ.refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
+    } finally {
+      setProses(false);
+    }
+  }
+
+  // Tarif per baris (per orang): nilai yang sedang diedit, atau nilai tersimpan.
+  const tarifRowVal = (b: BarisRekap) =>
+    tarifRow[b.nit] !== undefined ? Math.round(Number(tarifRow[b.nit]) || 0) : b.nilai_per_hari;
+  const nominalRow = (b: BarisRekap) => Math.round(b.hari_luar_kampus * tarifRowVal(b));
+  const totalHidup = baris.reduce((s, b) => s + nominalRow(b), 0);
+
+  async function simpanTarifRow(b: BarisRekap) {
+    const nilai = tarifRowVal(b);
+    if (nilai <= 0) { toast('Isi tarif (lebih dari 0).', 'galat'); return; }
+    // kegiatan: pakai milik taruna bila tunggal & ada; jika kosong/gabungan, pakai pilihan kartu di atas.
+    const kegiatan = b.kegiatan && !b.kegiatan.includes(',') ? b.kegiatan : tarifKegiatan;
+    setProses(true);
+    try {
+      await api('kajur.set_tarif', { bulan, kegiatan, nilai_per_hari: nilai, nit_list: [b.nit] });
+      toast(`Tarif ${b.nama || b.nit}: ${formatRupiah(nilai)}/hari tersimpan.`, 'sukses');
+      setTarifRow((prev) => { const n = { ...prev }; delete n[b.nit]; return n; });
       rekapQ.refresh();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
@@ -272,34 +297,51 @@ export function HalamanKetuaJurusan() {
               <tr className="border-b border-gray-200 text-left text-gray-500">
                 <th className="py-1 pr-2">Nama</th><th className="py-1 pr-2">Tingkat</th>
                 <th className="py-1 pr-2">Kegiatan</th><th className="py-1 pr-2 text-right">Hari</th>
+                <th className="py-1 pr-2 text-right">Tarif/Hari</th>
                 <th className="py-1 pr-2 text-right">Nominal</th><th className="py-1">Status</th>
               </tr>
             </thead>
             {kelompokTingkat.map((kt) => {
-              const subtotal = kt.rows.reduce((s, b) => s + b.nominal, 0);
+              const subtotal = kt.rows.reduce((s, b) => s + nominalRow(b), 0);
               return (
                 <tbody key={kt.tingkat}>
                   <tr className="bg-primary-light/30">
-                    <td colSpan={6} className="py-1 pr-2 font-semibold text-primary-dark">Tingkat {kt.tingkat}</td>
+                    <td colSpan={7} className="py-1 pr-2 font-semibold text-primary-dark">Tingkat {kt.tingkat}</td>
                   </tr>
-                  {kt.rows.map((b) => (
-                    <tr key={b.nit} className="border-b border-gray-100">
-                      <td className="py-1 pr-2">{b.nama || b.nit}</td>
-                      <td className="py-1 pr-2">{b.tingkat}</td>
-                      <td className="py-1 pr-2">{b.kegiatan || '-'}</td>
-                      <td className="py-1 pr-2 text-right">{b.hari_luar_kampus}</td>
-                      <td className="py-1 pr-2 text-right">{formatRupiah(b.nominal)}</td>
-                      <td className="py-1">
-                        {!b.ada_blk
-                          ? <span className="text-gray-400">belum ada tarif</span>
-                          : b.disetujui_kajur
-                            ? <span className="text-green-700">Disetujui</span>
-                            : <span className="text-amber-600">Belum disetujui</span>}
-                      </td>
-                    </tr>
-                  ))}
+                  {kt.rows.map((b) => {
+                    const berubah = tarifRow[b.nit] !== undefined && tarifRowVal(b) !== b.nilai_per_hari;
+                    return (
+                      <tr key={b.nit} className="border-b border-gray-100">
+                        <td className="py-1 pr-2">{b.nama || b.nit}</td>
+                        <td className="py-1 pr-2">{b.tingkat}</td>
+                        <td className="py-1 pr-2">{b.kegiatan || '-'}</td>
+                        <td className="py-1 pr-2 text-right">{b.hari_luar_kampus}</td>
+                        <td className="py-1 pr-2 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <input type="number" inputMode="numeric" min={0}
+                              className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-right text-sm"
+                              value={tarifRow[b.nit] ?? String(b.nilai_per_hari || '')}
+                              onChange={(e) => setTarifRow((prev) => ({ ...prev, [b.nit]: e.target.value }))} />
+                            {berubah && (
+                              <button title="Simpan tarif" disabled={proses}
+                                className="rounded-lg bg-primary px-2 py-1 text-xs font-bold text-white disabled:opacity-50"
+                                onClick={() => void simpanTarifRow(b)}>✓</button>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-1 pr-2 text-right">{formatRupiah(nominalRow(b))}</td>
+                        <td className="py-1">
+                          {!b.ada_blk
+                            ? <span className="text-gray-400">belum ada tarif</span>
+                            : b.disetujui_kajur
+                              ? <span className="text-green-700">Disetujui</span>
+                              : <span className="text-amber-600">Belum disetujui</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   <tr className="border-b-2 border-gray-300 font-semibold">
-                    <td className="py-1 pr-2" colSpan={4}>Subtotal ({kt.rows.length} taruna)</td>
+                    <td className="py-1 pr-2" colSpan={5}>Subtotal ({kt.rows.length} taruna)</td>
                     <td className="py-1 pr-2 text-right">{formatRupiah(subtotal)}</td>
                     <td className="py-1" />
                   </tr>
@@ -308,8 +350,8 @@ export function HalamanKetuaJurusan() {
             })}
             <tfoot>
               <tr className="font-bold">
-                <td className="pt-2" colSpan={4}>Total</td>
-                <td className="pt-2 pr-2 text-right">{formatRupiah(rekapQ.data?.total_nominal ?? 0)}</td>
+                <td className="pt-2" colSpan={5}>Total</td>
+                <td className="pt-2 pr-2 text-right">{formatRupiah(totalHidup)}</td>
                 <td className="pt-2"></td>
               </tr>
             </tfoot>
