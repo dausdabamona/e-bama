@@ -32,7 +32,8 @@ function rekapUpdate(tanggal) {
   }).forEach(function (r) { hariSah[_tglStr_(r.tanggal)] = true; });
   var jmlHariSah = Object.keys(hariSah).length;
 
-  // Status harian per taruna pada bulan tsb
+  // Status harian per taruna pada bulan tsb — hari apa pun taruna berstatus
+  // (tidak makan di kampus) menurunkan hari_makan-nya.
   var statusPerNit = {};
   sheetRead(SHEETS.STATUS_HARIAN, function (r) { return _bulanStr_(r.tanggal) === bulan; })
     .forEach(function (r) {
@@ -40,6 +41,21 @@ function rekapUpdate(tanggal) {
       if (!statusPerNit[nit]) statusPerNit[nit] = {};
       statusPerNit[nit][_tglStr_(r.tanggal)] = true;
     });
+  // Sertakan hari PERIODE_LUAR (model periode) yang jatuh di bulan ini — taruna
+  // PKL/KPA tidak makan di kampus, jadi hari itu bukan hari_makan dalam kampus.
+  (function () {
+    var pinfo = bulan.split('-');
+    var awal = bulan + '-01';
+    var akhir = _tglStr_(new Date(Number(pinfo[0]), Number(pinfo[1]), 0));
+    _periodeLuarRows_().forEach(function (pr) {
+      if (!pr.tgl_mulai || !pr.tgl_akhir) return;
+      var d0 = pr.tgl_mulai > awal ? pr.tgl_mulai : awal;
+      var d1 = pr.tgl_akhir < akhir ? pr.tgl_akhir : akhir;
+      if (d1 < d0) return;
+      if (!statusPerNit[pr.nit]) statusPerNit[pr.nit] = {};
+      _daftarTanggal_(d0, d1).forEach(function (t) { statusPerNit[pr.nit][t] = true; });
+    });
+  })();
 
   var tarunaAktif = sheetRead(SHEETS.TARUNA, function (r) { return r.status === 'AKTIF'; });
 
@@ -288,6 +304,10 @@ function rekapHarian(payload, session) {
   var statusHari = {};
   sheetRead(SHEETS.STATUS_HARIAN, function (r) { return _tglStr_(r.tanggal) === tgl; })
     .forEach(function (r) { statusHari[String(r.nit)] = String(r.status); });
+  // Sertakan taruna berperiode luar kampus (model periode) yang mencakup tgl ini
+  // — kalau belum punya baris STATUS_HARIAN hari itu, pakai status periodenya.
+  var luarPeriode = _nitLuarPadaTanggal_(tgl);
+  Object.keys(luarPeriode).forEach(function (nit) { if (!statusHari[nit]) statusHari[nit] = luarPeriode[nit]; });
 
   var kelompok = {};
   function _grupHarian_(prodi, tingkat) {

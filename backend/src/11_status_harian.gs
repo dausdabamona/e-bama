@@ -217,6 +217,24 @@ function _hariLuarPerNitBulan_(bulan) {
 }
 
 /**
+ * Set NIT yang TIDAK makan di kampus pada satu tanggal = STATUS_HARIAN (SEMUA
+ * status: pesiar/cuti/sakit/luar/dst) ∪ PERIODE_LUAR yang mencakup tanggal.
+ * Dipakai konsumen HARIAN pesanan (hitung jml_taruna, derivasi porsi) agar
+ * taruna berperiode luar kampus tetap DIKECUALIKAN dari pesan makan kampus.
+ * Kembalikan map { nit: true }.
+ */
+function _tidakMakanKampusPada_(tanggal) {
+  var t = _tglStr_(tanggal);
+  var set = {};
+  sheetRead(SHEETS.STATUS_HARIAN, function (r) { return _tglStr_(r.tanggal) === t; })
+    .forEach(function (r) { set[String(r.nit)] = true; });
+  _periodeLuarRows_().forEach(function (p) {
+    if (p.tgl_mulai && p.tgl_akhir && p.tgl_mulai <= t && t <= p.tgl_akhir) set[p.nit] = true;
+  });
+  return set;
+}
+
+/**
  * Set status satu taruna. Payload {tanggal, nit, status, berkas?, tgl_akhir?}.
  * `tgl_akhir` opsional → isi rentang tanggal, satu baris STATUS_HARIAN per hari
  * (mis. cuti 2 minggu sekali input, bukan per hari).

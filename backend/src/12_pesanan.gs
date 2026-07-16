@@ -22,15 +22,16 @@ function _pesanan_(id) {
   return p;
 }
 
-/** Hitung otomatis jml_taruna utk tanggal: taruna AKTIF − yang berstatus harian. */
+/** Hitung otomatis jml_taruna utk tanggal: taruna AKTIF − yang tidak makan di
+ * kampus (STATUS_HARIAN ∪ periode luar kampus). */
 function _hitungJmlTaruna_(tanggal) {
   var aktif = {};
   sheetRead(SHEETS.TARUNA, function (r) { return r.status === 'AKTIF'; })
     .forEach(function (r) { aktif[String(r.nit)] = true; });
-  var tidakMakan = {};
-  sheetRead(SHEETS.STATUS_HARIAN, function (r) { return _tglStr_(r.tanggal) === tanggal; })
-    .forEach(function (r) { if (aktif[String(r.nit)]) tidakMakan[String(r.nit)] = true; });
-  return Object.keys(aktif).length - Object.keys(tidakMakan).length;
+  var tidakMakan = _tidakMakanKampusPada_(tanggal);
+  var n = 0;
+  Object.keys(aktif).forEach(function (nit) { if (!tidakMakan[nit]) n++; });
+  return n;
 }
 
 /**
@@ -166,9 +167,7 @@ function pesananSuratPenyedia(payload, session) {
   var menuMalamRow = menuHari.filter(function (r) { return r.hari === hariMalam; })[0];
   var menuPagiSiangRow = menuHari.filter(function (r) { return r.hari === hariPagiSiang; })[0];
 
-  var tidakMakan = {};
-  sheetRead(SHEETS.STATUS_HARIAN, function (r) { return _tglStr_(r.tanggal) === tgl; })
-    .forEach(function (r) { tidakMakan[String(r.nit)] = true; });
+  var tidakMakan = _tidakMakanKampusPada_(tgl);
 
   var kelompok = {};
   sheetRead(SHEETS.TARUNA, function (r) { return r.status === 'AKTIF' && !tidakMakan[String(r.nit)]; })
