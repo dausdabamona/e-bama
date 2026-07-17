@@ -1,7 +1,7 @@
 // /status-taruna (Pembina, Admin, BAAK) — input status harian individual &
 // massal per kelas; BAAK juga pakai ini untuk surat taruna keluar kampus
 // (PKL) & surat penarikan kembali, lampirkan lewat "Surat Pendukung".
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ChangeEvent } from 'react';
 import { useAuth } from '../../auth/auth-context';
 import { api } from '../../lib/api';
 import { ambilFotoInput, kompresFotoBase64 } from '../../lib/foto';
@@ -176,6 +176,7 @@ export function HalamanStatusTaruna() {
       <h1 className="text-xl font-bold text-primary-dark">Status Taruna</h1>
 
       <KartuMigrasiPeriode />
+      <KartuImporPeriode />
 
       <Card className="flex flex-col gap-3">
         <div className="flex gap-2">
@@ -376,6 +377,76 @@ function KartuMigrasiPeriode() {
           {proses ? 'Memproses…' : 'Jalankan Migrasi'}
         </Button>
       </div>
+    </Card>
+  );
+}
+
+/** ADMIN saja: impor massal periode luar kampus dari CSV
+ * (nit,status,tgl_mulai,tgl_akhir). Untuk rekap PKL/KPA se-angkatan dari Excel. */
+function KartuImporPeriode() {
+  const { session } = useAuth();
+  const { toast } = useToast();
+  const [baris, setBaris] = useState<{ nit: string; status: string; tgl_mulai: string; tgl_akhir: string }[]>([]);
+  const [namaFile, setNamaFile] = useState('');
+  const [proses, setProses] = useState(false);
+  const [hasil, setHasil] = useState<{ dibuat: number; dobel: number; dilewati_nit: string[] } | null>(null);
+  if (session?.role !== 'ADMIN') return null;
+
+  function bacaCsv(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setNamaFile(file.name); setHasil(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const teks = String(reader.result || '');
+      const lines = teks.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      const out: { nit: string; status: string; tgl_mulai: string; tgl_akhir: string }[] = [];
+      lines.forEach((l, i) => {
+        const c = l.split(',').map((x) => x.trim());
+        if (i === 0 && /nit/i.test(c[0])) return; // header
+        if (c.length < 4) return;
+        out.push({ nit: c[0], status: c[1], tgl_mulai: c[2], tgl_akhir: c[3] });
+      });
+      setBaris(out);
+      toast(`${out.length} baris terbaca dari CSV.`, 'sukses');
+    };
+    reader.readAsText(file);
+  }
+
+  async function impor() {
+    if (!baris.length) { toast('Unggah CSV dulu.', 'galat'); return; }
+    setProses(true);
+    try {
+      const r = await api<{ dibuat: number; dobel: number; dilewati_nit: string[] }>('periode.impor', { baris });
+      setHasil(r);
+      toast(`${r.dibuat} periode dibuat · ${r.dobel} duplikat dilewati · ${r.dilewati_nit.length} NIT tak cocok.`, 'sukses');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal impor.', 'galat');
+    } finally {
+      setProses(false);
+    }
+  }
+
+  return (
+    <Card className="flex flex-col gap-2 border-teal-200 bg-teal-50/40">
+      <p className="text-sm font-semibold text-primary-dark">📥 Impor Periode Luar Kampus dari CSV (Admin)</p>
+      <p className="text-xs text-gray-600">
+        Kolom CSV: <code>nit,status,tgl_mulai,tgl_akhir</code> (status: PKL_2/PKL_3/KPA/PTB/MAGANG/dst; tanggal YYYY-MM-DD).
+        NIT yang tak ada di data taruna akan dilewati &amp; dilaporkan. Aman diulang (duplikat dilewati).
+      </p>
+      <input type="file" accept=".csv,text/csv" onChange={bacaCsv} className="text-sm" />
+      {namaFile && <p className="text-xs text-gray-500">{namaFile} — {baris.length} baris siap.</p>}
+      {hasil && (
+        <div className="rounded-lg bg-white p-2 text-xs text-gray-700">
+          <p>✅ Dibuat: <b>{hasil.dibuat}</b> · Duplikat dilewati: {hasil.dobel} · NIT tak cocok: <b>{hasil.dilewati_nit.length}</b></p>
+          {hasil.dilewati_nit.length > 0 && (
+            <p className="mt-1 text-amber-700 break-words">Tak cocok: {hasil.dilewati_nit.slice(0, 30).join(', ')}{hasil.dilewati_nit.length > 30 ? ' …' : ''}</p>
+          )}
+        </div>
+      )}
+      <Button disabled={proses || baris.length === 0} onClick={() => void impor()}>
+        {proses ? 'Mengimpor…' : `Impor ${baris.length} Periode`}
+      </Button>
     </Card>
   );
 }
