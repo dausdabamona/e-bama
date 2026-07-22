@@ -408,7 +408,7 @@ function setKebijakanPiket(obj) {
 // (dikonfirmasi Firdaus). "Ikan" digabung ke "Lauk" (dulu dobel — Ikan itu
 // sendiri sejenis lauk), "Minuman" ditambahkan (kadang teh/susu/dst, jumlahnya
 // tetap dicatat sama seperti item lain, jenisnya TIDAK dirinci per sesi).
-var _CONFIG_KOMPONEN_MENU_DEFAULT = { komponen: ['Nasi', 'Sayur', 'Lauk', 'Buah', 'Minuman'] };
+var _CONFIG_KOMPONEN_MENU_DEFAULT = { komponen: ['Nasi', 'Sayur', 'Lauk', 'Buah', 'Minuman', 'Kerupuk'] };
 
 /** getKebijakanKomponenMenu() — SATU-SATUNYA cara 13_realisasi.gs membaca daftar ini. */
 function getKebijakanKomponenMenu() {

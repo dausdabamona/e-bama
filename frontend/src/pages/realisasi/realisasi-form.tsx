@@ -29,9 +29,17 @@ const LABEL_WAKTU: Record<WaktuMakan, string> = { pagi: 'Pagi', siang: 'Siang', 
 interface BarisPenerimaan { ada: boolean; jumlah: string; keterangan: string }
 type StatePenerimaan = Record<WaktuMakan, Record<string, BarisPenerimaan>>;
 
-// Saran jenis Lauk nyata (dikonfirmasi Firdaus) — TIDAK dikunci, sekadar
-// datalist supaya Senat cepat pilih sambil tetap bisa isi manual.
-const SARAN_LAUK = ['Ikan', 'Ayam', 'Tempe', 'Tahu', 'Telur', 'Daging', 'Kerupuk'];
+// Saran jenis nyata (dikonfirmasi Firdaus) — TIDAK dikunci, sekadar datalist
+// supaya Senat cepat pilih sambil tetap bisa isi manual. Komponen yang punya
+// isian "jenis" bebas: Lauk & Minuman (masukan taruna).
+const SARAN_LAUK = ['Ikan', 'Ayam', 'Tempe', 'Tahu', 'Telur', 'Daging'];
+const SARAN_MINUMAN = ['Teh', 'Susu', 'Milo', 'Kopi', 'Air Mineral', 'Jus'];
+const SARAN_MENU_LAIN = ['Bubur Kacang Ijo', 'Bubur Ayam', 'Mie', 'Nasi Kuning', 'Roti', 'Kolak'];
+// Komponen yang menampilkan kolom "jenis" bebas ketik.
+const KOMPONEN_BERJENIS: Record<string, { saran: string[]; placeholder: string }> = {
+  Lauk: { saran: SARAN_LAUK, placeholder: 'Jenis lauk (pilih/ketik: Ikan, Ayam, Tempe, dst.)' },
+  Minuman: { saran: SARAN_MINUMAN, placeholder: 'Jenis minuman (pilih/ketik: Teh, Susu, Milo, dst.)' },
+};
 
 function barisKosong(): StatePenerimaan {
   return { pagi: {}, siang: {}, malam: {} };
@@ -78,6 +86,9 @@ export function HalamanRealisasiBuat() {
   const [piketCatatan, setPiketCatatan] = useState('');
   const [tabWaktu, setTabWaktu] = useState<WaktuMakan>('pagi');
   const [penerimaan, setPenerimaan] = useState<StatePenerimaan>(barisKosong());
+  // Baris "Menu lain" bebas ketik (bubur, dll) per waktu makan — komponen di
+  // luar daftar standar. Nama diketik Senat; disimpan sebagai komponen bebas.
+  const [menuLain, setMenuLain] = useState<Record<WaktuMakan, { nama: string; jumlah: string; keterangan: string }[]>>({ pagi: [], siang: [], malam: [] });
   const [proses, setProses] = useState(false);
   const [galat, setGalat] = useState('');
 
@@ -100,17 +111,31 @@ export function HalamanRealisasiBuat() {
     }));
   }
 
+  function tambahMenuLain(waktu: WaktuMakan) {
+    setMenuLain((s) => ({ ...s, [waktu]: [...s[waktu], { nama: '', jumlah: '', keterangan: '' }] }));
+  }
+  function setMenuLainRow(waktu: WaktuMakan, i: number, patch: Partial<{ nama: string; jumlah: string; keterangan: string }>) {
+    setMenuLain((s) => ({ ...s, [waktu]: s[waktu].map((r, j) => (j === i ? { ...r, ...patch } : r)) }));
+  }
+  function hapusMenuLain(waktu: WaktuMakan, i: number) {
+    setMenuLain((s) => ({ ...s, [waktu]: s[waktu].filter((_, j) => j !== i) }));
+  }
+
   function waktuTerisi(waktu: WaktuMakan): boolean {
-    return Object.values(penerimaan[waktu]).some((b) => b.ada);
+    return Object.values(penerimaan[waktu]).some((b) => b.ada) || menuLain[waktu].some((c) => c.nama.trim() !== '');
   }
 
   function serialisasiPenerimaan(): Penerimaan {
     const hasil = {} as Penerimaan;
     WAKTU_MAKAN.forEach((w) => {
-      hasil[w] = komponenMenu.map((k) => {
+      const standar = komponenMenu.map((k) => {
         const b = barisUntuk(w, k);
         return { komponen: k, ada: b.ada, jumlah: b.ada ? Number(b.jumlah) || 0 : 0, keterangan: b.ada ? b.keterangan.trim() : '' };
       });
+      const lain = menuLain[w]
+        .filter((c) => c.nama.trim() !== '')
+        .map((c) => ({ komponen: c.nama.trim().slice(0, 40), ada: true, jumlah: Number(c.jumlah) || 0, keterangan: c.keterangan.trim() }));
+      hasil[w] = [...standar, ...lain];
     });
     return hasil;
   }
@@ -260,9 +285,16 @@ export function HalamanRealisasiBuat() {
           <datalist id="saran-lauk">
             {SARAN_LAUK.map((s) => <option key={s} value={s} />)}
           </datalist>
+          <datalist id="saran-minuman">
+            {SARAN_MINUMAN.map((s) => <option key={s} value={s} />)}
+          </datalist>
+          <datalist id="saran-menu-lain">
+            {SARAN_MENU_LAIN.map((s) => <option key={s} value={s} />)}
+          </datalist>
           <div className="flex flex-col gap-2">
             {komponenMenu.map((k) => {
               const b = barisUntuk(tabWaktu, k);
+              const jenis = KOMPONEN_BERJENIS[k];
               return (
                 <div key={k} className="flex flex-col gap-1">
                   <div className="flex items-center gap-2">
@@ -281,11 +313,11 @@ export function HalamanRealisasiBuat() {
                       className="min-h-tap w-24 rounded-xl border border-gray-300 px-3 py-2 text-center text-lg font-semibold disabled:bg-gray-100 disabled:text-gray-400"
                     />
                   </div>
-                  {k === 'Lauk' && b.ada && (
+                  {jenis && b.ada && (
                     <input
                       type="text"
-                      list="saran-lauk"
-                      placeholder="Jenis lauk (pilih atau ketik: Ikan, Ayam, Tempe, dst.)"
+                      list={k === 'Minuman' ? 'saran-minuman' : 'saran-lauk'}
+                      placeholder={jenis.placeholder}
                       maxLength={60}
                       value={b.keterangan}
                       onChange={(e) => setBarisPenerimaan(tabWaktu, k, { keterangan: e.target.value })}
@@ -295,6 +327,45 @@ export function HalamanRealisasiBuat() {
                 </div>
               );
             })}
+
+            {/* Menu lain (bubur, mie, dll) — komponen bebas ketik, bisa >1 */}
+            {menuLain[tabWaktu].map((c, i) => (
+              <div key={i} className="flex flex-col gap-1 rounded-xl border border-dashed border-gray-300 p-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    list="saran-menu-lain"
+                    placeholder="Nama menu (mis. Bubur Kacang Ijo)"
+                    maxLength={40}
+                    value={c.nama}
+                    onChange={(e) => setMenuLainRow(tabWaktu, i, { nama: e.target.value })}
+                    className="min-h-tap flex-1 rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={c.jumlah}
+                    onChange={(e) => setMenuLainRow(tabWaktu, i, { jumlah: e.target.value })}
+                    className="min-h-tap w-20 rounded-xl border border-gray-300 px-2 py-2 text-center text-lg font-semibold"
+                  />
+                  <button type="button" aria-label="Hapus baris"
+                    className="min-h-tap px-2 text-red-600"
+                    onClick={() => hapusMenuLain(tabWaktu, i)}>🗑</button>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Keterangan (opsional)"
+                  maxLength={60}
+                  value={c.keterangan}
+                  onChange={(e) => setMenuLainRow(tabWaktu, i, { keterangan: e.target.value })}
+                  className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                />
+              </div>
+            ))}
+            <Button varian="garis" type="button" onClick={() => tambahMenuLain(tabWaktu)}>
+              ➕ Tambah menu lain (mis. bubur)
+            </Button>
           </div>
         </Card>
       )}

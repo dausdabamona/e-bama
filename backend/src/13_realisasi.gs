@@ -53,15 +53,19 @@ function realisasiKebijakanPenerimaan(payload, session) {
 var _WAKTU_MAKAN_ = ['pagi', 'siang', 'malam'];
 
 var _KETERANGAN_PENERIMAAN_MAKS_ = 60;
+var _KOMPONEN_PENERIMAAN_MAKS_ = 40;
 
 /**
  * Validasi & normalisasi struktur `penerimaan` → {pagi,siang,malam:
- * [{komponen,ada,jumlah,keterangan}]}. `komponen` WAJIB ada di
- * getKebijakanKomponenMenu() (00_config.gs); `jumlah` bilangan bulat ≥ 0;
- * kunci waktu di luar pagi/siang/malam ditolak (cegah typo diam-diam
- * kehilangan data). `keterangan` OPSIONAL, bebas isi (mis. jenis lauk nyata:
- * "Ikan"/"Ayam"/"Tempe"/"Kerupuk") — dipotong 60 karakter, TIDAK dikunci enum
- * karena variasinya banyak & sengaja fleksibel per hari (dikonfirmasi Firdaus).
+ * [{komponen,ada,jumlah,keterangan}]}. `komponen` = nama menu bebas (TIDAK lagi
+ * dikunci ke getKebijakanKomponenMenu) supaya menu non-standar per hari — mis.
+ * "Bubur kacang ijo", lauk kedua, "Milo" — bisa direkam apa adanya (dikonfirmasi
+ * Firdaus, masukan taruna). Hanya disaring: non-kosong & dipotong 40 karakter.
+ * Daftar kebijakan tetap dipakai frontend sebagai checklist standar & di rekap
+ * kelengkapan (komponen di luar daftar dilewati di rekap, tetap tersimpan utuh).
+ * `jumlah` bilangan bulat ≥ 0; kunci waktu di luar pagi/siang/malam ditolak
+ * (cegah typo diam-diam kehilangan data). `keterangan` OPSIONAL, bebas isi (mis.
+ * jenis lauk/minuman nyata) — dipotong 60 karakter.
  */
 function _validasiPenerimaan_(input) {
   if (!input || typeof input !== 'object') throw _fail_('penerimaan wajib berupa objek {pagi, siang, malam}.');
@@ -69,13 +73,12 @@ function _validasiPenerimaan_(input) {
     if (_WAKTU_MAKAN_.indexOf(k) < 0) throw _fail_('Waktu makan tidak dikenal: ' + k + ' (harus pagi/siang/malam).');
   });
 
-  var komponenValid = getKebijakanKomponenMenu().komponen;
   var hasil = {};
   _WAKTU_MAKAN_.forEach(function (waktu) {
     var baris = Array.isArray(input[waktu]) ? input[waktu] : [];
     hasil[waktu] = baris.map(function (b) {
-      var komponen = String((b && b.komponen) || '');
-      if (komponenValid.indexOf(komponen) < 0) throw _fail_('Komponen tidak dikenal (' + waktu + '): ' + komponen);
+      var komponen = String((b && b.komponen) || '').trim().slice(0, _KOMPONEN_PENERIMAAN_MAKS_);
+      if (!komponen) throw _fail_('Nama komponen menu kosong (' + waktu + ').');
       var jumlah = _int_((b && b.jumlah) || 0, 'jumlah (' + waktu + ' ' + komponen + ')');
       var keterangan = String((b && b.keterangan) || '').trim().slice(0, _KETERANGAN_PENERIMAAN_MAKS_);
       return { komponen: komponen, ada: Boolean(b && b.ada), jumlah: jumlah, keterangan: keterangan };
