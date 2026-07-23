@@ -33,6 +33,7 @@ export interface PenerimaanBaris {
   ada: boolean;
   jumlah: number;
   keterangan: string;
+  sesuai?: boolean;
 }
 
 export type Penerimaan = Record<WaktuMakan, PenerimaanBaris[]>;

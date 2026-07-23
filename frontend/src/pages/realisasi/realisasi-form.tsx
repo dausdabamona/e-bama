@@ -26,7 +26,7 @@ const LABEL_KUALITAS: Record<'BAIK' | 'CUKUP' | 'KURANG', string> = {
 const WAKTU_MAKAN: WaktuMakan[] = ['pagi', 'siang', 'malam'];
 const LABEL_WAKTU: Record<WaktuMakan, string> = { pagi: 'Pagi', siang: 'Siang', malam: 'Malam' };
 
-interface BarisPenerimaan { ada: boolean; jumlah: string; keterangan: string }
+interface BarisPenerimaan { ada: boolean; jumlah: string; keterangan: string; sesuai: boolean }
 type StatePenerimaan = Record<WaktuMakan, Record<string, BarisPenerimaan>>;
 
 // Saran jenis nyata (dikonfirmasi Firdaus) — TIDAK dikunci, sekadar datalist
@@ -93,7 +93,7 @@ export function HalamanRealisasiBuat() {
   const [penerimaan, setPenerimaan] = useState<StatePenerimaan>(barisKosong());
   // Baris "Menu lain" bebas ketik (bubur, dll) per waktu makan — komponen di
   // luar daftar standar. Nama diketik Senat; disimpan sebagai komponen bebas.
-  const [menuLain, setMenuLain] = useState<Record<WaktuMakan, { nama: string; jumlah: string; keterangan: string }[]>>({ pagi: [], siang: [], malam: [] });
+  const [menuLain, setMenuLain] = useState<Record<WaktuMakan, { nama: string; jumlah: string; keterangan: string; sesuai: boolean }[]>>({ pagi: [], siang: [], malam: [] });
   const [proses, setProses] = useState(false);
   const [galat, setGalat] = useState('');
 
@@ -106,7 +106,7 @@ export function HalamanRealisasiBuat() {
   }
 
   function barisUntuk(waktu: WaktuMakan, komponen: string): BarisPenerimaan {
-    return penerimaan[waktu][komponen] ?? { ada: false, jumlah: '', keterangan: '' };
+    return penerimaan[waktu][komponen] ?? { ada: false, jumlah: '', keterangan: '', sesuai: true };
   }
 
   function setBarisPenerimaan(waktu: WaktuMakan, komponen: string, patch: Partial<BarisPenerimaan>) {
@@ -117,9 +117,9 @@ export function HalamanRealisasiBuat() {
   }
 
   function tambahMenuLain(waktu: WaktuMakan) {
-    setMenuLain((s) => ({ ...s, [waktu]: [...s[waktu], { nama: '', jumlah: '', keterangan: '' }] }));
+    setMenuLain((s) => ({ ...s, [waktu]: [...s[waktu], { nama: '', jumlah: '', keterangan: '', sesuai: true }] }));
   }
-  function setMenuLainRow(waktu: WaktuMakan, i: number, patch: Partial<{ nama: string; jumlah: string; keterangan: string }>) {
+  function setMenuLainRow(waktu: WaktuMakan, i: number, patch: Partial<{ nama: string; jumlah: string; keterangan: string; sesuai: boolean }>) {
     setMenuLain((s) => ({ ...s, [waktu]: s[waktu].map((r, j) => (j === i ? { ...r, ...patch } : r)) }));
   }
   function hapusMenuLain(waktu: WaktuMakan, i: number) {
@@ -135,11 +135,11 @@ export function HalamanRealisasiBuat() {
     WAKTU_MAKAN.forEach((w) => {
       const standar = komponenMenu.map((k) => {
         const b = barisUntuk(w, k);
-        return { komponen: k, ada: b.ada, jumlah: b.ada ? Number(b.jumlah) || 0 : 0, keterangan: b.ada ? b.keterangan.trim() : '' };
+        return { komponen: k, ada: b.ada, jumlah: b.ada ? Number(b.jumlah) || 0 : 0, keterangan: b.ada ? b.keterangan.trim() : '', sesuai: b.sesuai !== false };
       });
       const lain = menuLain[w]
         .filter((c) => c.nama.trim() !== '')
-        .map((c) => ({ komponen: c.nama.trim().slice(0, 40), ada: true, jumlah: Number(c.jumlah) || 0, keterangan: c.keterangan.trim() }));
+        .map((c) => ({ komponen: c.nama.trim().slice(0, 40), ada: true, jumlah: Number(c.jumlah) || 0, keterangan: c.keterangan.trim(), sesuai: c.sesuai !== false }));
       hasil[w] = [...standar, ...lain];
     });
     return hasil;
@@ -228,6 +228,11 @@ export function HalamanRealisasiBuat() {
     if (!geoSiap) { setGalat('Geotag wajib diisi (otomatis atau manual).'); return; }
     if (piketWajib && !piketNit) { setGalat('Verifikasi piket wajib diisi (kebijakan aktif).'); return; }
     if (piketNit && !piketKualitas) { setGalat('Pilih kualitas makan pada Verifikasi Piket Taruna.'); return; }
+    if (bisaPenerimaan && adaPenerimaanTerisi) {
+      const pen = serialisasiPenerimaan();
+      const kurangKet = WAKTU_MAKAN.some((w) => pen[w].some((b) => b.ada && b.sesuai === false && !b.keterangan.trim()));
+      if (kurangKet) { setGalat('Ada komponen ditandai "Tidak sesuai kontrak" tanpa keterangan. Isi keterangannya dulu.'); return; }
+    }
 
     setProses(true);
     setGalat('');
@@ -337,16 +342,28 @@ export function HalamanRealisasiBuat() {
                       className="min-h-tap w-24 rounded-xl border border-gray-300 px-3 py-2 text-center text-lg font-semibold disabled:bg-gray-100 disabled:text-gray-400"
                     />
                   </div>
-                  {jenis && b.ada && (
+                  {b.ada && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-gray-500">Sesuai kontrak?</span>
+                      <button type="button" onClick={() => setBarisPenerimaan(tabWaktu, k, { sesuai: true })}
+                        className={`rounded-full px-3 py-1 ${b.sesuai !== false ? 'bg-green-600 text-white' : 'border border-gray-300 text-gray-600'}`}>Sesuai</button>
+                      <button type="button" onClick={() => setBarisPenerimaan(tabWaktu, k, { sesuai: false })}
+                        className={`rounded-full px-3 py-1 ${b.sesuai === false ? 'bg-red-600 text-white' : 'border border-gray-300 text-gray-600'}`}>Tidak</button>
+                    </div>
+                  )}
+                  {b.ada && (jenis || b.sesuai === false) && (
                     <input
                       type="text"
-                      list={k === 'Minuman' ? 'saran-minuman' : 'saran-lauk'}
-                      placeholder={jenis.placeholder}
+                      list={k === 'Minuman' ? 'saran-minuman' : k === 'Lauk' ? 'saran-lauk' : undefined}
+                      placeholder={b.sesuai === false ? 'Apa yang tidak sesuai kontrak? (wajib)' : (jenis ? jenis.placeholder : '')}
                       maxLength={60}
                       value={b.keterangan}
                       onChange={(e) => setBarisPenerimaan(tabWaktu, k, { keterangan: e.target.value })}
-                      className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                      className={`min-h-tap w-full rounded-xl border px-3 py-2 text-sm ${b.sesuai === false ? 'border-red-400' : 'border-gray-300'}`}
                     />
+                  )}
+                  {b.ada && b.sesuai === false && (
+                    <p className="text-xs text-red-600">Tambahkan foto sudut sebagai bukti ketidaksesuaian.</p>
                   )}
                 </div>
               );
@@ -379,12 +396,19 @@ export function HalamanRealisasiBuat() {
                 </div>
                 <input
                   type="text"
-                  placeholder="Keterangan (opsional)"
+                  placeholder={c.sesuai === false ? 'Apa yang tidak sesuai kontrak? (wajib)' : 'Keterangan (opsional)'}
                   maxLength={60}
                   value={c.keterangan}
                   onChange={(e) => setMenuLainRow(tabWaktu, i, { keterangan: e.target.value })}
-                  className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                  className={`min-h-tap w-full rounded-xl border px-3 py-2 text-sm ${c.sesuai === false ? 'border-red-400' : 'border-gray-300'}`}
                 />
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-gray-500">Sesuai kontrak?</span>
+                  <button type="button" onClick={() => setMenuLainRow(tabWaktu, i, { sesuai: true })}
+                    className={`rounded-full px-3 py-1 ${c.sesuai !== false ? 'bg-green-600 text-white' : 'border border-gray-300 text-gray-600'}`}>Sesuai</button>
+                  <button type="button" onClick={() => setMenuLainRow(tabWaktu, i, { sesuai: false })}
+                    className={`rounded-full px-3 py-1 ${c.sesuai === false ? 'bg-red-600 text-white' : 'border border-gray-300 text-gray-600'}`}>Tidak</button>
+                </div>
               </div>
             ))}
             <Button varian="garis" type="button" onClick={() => tambahMenuLain(tabWaktu)}>

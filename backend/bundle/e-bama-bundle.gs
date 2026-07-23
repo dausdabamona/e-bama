@@ -2676,7 +2676,10 @@ function _validasiPenerimaan_(input) {
       if (!komponen) throw _fail_('Nama komponen menu kosong (' + waktu + ').');
       var jumlah = _int_((b && b.jumlah) || 0, 'jumlah (' + waktu + ' ' + komponen + ')');
       var keterangan = String((b && b.keterangan) || '').trim().slice(0, _KETERANGAN_PENERIMAAN_MAKS_);
-      return { komponen: komponen, ada: Boolean(b && b.ada), jumlah: jumlah, keterangan: keterangan };
+      // `sesuai` = kesesuaian dengan menu kontrak (Tahap 3). Default true; hanya
+      // false bila DITANDAI tidak sesuai — backward-compatible dgn data lama.
+      var sesuai = (b && b.sesuai === false) ? false : true;
+      return { komponen: komponen, ada: Boolean(b && b.ada), jumlah: jumlah, keterangan: keterangan, sesuai: sesuai };
     });
   });
   return hasil;
@@ -2737,7 +2740,7 @@ function realisasiRekapPenerimaan(payload, session) {
 
   var komponenValid = getKebijakanKomponenMenu().komponen;
   var stat = {};
-  komponenValid.forEach(function (k) { stat[k] = { kaliAda: 0, kaliCatat: 0, totalJumlah: 0, totalSelisih: 0 }; });
+  komponenValid.forEach(function (k) { stat[k] = { kaliAda: 0, kaliCatat: 0, totalJumlah: 0, totalSelisih: 0, kaliTidakSesuai: 0 }; });
 
   var totalRealisasi = 0;
   baris.forEach(function (r) {
@@ -2753,6 +2756,7 @@ function realisasiRekapPenerimaan(payload, session) {
         var s = stat[b.komponen];
         if (!s) return; // komponen lama di luar kebijakan saat ini → lewati
         s.kaliCatat++;
+        if (b.sesuai === false) s.kaliTidakSesuai++;
         if (b.ada) {
           s.kaliAda++;
           s.totalJumlah += Number(b.jumlah) || 0;
@@ -2767,18 +2771,23 @@ function realisasiRekapPenerimaan(payload, session) {
     return {
       komponen: k, kali_ada: s.kaliAda, kali_tidak_ada: s.kaliCatat - s.kaliAda,
       persen_lengkap: s.kaliCatat > 0 ? Math.round((s.kaliAda / s.kaliCatat) * 100) : 0,
-      total_jumlah: s.totalJumlah, total_selisih: s.totalSelisih
+      total_jumlah: s.totalJumlah, total_selisih: s.totalSelisih,
+      kali_tidak_sesuai: s.kaliTidakSesuai
     };
   });
 
   var totalCatat = perKomponen.reduce(function (s, k) { return s + k.kali_ada + k.kali_tidak_ada; }, 0);
   var totalAda = perKomponen.reduce(function (s, k) { return s + k.kali_ada; }, 0);
+  var totalTidakSesuai = perKomponen.reduce(function (s, k) { return s + k.kali_tidak_sesuai; }, 0);
   var palingKurang = perKomponen.slice().sort(function (a, b) { return b.kali_tidak_ada - a.kali_tidak_ada; })[0];
+  var palingTakSesuai = perKomponen.slice().sort(function (a, b) { return b.kali_tidak_sesuai - a.kali_tidak_sesuai; })[0];
 
   return {
     bulan: bulan, total_realisasi: totalRealisasi, per_komponen: perKomponen,
     persen_lengkap_keseluruhan: totalCatat > 0 ? Math.round((totalAda / totalCatat) * 100) : 0,
-    komponen_paling_sering_kurang: (palingKurang && palingKurang.kali_tidak_ada > 0) ? palingKurang.komponen : ''
+    komponen_paling_sering_kurang: (palingKurang && palingKurang.kali_tidak_ada > 0) ? palingKurang.komponen : '',
+    total_tidak_sesuai_kontrak: totalTidakSesuai,
+    komponen_paling_sering_tidak_sesuai: (palingTakSesuai && palingTakSesuai.kali_tidak_sesuai > 0) ? palingTakSesuai.komponen : ''
   };
 }
 
