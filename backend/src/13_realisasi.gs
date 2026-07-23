@@ -290,6 +290,23 @@ function realisasiCreate(payload, session) {
     lampiranSave(session, 'REALISASI', obj.real_id, 'FOTO',
       payload.berkas_wide.base64, payload.berkas_wide.nama_file || (obj.real_id + '-wide.jpg'));
   }
+  // Foto sudut tambahan (opsional, maks 4) — masukan taruna: beberapa sudut
+  // agar hasil tergambar dengan baik. Baris LAMPIRAN jenis FOTO, sama seperti
+  // dua foto wajib di atas (tanpa kolom/skema baru).
+  if (payload.berkas_tambahan && payload.berkas_tambahan.length) {
+    payload.berkas_tambahan.slice(0, 4).forEach(function (f, i) {
+      if (f && f.base64) {
+        lampiranSave(session, 'REALISASI', obj.real_id, 'FOTO',
+          f.base64, f.nama_file || (obj.real_id + '-sudut' + (i + 1) + '.jpg'));
+      }
+    });
+  }
+  // Lampiran dokumen (PDF serah-terima dari penyedia, opsional) — jenis LAINNYA
+  // supaya terpisah dari FOTO makanan; mime otomatis dari nama_file (.pdf).
+  if (payload.berkas_pdf && payload.berkas_pdf.base64) {
+    lampiranSave(session, 'REALISASI', obj.real_id, 'LAINNYA',
+      payload.berkas_pdf.base64, payload.berkas_pdf.nama_file || (obj.real_id + '-lampiran.pdf'));
+  }
   auditLog(session, 'realisasi.create', 'REALISASI', obj.real_id, null, {
     pesanan_id: p.pesanan_id, tanggal: obj.tanggal,
     porsi_diterima: obj.porsi_diterima, jml_taruna_makan: obj.jml_taruna_makan,

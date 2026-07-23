@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/auth-context';
-import { ambilFotoInput, kompresFotoBase64 } from '../../lib/foto';
+import { ambilBerkasBase64, ambilFotoInput, kompresFotoBase64 } from '../../lib/foto';
 import { ambilGeotag, type Geotag } from '../../lib/geo';
 import { aksiTulis } from '../../lib/sync';
 import { useListCache } from '../../lib/use-list-cache';
@@ -78,6 +78,11 @@ export function HalamanRealisasiBuat() {
   const [fotoBase64, setFotoBase64] = useState('');
   const [fotoWideNama, setFotoWideNama] = useState('');
   const [fotoWideBase64, setFotoWideBase64] = useState('');
+  // Foto sudut tambahan (opsional, maks 4) + lampiran PDF (opsional) — Tahap 2
+  // masukan taruna: butuh beberapa sudut & dokumen serah-terima.
+  const [fotoSudut, setFotoSudut] = useState<{ nama: string; base64: string }[]>([]);
+  const [pdfNama, setPdfNama] = useState('');
+  const [pdfBase64, setPdfBase64] = useState('');
   const [piketNit, setPiketNit] = useState('');
   const [piketMenuSesuai, setPiketMenuSesuai] = useState(false);
   const [piketPorsiCukup, setPiketPorsiCukup] = useState(false);
@@ -201,6 +206,23 @@ export function HalamanRealisasiBuat() {
     else { setFotoWideNama(file.name); setFotoWideBase64(base64); }
   }
 
+  const MAKS_FOTO_SUDUT = 4;
+  async function tambahFotoSudut() {
+    if (fotoSudut.length >= MAKS_FOTO_SUDUT) return;
+    const file = await ambilFotoInput({ kameraSaja: false });
+    if (!file) return;
+    const base64 = await kompresFotoBase64(file, 200, barisWatermark());
+    setFotoSudut((s) => [...s, { nama: file.name, base64 }]);
+  }
+  function hapusFotoSudut(i: number) {
+    setFotoSudut((s) => s.filter((_, j) => j !== i));
+  }
+  async function pilihPdf() {
+    const r = await ambilBerkasBase64('application/pdf');
+    if (!r) return;
+    setPdfNama(r.nama); setPdfBase64(r.base64);
+  }
+
   async function simpan() {
     if (!porsi || !jmlMakan) { setGalat('Porsi diterima dan jumlah taruna makan wajib diisi.'); return; }
     if (!geoSiap) { setGalat('Geotag wajib diisi (otomatis atau manual).'); return; }
@@ -219,6 +241,8 @@ export function HalamanRealisasiBuat() {
       };
       if (fotoBase64) payload.berkas = { base64: fotoBase64, nama_file: fotoNama || 'realisasi-closeup.jpg' };
       if (fotoWideBase64) payload.berkas_wide = { base64: fotoWideBase64, nama_file: fotoWideNama || 'realisasi-wide.jpg' };
+      if (fotoSudut.length) payload.berkas_tambahan = fotoSudut.map((f, i) => ({ base64: f.base64, nama_file: f.nama || `realisasi-sudut${i + 1}.jpg` }));
+      if (pdfBase64) payload.berkas_pdf = { base64: pdfBase64, nama_file: pdfNama || 'realisasi-lampiran.pdf' };
       if (piketNit) {
         payload.piket_nit = piketNit;
         payload.piket_menu_sesuai = piketMenuSesuai;
@@ -424,14 +448,41 @@ export function HalamanRealisasiBuat() {
             — watermark tanggal/jam yang terbakar tetap mencatat WAKTU UNGGAH,
             bukan waktu foto sesungguhnya diambil kalau dipilih dari galeri). */}
         <div className="flex flex-col gap-2">
+          <p className="rounded-lg bg-gray-50 p-2 text-xs text-gray-600">
+            📸 <span className="font-medium">Panduan foto:</span> 1 foto <span className="font-medium">seluruh meja/wadah</span> (kuantitas) + 1 foto <span className="font-medium">satu porsi dari atas</span> (kualitas). Tambah sudut lain bila perlu agar hasil tergambar jelas.
+          </p>
           <Button varian="garis" onClick={() => void pilihFoto('closeup')} disabled={!geoSiap}>
             {fotoNama ? `📎 Close-up: ${fotoNama}` : '📷 Pilih Foto Close-up (kualitas)'}
           </Button>
           <Button varian="garis" onClick={() => void pilihFoto('wide')} disabled={!geoSiap}>
             {fotoWideNama ? `📎 Wide-shot: ${fotoWideNama}` : '📷 Pilih Foto Wide-shot (kuantitas porsi)'}
           </Button>
+
+          {/* Sudut tambahan (opsional, maks 4) — tiap foto tetap ber-watermark. */}
+          {fotoSudut.map((f, i) => (
+            <div key={i} className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
+              <span className="flex-1 truncate">📎 Sudut {i + 1}: {f.nama}</span>
+              <button type="button" className="text-red-600" aria-label="Hapus foto" onClick={() => hapusFotoSudut(i)}>🗑</button>
+            </div>
+          ))}
+          {fotoSudut.length < MAKS_FOTO_SUDUT && (
+            <Button varian="garis" onClick={() => void tambahFotoSudut()} disabled={!geoSiap}>
+              ➕ Tambah Foto Sudut Lain (opsional, {fotoSudut.length}/{MAKS_FOTO_SUDUT})
+            </Button>
+          )}
+
+          {/* Lampiran dokumen PDF (opsional) — mis. berita acara serah-terima. */}
+          <Button varian="garis" onClick={() => void pilihPdf()}>
+            {pdfNama ? `📎 PDF: ${pdfNama}` : '📄 Lampiran PDF (opsional, mis. serah-terima)'}
+          </Button>
+          {pdfNama && (
+            <button type="button" className="text-left text-xs text-red-600" onClick={() => { setPdfNama(''); setPdfBase64(''); }}>
+              🗑 Hapus lampiran PDF
+            </button>
+          )}
+
           {!geoSiap && (
-            <p className="text-xs text-gray-400">Ambil/isi lokasi (geotag) dulu sebelum memilih foto — watermark butuh koordinat.</p>
+            <p className="text-xs text-gray-400">Ambil/isi lokasi (geotag) dulu sebelum memilih foto — watermark butuh koordinat. (Lampiran PDF tak butuh lokasi.)</p>
           )}
         </div>
       </Card>

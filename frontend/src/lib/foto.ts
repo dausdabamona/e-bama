@@ -22,6 +22,31 @@ export function ambilFotoInput(opts: { kameraSaja?: boolean } = {}): Promise<Fil
 }
 
 /**
+ * Ambil file non-gambar (mis. PDF dokumen serah-terima) → base64 TANPA
+ * kompresi/watermark. Prefix data-URL (`data:...;base64,`) dibuang supaya
+ * konsisten dengan payload berkas lain (murni base64).
+ */
+export function ambilBerkasBase64(accept = 'application/pdf'): Promise<{ nama: string; base64: string } | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) { resolve(null); return; }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const res = String(reader.result || '');
+        resolve({ nama: file.name, base64: res.includes(',') ? res.split(',')[1] : res });
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  });
+}
+
+/**
  * Bakar watermark (baris teks) ke pojok kiri-bawah kanvas — pita gelap
  * semi-transparan + teks putih, ukuran font mengikuti lebar gambar supaya
  * tetap terbaca di berbagai resolusi kamera.
