@@ -75,6 +75,15 @@ export function HalamanCetakIndex() {
             </div>
             <Link to="/cetak/format-serah-terima"><Button varian="garis">Buka</Button></Link>
           </Card>
+          {(session?.role === 'ADMIN' || session?.role === 'PPK' || session?.role === 'STAF_PPK') && (
+            <Card className="flex items-center justify-between">
+              <div>
+                <p className="font-semibold">Taruna Keluar Kampus (Wisuda / Magang / Pindah)</p>
+                <p className="text-sm text-gray-500">Kuasa debet per taruna (nominal bulan berjalan) + tandai keluar (permanen/sementara) massal per kelas/tingkat atau individu</p>
+              </div>
+              <Link to="/cetak/taruna-keluar"><Button varian="garis">Buka</Button></Link>
+            </Card>
+          )}
         </>
       )}
 

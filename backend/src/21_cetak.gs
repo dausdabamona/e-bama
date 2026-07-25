@@ -294,6 +294,60 @@ function cetakForm06(payload, session) {
  * Wadir 3 setujui → PPK verifikasi → PPK finalkan) — supaya nominal yang
  * tercetak sudah melalui seluruh gerbang persetujuan.
  */
+/**
+ * Bangun daftar per-taruna untuk dokumen KUASA DEBET (Form-07 & kuasa debet
+ * taruna keluar kampus). `nitFilter` (array/null): bila diberikan → hanya NIT tsb.
+ * Baca REKAP_BULANAN bulan itu (nominal>0), join TARUNA + TARUNA_REKENING,
+ * hitung `nilai_debet = max(0, nominal − biayaAdminBank)`. TIDAK meng-audit &
+ * TIDAK withLock — pemanggil yang membungkus & mencatat AUDIT_LOG (baca rekening).
+ * Return {baris, nitList, total_nominal, biaya_admin_bank, rekening_senat,
+ * rekening_senat_nama, rekInst}.
+ */
+function _daftarKuasaDebet_(bulan, nitFilter) {
+  var rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
+  // Abaikan taruna bernilai Rp0 (tidak makan bulan ini) — tak perlu diblokir/didebet,
+  // dan rekening lengkapnya tidak perlu ikut terbaca/diaudit.
+  rekapRows = rekapRows.filter(function (r) { return _int_(r.nominal || 0, 'nominal') > 0; });
+  if (nitFilter && nitFilter.length) {
+    var pilih = {};
+    nitFilter.forEach(function (n) { pilih[String(n)] = true; });
+    rekapRows = rekapRows.filter(function (r) { return pilih[String(r.nit)]; });
+  }
+
+  var tarunaByNit = {};
+  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+
+  var nitList = rekapRows.map(function (r) { return String(r.nit); });
+  var rekeningByNit = {};
+  sheetRead(SHEETS.TARUNA_REKENING, function (r) { return nitList.indexOf(String(r.nit)) >= 0; })
+    .forEach(function (r) { rekeningByNit[String(r.nit)] = r; });
+
+  var biayaAdminBank = getKebijakanPendebetan().biayaAdminBank;
+  var totalNominal = 0;
+  var baris = rekapRows.map(function (r) {
+    var nit = String(r.nit);
+    var t = tarunaByNit[nit] || {};
+    var rek = rekeningByNit[nit];
+    var nominal = _int_(r.nominal, 'nominal');
+    totalNominal += nominal;
+    return {
+      nit: nit, nama: t.nama || '', prodi: t.prodi || '', tingkat: t.tingkat || '',
+      bank: rek ? rek.bank : '', no_rekening_lengkap: rek ? rek.no_rekening_lengkap : '',
+      nama_pemilik: rek ? rek.nama_pemilik : '', nominal: nominal,
+      // Nilai yang diinstruksikan ke bank utk didebet — nominal SPM dikurangi
+      // biaya admin bank (getKebijakanPendebetan), floor di 0. HANYA tampilan.
+      nilai_debet: Math.max(0, nominal - biayaAdminBank),
+      hari_makan: _int_(r.hari_makan || 0, 'hari_makan'), rekening_lengkap_ada: !!rek
+    };
+  });
+
+  var rekInst = getRekeningInstansi();
+  return {
+    baris: baris, nitList: nitList, total_nominal: totalNominal, biaya_admin_bank: biayaAdminBank,
+    rekening_senat: rekInst.senat, rekening_senat_nama: rekInst.senat_nama, rekInst: rekInst
+  };
+}
+
 function cetakForm07(payload, session) {
   _hanyaAdminPPK_(session);
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
@@ -303,54 +357,21 @@ function cetakForm07(payload, session) {
     if (!pembayaran) {
       throw _fail_('Belum ada PEMBAYARAN untuk bulan ' + bulan + ' — Form 07 hanya bisa dicetak setelah proses pembayaran dibuat (bayar.create).');
     }
+    if (!sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; }).length) {
+      throw _fail_('Belum ada rekap untuk bulan ' + bulan + '.');
+    }
 
-    var rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
-    if (!rekapRows.length) throw _fail_('Belum ada rekap untuk bulan ' + bulan + '.');
-    // Abaikan taruna bernilai Rp0 (tidak makan bulan ini) — tak perlu diblokir/didebet,
-    // dan rekening lengkapnya tidak perlu ikut terbaca/diaudit.
-    rekapRows = rekapRows.filter(function (r) { return _int_(r.nominal || 0, 'nominal') > 0; });
-
-    var tarunaByNit = {};
-    sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
-
-    var nitList = rekapRows.map(function (r) { return String(r.nit); });
-    var rekeningByNit = {};
-    sheetRead(SHEETS.TARUNA_REKENING, function (r) { return nitList.indexOf(String(r.nit)) >= 0; })
-      .forEach(function (r) { rekeningByNit[String(r.nit)] = r; });
-
-    var biayaAdminBank = getKebijakanPendebetan().biayaAdminBank;
-    var totalNominal = 0;
-    var baris = rekapRows.map(function (r) {
-      var nit = String(r.nit);
-      var t = tarunaByNit[nit] || {};
-      var rek = rekeningByNit[nit];
-      var nominal = _int_(r.nominal, 'nominal');
-      totalNominal += nominal;
-      return {
-        nit: nit, nama: t.nama || '', prodi: t.prodi || '', tingkat: t.tingkat || '',
-        bank: rek ? rek.bank : '', no_rekening_lengkap: rek ? rek.no_rekening_lengkap : '',
-        nama_pemilik: rek ? rek.nama_pemilik : '', nominal: nominal,
-        // Nilai yang diinstruksikan ke bank utk didebet dari rekening taruna —
-        // nominal SPM dikurangi biaya admin bank (getKebijakanPendebetan,
-        // 00_config.gs), floor di 0. HANYA dipakai tampilan Form-07 — nominal
-        // di atas TETAP nilai penuh (snapshot SPM), tidak berubah.
-        nilai_debet: Math.max(0, nominal - biayaAdminBank),
-        hari_makan: _int_(r.hari_makan || 0, 'hari_makan'), rekening_lengkap_ada: !!rek
-      };
-    });
-
+    var d = _daftarKuasaDebet_(bulan, null);
     // AUDIT: satu baris untuk seluruh daftar penerima bulan ini — catat SIAPA
-    // (session.user_id) membaca rekening SIAPA (nitList) dan KAPAN, TANPA
-    // pernah menulis nomor rekeningnya sendiri ke AUDIT_LOG.
-    auditLog(session, 'cetak.form07', 'TARUNA_REKENING', nitList.join(','), null, { nit_list: nitList });
+    // membaca rekening SIAPA & KAPAN, TANPA menulis nomor rekeningnya.
+    auditLog(session, 'cetak.form07', 'TARUNA_REKENING', d.nitList.join(','), null, { nit_list: d.nitList });
 
-    var rekInst = getRekeningInstansi();
-    // Rekening penyedia (tujuan akhir) diambil dari KONTRAK pembayaran ini bila diisi;
-    // fallback ke Script Property. Rekening Senat + nama a.n. tetap Script Property.
+    // Rekening penyedia (tujuan akhir) dari KONTRAK pembayaran ini bila diisi;
+    // fallback Script Property. Rekening Senat + nama a.n. dari Script Property.
     var kontrak = sheetRead(SHEETS.KONTRAK, function (r) { return String(r.kontrak_id) === String(pembayaran.kontrak_id); })[0];
     var rekPenyedia = {
-      BNI: (kontrak && kontrak.rek_penyedia_bni) ? String(kontrak.rek_penyedia_bni) : (rekInst.penyedia.BNI || ''),
-      BSI: (kontrak && kontrak.rek_penyedia_bsi) ? String(kontrak.rek_penyedia_bsi) : (rekInst.penyedia.BSI || '')
+      BNI: (kontrak && kontrak.rek_penyedia_bni) ? String(kontrak.rek_penyedia_bni) : (d.rekInst.penyedia.BNI || ''),
+      BSI: (kontrak && kontrak.rek_penyedia_bsi) ? String(kontrak.rek_penyedia_bsi) : (d.rekInst.penyedia.BSI || '')
     };
     return {
       bulan: bulan,
@@ -361,16 +382,70 @@ function cetakForm07(payload, session) {
         no_sp2d: pembayaran.no_sp2d, tgl_sp2d: _tglStr_(pembayaran.tgl_sp2d),
         status: pembayaran.status
       },
-      baris: baris,
-      total_nominal: totalNominal,
-      biaya_admin_bank: biayaAdminBank,
+      baris: d.baris,
+      total_nominal: d.total_nominal,
+      biaya_admin_bank: d.biaya_admin_bank,
       pejabat: PEJABAT,
-      // Rekening tujuan pendebetan per bank: taruna → Senat, lalu Senat → Penyedia
-      // (+ nama pemilik rekening untuk "a.n." di surat ke bank).
-      rekening_senat: rekInst.senat,
+      rekening_senat: d.rekening_senat,
       rekening_penyedia: rekPenyedia,
-      rekening_senat_nama: rekInst.senat_nama,
-      rekening_penyedia_nama: rekInst.penyedia_nama,
+      rekening_senat_nama: d.rekening_senat_nama,
+      rekening_penyedia_nama: d.rekInst.penyedia_nama,
+      kontrak: {
+        no_kontrak: kontrak ? String(kontrak.no_kontrak || '') : '',
+        tgl_kontrak: kontrak ? _tglStr_(kontrak.tgl_kontrak) : '',
+        adendum: kontrak ? String(kontrak.adendum || '') : ''
+      }
+    };
+  });
+}
+
+/**
+ * Kuasa debet rekening taruna yang KELUAR KAMPUS (wisuda/magang/pindah) untuk
+ * SUBSET terpilih — bulan berjalan, ditandatangani tiap taruna sebelum keluar.
+ * Payload {bulan, nit_list} (wajib). Sama seperti Form-07 (per bank, nilai_debet)
+ * TAPI difilter nit_list & PEMBAYARAN OPSIONAL (dokumen bisa disiapkan sebelum
+ * pembayaran dibuat). Role ADMIN/PPK; 1 AUDIT_LOG (baca rekening).
+ */
+function cetakKuasaDebetKeluar(payload, session) {
+  _hanyaAdminPPK_(session);
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  var nitList = (payload && payload.nit_list) || [];
+  if (!nitList.length) throw _fail_('nit_list wajib diisi (pilih taruna yang keluar).');
+
+  return withLock(function () {
+    var d = _daftarKuasaDebet_(bulan, nitList.map(String));
+    if (!d.baris.length) {
+      throw _fail_('Tidak ada taruna terpilih yang punya nominal rekap bulan ' + bulan + ' — pastikan rekap bulan ini sudah di-update & nominal > 0.');
+    }
+    auditLog(session, 'cetak.kuasa_debet_keluar', 'TARUNA_REKENING', d.nitList.join(','), null, { nit_list: d.nitList });
+
+    // PEMBAYARAN opsional: bila sudah ada, sertakan header + rekening penyedia
+    // dari KONTRAK; bila belum, header kosong & penyedia fallback Script Property.
+    var pembayaran = sheetRead(SHEETS.PEMBAYARAN, function (r) { return _bulanStr_(r.bulan) === bulan; })[0];
+    var kontrak = pembayaran
+      ? sheetRead(SHEETS.KONTRAK, function (r) { return String(r.kontrak_id) === String(pembayaran.kontrak_id); })[0]
+      : null;
+    var rekPenyedia = {
+      BNI: (kontrak && kontrak.rek_penyedia_bni) ? String(kontrak.rek_penyedia_bni) : (d.rekInst.penyedia.BNI || ''),
+      BSI: (kontrak && kontrak.rek_penyedia_bsi) ? String(kontrak.rek_penyedia_bsi) : (d.rekInst.penyedia.BSI || '')
+    };
+    return {
+      bulan: bulan,
+      pembayaran: pembayaran ? {
+        bayar_id: pembayaran.bayar_id,
+        nilai_total: _int_(pembayaran.nilai_total, 'nilai_total'),
+        no_spm: pembayaran.no_spm, tgl_spm: _tglStr_(pembayaran.tgl_spm),
+        no_sp2d: pembayaran.no_sp2d, tgl_sp2d: _tglStr_(pembayaran.tgl_sp2d),
+        status: pembayaran.status
+      } : null,
+      baris: d.baris,
+      total_nominal: d.total_nominal,
+      biaya_admin_bank: d.biaya_admin_bank,
+      pejabat: PEJABAT,
+      rekening_senat: d.rekening_senat,
+      rekening_penyedia: rekPenyedia,
+      rekening_senat_nama: d.rekening_senat_nama,
+      rekening_penyedia_nama: d.rekInst.penyedia_nama,
       kontrak: {
         no_kontrak: kontrak ? String(kontrak.no_kontrak || '') : '',
         tgl_kontrak: kontrak ? _tglStr_(kontrak.tgl_kontrak) : '',

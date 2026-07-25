@@ -172,6 +172,7 @@ var ACTION_MAP = {
   'cetak.form05':     { handler: cetakForm05, roles: ['PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN'] },
   'cetak.form06':     { handler: cetakForm06, roles: ['PPK', 'STAF_PPK', 'KPA', 'ADMIN', 'OPERATOR_SAKTI'] },
   'cetak.form07':     { handler: cetakForm07, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
+  'cetak.kuasa_debet_keluar': { handler: cetakKuasaDebetKeluar, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'cetak.blokir_gagal_debet': { handler: cetakBlokirGagalDebet, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'cetak.pendebetan_penyedia': { handler: cetakPendebetanPenyedia, roles: ['SENAT', 'PPK', 'STAF_PPK', 'ADMIN'] },
   'cetak.surat_pendebetan_bank': { handler: cetakSuratPendebetanBank, roles: ['SENAT', 'PPK', 'STAF_PPK', 'ADMIN'] },
