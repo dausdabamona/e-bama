@@ -7745,20 +7745,27 @@ function penyediaPortal(payload, session) {
   // TAGIHAN per-nit tanpa tautan penyedia → dicocokkan LEVEL BULAN (model 1
   // katering utama/bulan, sama granularitas dgn nilai_total). Nilai basis nominal
   // (belum dipotong biaya admin bank).
-  var gagalPerBulan = {}; // 'YYYY-MM' -> {gagal_total, gagal_belum_lunas}
+  var gagalPerBulan = {}; // 'YYYY-MM' -> {gagal_total, gagal_belum_lunas, sudah_diteruskan, tgl_diteruskan_terakhir}
   sheetRead(SHEETS.TAGIHAN).forEach(function (t) {
     var bln = _bulanStr_(t.bulan);
-    if (!gagalPerBulan[bln]) gagalPerBulan[bln] = { gagal_total: 0, gagal_belum_lunas: 0 };
+    if (!gagalPerBulan[bln]) gagalPerBulan[bln] = { gagal_total: 0, gagal_belum_lunas: 0, sudah_diteruskan: 0, tgl_diteruskan_terakhir: '' };
+    var e = gagalPerBulan[bln];
     var nom = _int_(t.nominal || 0, 'nominal');
-    gagalPerBulan[bln].gagal_total += nom;
-    if (t.status === 'TERTAGIH' || t.status === 'ESKALASI_MANUAL') gagalPerBulan[bln].gagal_belum_lunas += nom;
+    e.gagal_total += nom;
+    if (t.status === 'TERTAGIH' || t.status === 'ESKALASI_MANUAL') e.gagal_belum_lunas += nom;
+    // Kekurangan yang sudah ditagih ulang (LUNAS) DAN sudah diteruskan ke penyedia.
+    var tglTerus = t.tgl_diteruskan_penyedia ? _tglStr_(t.tgl_diteruskan_penyedia) : '';
+    if (t.status === 'LUNAS' && tglTerus) {
+      e.sudah_diteruskan += _int_(t.nilai_transfer || t.nominal || 0, 'nilai_transfer');
+      if (tglTerus > e.tgl_diteruskan_terakhir) e.tgl_diteruskan_terakhir = tglTerus;
+    }
   });
 
   // ── Status pembayaran miliknya (agregat per bulan/kontrak — bukan per taruna) ──
   var pembayaran = sheetRead(SHEETS.PEMBAYARAN, function (r) { return kontrakIds[String(r.kontrak_id)]; })
     .map(function (p) {
       var nilaiTotal = _int_(p.nilai_total || 0, 'nilai_total');
-      var g = gagalPerBulan[_bulanStr_(p.bulan)] || { gagal_total: 0, gagal_belum_lunas: 0 };
+      var g = gagalPerBulan[_bulanStr_(p.bulan)] || { gagal_total: 0, gagal_belum_lunas: 0, sudah_diteruskan: 0, tgl_diteruskan_terakhir: '' };
       return {
         bulan: _bulanStr_(p.bulan),
         nilai_total: nilaiTotal,
@@ -7766,6 +7773,9 @@ function penyediaPortal(payload, session) {
         gagal_debet: g.gagal_total,
         gagal_belum_lunas: g.gagal_belum_lunas,
         berhasil_debet: Math.max(0, nilaiTotal - g.gagal_total),
+        // Kekurangan (gagal) yang sudah ditagih ulang & DITERUSKAN ke penyedia.
+        gagal_sudah_diteruskan: g.sudah_diteruskan,
+        tgl_diteruskan_terakhir: g.tgl_diteruskan_terakhir || '',
         no_spm: String(p.no_spm || ''),
         tgl_spm: p.tgl_spm ? _tglStr_(p.tgl_spm) : '',
         no_sp2d: String(p.no_sp2d || ''),

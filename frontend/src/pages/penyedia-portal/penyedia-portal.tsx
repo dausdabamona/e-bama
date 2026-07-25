@@ -24,6 +24,7 @@ interface PembayaranPortal {
   bulan: string; nilai_total: number; no_spm: string; tgl_spm: string;
   no_sp2d: string; tgl_sp2d: string; status: string; invoice_dikonfirmasi: boolean;
   gagal_debet?: number; gagal_belum_lunas?: number; berhasil_debet?: number;
+  gagal_sudah_diteruskan?: number; tgl_diteruskan_terakhir?: string;
 }
 interface Portal {
   penyedia: { nama: string; kontak: string; alamat: string; status: string };
@@ -252,6 +253,12 @@ export function HalamanPenyediaPortal() {
                     <p className="text-red-600">
                       ✗ Gagal debet: <strong>{formatRupiah(p.gagal_debet ?? 0)}</strong>
                       {(p.gagal_belum_lunas ?? 0) > 0 && <> ({formatRupiah(p.gagal_belum_lunas ?? 0)} masih ditagih ulang)</>}
+                    </p>
+                  )}
+                  {(p.gagal_sudah_diteruskan ?? 0) > 0 && (
+                    <p className="text-green-700">
+                      ✓ Kekurangan sudah dilunasi &amp; dikirim ke Anda: <strong>{formatRupiah(p.gagal_sudah_diteruskan ?? 0)}</strong>
+                      {p.tgl_diteruskan_terakhir ? <> (per tgl {p.tgl_diteruskan_terakhir})</> : null}
                     </p>
                   )}
                 </div>
