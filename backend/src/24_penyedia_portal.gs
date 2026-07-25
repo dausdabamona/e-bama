@@ -102,12 +102,33 @@ function penyediaPortal(payload, session) {
     });
   realisasi.sort(function (a, b) { return a.tanggal < b.tanggal ? 1 : -1; }); // terbaru dulu
 
+  // Debet taruna→Senat per bulan (dari TAGIHAN gagal-debet, dicatat PPK via impor
+  // CSV hasil debet bank). Basis `nominal` = snapshot rekap FINAL, SAMA dgn
+  // PEMBAYARAN.nilai_total, jadi `berhasil = nilai_total − gagal_total` konsisten.
+  // TAGIHAN per-nit tanpa tautan penyedia → dicocokkan LEVEL BULAN (model 1
+  // katering utama/bulan, sama granularitas dgn nilai_total). Nilai basis nominal
+  // (belum dipotong biaya admin bank).
+  var gagalPerBulan = {}; // 'YYYY-MM' -> {gagal_total, gagal_belum_lunas}
+  sheetRead(SHEETS.TAGIHAN).forEach(function (t) {
+    var bln = _bulanStr_(t.bulan);
+    if (!gagalPerBulan[bln]) gagalPerBulan[bln] = { gagal_total: 0, gagal_belum_lunas: 0 };
+    var nom = _int_(t.nominal || 0, 'nominal');
+    gagalPerBulan[bln].gagal_total += nom;
+    if (t.status === 'TERTAGIH' || t.status === 'ESKALASI_MANUAL') gagalPerBulan[bln].gagal_belum_lunas += nom;
+  });
+
   // ── Status pembayaran miliknya (agregat per bulan/kontrak — bukan per taruna) ──
   var pembayaran = sheetRead(SHEETS.PEMBAYARAN, function (r) { return kontrakIds[String(r.kontrak_id)]; })
     .map(function (p) {
+      var nilaiTotal = _int_(p.nilai_total || 0, 'nilai_total');
+      var g = gagalPerBulan[_bulanStr_(p.bulan)] || { gagal_total: 0, gagal_belum_lunas: 0 };
       return {
         bulan: _bulanStr_(p.bulan),
-        nilai_total: _int_(p.nilai_total || 0, 'nilai_total'),
+        nilai_total: nilaiTotal,
+        // Debet taruna → Senat: berhasil vs gagal (basis nominal).
+        gagal_debet: g.gagal_total,
+        gagal_belum_lunas: g.gagal_belum_lunas,
+        berhasil_debet: Math.max(0, nilaiTotal - g.gagal_total),
         no_spm: String(p.no_spm || ''),
         tgl_spm: p.tgl_spm ? _tglStr_(p.tgl_spm) : '',
         no_sp2d: String(p.no_sp2d || ''),
@@ -125,9 +146,12 @@ function penyediaPortal(payload, session) {
   // Ringkasan nilai untuk penyedia: yang MASIH terutang/diproses (belum SELESAI)
   // vs yang SUDAH dibayar (SP2D terbit → SELESAI). Dana penyedia dalam kampus
   // cair lewat LS (DIAJUKAN → SELESAI), jadi non-SELESAI = terutang & diproses.
-  var ringkasanBayar = { dalam_proses: 0, sudah_dibayar: 0, total: 0 };
+  // + total debet berhasil/gagal (taruna→Senat) lintas bulan.
+  var ringkasanBayar = { dalam_proses: 0, sudah_dibayar: 0, total: 0, total_berhasil_debet: 0, total_gagal_debet: 0 };
   pembayaran.forEach(function (p) {
     ringkasanBayar.total += p.nilai_total;
+    ringkasanBayar.total_berhasil_debet += p.berhasil_debet;
+    ringkasanBayar.total_gagal_debet += p.gagal_debet;
     if (p.status === 'SELESAI') ringkasanBayar.sudah_dibayar += p.nilai_total;
     else ringkasanBayar.dalam_proses += p.nilai_total;
   });

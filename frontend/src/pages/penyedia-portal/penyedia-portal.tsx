@@ -23,6 +23,7 @@ interface RealisasiPortal { tanggal: string; porsi_diterima: number; jml_taruna_
 interface PembayaranPortal {
   bulan: string; nilai_total: number; no_spm: string; tgl_spm: string;
   no_sp2d: string; tgl_sp2d: string; status: string; invoice_dikonfirmasi: boolean;
+  gagal_debet?: number; gagal_belum_lunas?: number; berhasil_debet?: number;
 }
 interface Portal {
   penyedia: { nama: string; kontak: string; alamat: string; status: string };
@@ -30,7 +31,10 @@ interface Portal {
   pesanan: PesananPortal[];
   realisasi: RealisasiPortal[];
   pembayaran: PembayaranPortal[];
-  ringkasan_pembayaran?: { dalam_proses: number; sudah_dibayar: number; total: number };
+  ringkasan_pembayaran?: {
+    dalam_proses: number; sudah_dibayar: number; total: number;
+    total_berhasil_debet?: number; total_gagal_debet?: number;
+  };
 }
 
 const LABEL_STATUS_BAYAR: Record<string, string> = {
@@ -239,6 +243,18 @@ export function HalamanPenyediaPortal() {
                   {p.no_spm && <>SPM {p.no_spm}{p.tgl_spm ? ` (${p.tgl_spm})` : ''} · </>}
                   {p.no_sp2d && <>SP2D {p.no_sp2d}{p.tgl_sp2d ? ` (${p.tgl_sp2d})` : ''}</>}
                 </p>
+              )}
+              {/* Debet taruna → Senat: berhasil vs gagal (dari data gagal-debet PPK). */}
+              {(p.berhasil_debet !== undefined || (p.gagal_debet ?? 0) > 0) && (
+                <div className="mt-1 rounded-lg bg-gray-50 p-2 text-xs">
+                  <p className="text-green-700">✓ Berhasil didebet ke Senat: <strong>{formatRupiah(p.berhasil_debet ?? p.nilai_total)}</strong></p>
+                  {(p.gagal_debet ?? 0) > 0 && (
+                    <p className="text-red-600">
+                      ✗ Gagal debet: <strong>{formatRupiah(p.gagal_debet ?? 0)}</strong>
+                      {(p.gagal_belum_lunas ?? 0) > 0 && <> ({formatRupiah(p.gagal_belum_lunas ?? 0)} masih ditagih ulang)</>}
+                    </p>
+                  )}
+                </div>
               )}
               {p.invoice_dikonfirmasi && <p className="text-xs text-green-700">✓ Invoice sudah dikonfirmasi diterima</p>}
             </Card>
