@@ -7,6 +7,8 @@ export interface Taruna {
   bank: 'BNI' | 'BSI';
   rek_mask: string;
   status: 'AKTIF' | 'NONAKTIF';
+  tgl_keluar?: string;      // keluar PERMANEN (lulus/pindah/DO) — kosong = masih di kampus
+  alasan_keluar?: string;   // LULUS / PINDAH / DO
 }
 
 /**

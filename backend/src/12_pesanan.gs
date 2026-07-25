@@ -26,7 +26,7 @@ function _pesanan_(id) {
  * kampus (STATUS_HARIAN ∪ periode luar kampus). */
 function _hitungJmlTaruna_(tanggal) {
   var aktif = {};
-  sheetRead(SHEETS.TARUNA, function (r) { return r.status === 'AKTIF'; })
+  sheetRead(SHEETS.TARUNA, function (r) { return _tarunaAktifTanggal_(r, tanggal); })
     .forEach(function (r) { aktif[String(r.nit)] = true; });
   var tidakMakan = _tidakMakanKampusPada_(tanggal);
   var n = 0;

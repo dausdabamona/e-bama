@@ -79,6 +79,8 @@ beberapa akun. Frontend hanya menyembunyikan tombol "Buat Pembayaran" (helper
 | bank | enum | `BNI` / `BSI` |
 | rek_mask | string | **HANYA 4 digit terakhir** (mis. `••••4821`). Nomor rekening lengkap DILARANG masuk sistem — arsip lengkap dipegang PPK di luar aplikasi (tindak lanjut temuan Itjen III) |
 | status | enum | `AKTIF` / `NONAKTIF` |
+| tgl_keluar | date | **KELUAR PERMANEN** (lulus/wisuda/pindah/DO). Kosong = masih di kampus. Aturan eksklusi rekap: taruna dengan `tgl_keluar` **tetap terhitung** di bulan `tgl_keluar` (hari SETELAH tgl_keluar di bulan itu di-cap = tidak makan) & bulan sebelumnya, tapi **otomatis tereksklusi rekap/pesanan bulan BERIKUTNYA** (helper `_tarunaAktifBulan_`/`_tarunaAktifTanggal_`, `10_taruna.gs`). Keluar SEMENTARA (magang/PKL) TIDAK memakai kolom ini — pakai PERIODE_LUAR (§15b, auto-kembali). Ditulis lewat `taruna.tandai_keluar`/`taruna.upsert`, dibatalkan lewat `taruna.batal_keluar` |
+| alasan_keluar | string | `LULUS` / `PINDAH` / `DO` — mengiringi `tgl_keluar` (keluar permanen) |
 
 ### 3. PENYEDIA
 

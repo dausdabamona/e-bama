@@ -300,43 +300,57 @@ function migrasiLuarKePeriode(payload, session) {
  * (nit+status+tgl_mulai+tgl_akhir sudah ada) dilewati → aman diimpor ulang.
  * Return {dibuat, dobel, dilewati_nit:[…]}.
  */
-function periodeImpor(payload, session) {
-  if (!session || session.role !== 'ADMIN') throw _fail_('Hanya ADMIN yang boleh impor periode.');
-  var baris = (payload && payload.baris) || [];
-  if (!baris.length) throw _fail_('baris tidak boleh kosong.');
-
+/**
+ * Tambah baris PERIODE_LUAR (dipakai bersama periode.impor & taruna.tandai_keluar
+ * SEMENTARA). `baris` = [{nit,status,tgl_mulai,tgl_akhir}]. Validasi status ∈
+ * STATUS_LUAR_KAMPUS, tanggal valid, tgl_akhir ≥ tgl_mulai; NIT tak dikenal
+ * DILEWATI (dilaporkan); duplikat (nit|status|tm|ta) dilewati. TANPA withLock &
+ * TANPA auditLog — pemanggil yang membungkus & mencatat. Return
+ * {dibuat, dobel, dilewati_nit}.
+ */
+function _periodeAppend_(baris, session) {
   var tarunaSet = {};
   sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaSet[String(t.nit)] = true; });
   var adaKey = {};
   _periodeLuarRows_().forEach(function (p) { adaKey[p.nit + '|' + p.status + '|' + p.tgl_mulai + '|' + p.tgl_akhir] = true; });
 
-  return withLock(function () {
-    var siap = [], lewatNit = [], dobel = 0;
-    baris.forEach(function (b, i) {
-      var nit = String((b && b.nit) || '').trim();
-      if (!nit) throw _fail_('nit kosong pada baris ke-' + (i + 1) + '.');
-      var status = String((b && b.status) || '').trim();
-      if (STATUS_LUAR_KAMPUS.indexOf(status) < 0) throw _fail_('status tidak valid "' + status + '" (nit ' + nit + '): harus ' + STATUS_LUAR_KAMPUS.join('/'));
-      var tm = _wajibTgl_(b && b.tgl_mulai, 'tgl_mulai (nit ' + nit + ')');
-      var ta = _wajibTgl_(b && b.tgl_akhir, 'tgl_akhir (nit ' + nit + ')');
-      if (ta < tm) throw _fail_('tgl_akhir sebelum tgl_mulai (nit ' + nit + ').');
-      if (!tarunaSet[nit]) { lewatNit.push(nit); return; }
-      var key = nit + '|' + status + '|' + tm + '|' + ta;
-      if (adaKey[key]) { dobel++; return; }
-      adaKey[key] = true;
-      siap.push({ nit: nit, status: status, tgl_mulai: tm, tgl_akhir: ta });
-    });
+  var siap = [], lewatNit = [], dobel = 0;
+  (baris || []).forEach(function (b, i) {
+    var nit = String((b && b.nit) || '').trim();
+    if (!nit) throw _fail_('nit kosong pada baris ke-' + (i + 1) + '.');
+    var status = String((b && b.status) || '').trim();
+    if (STATUS_LUAR_KAMPUS.indexOf(status) < 0) throw _fail_('status tidak valid "' + status + '" (nit ' + nit + '): harus ' + STATUS_LUAR_KAMPUS.join('/'));
+    var tm = _wajibTgl_(b && b.tgl_mulai, 'tgl_mulai (nit ' + nit + ')');
+    var ta = _wajibTgl_(b && b.tgl_akhir, 'tgl_akhir (nit ' + nit + ')');
+    if (ta < tm) throw _fail_('tgl_akhir sebelum tgl_mulai (nit ' + nit + ').');
+    if (!tarunaSet[nit]) { lewatNit.push(nit); return; }
+    var key = nit + '|' + status + '|' + tm + '|' + ta;
+    if (adaKey[key]) { dobel++; return; }
+    adaKey[key] = true;
+    siap.push({ nit: nit, status: status, tgl_mulai: tm, tgl_akhir: ta });
+  });
 
-    var now = new Date();
-    siap.forEach(function (s) {
-      sheetAppend(SHEETS.PERIODE_LUAR, {
-        periode_id: nextId('PLR'), nit: s.nit, status: s.status,
-        tgl_mulai: s.tgl_mulai, tgl_akhir: s.tgl_akhir, input_by: session.user_id, timestamp: now
-      });
+  var now = new Date();
+  var inputBy = (session && session.user_id) ? session.user_id : 'SISTEM';
+  siap.forEach(function (s) {
+    sheetAppend(SHEETS.PERIODE_LUAR, {
+      periode_id: nextId('PLR'), nit: s.nit, status: s.status,
+      tgl_mulai: s.tgl_mulai, tgl_akhir: s.tgl_akhir, input_by: inputBy, timestamp: now
     });
+  });
+  return { dibuat: siap.length, dobel: dobel, dilewati_nit: lewatNit };
+}
+
+function periodeImpor(payload, session) {
+  if (!session || session.role !== 'ADMIN') throw _fail_('Hanya ADMIN yang boleh impor periode.');
+  var baris = (payload && payload.baris) || [];
+  if (!baris.length) throw _fail_('baris tidak boleh kosong.');
+
+  return withLock(function () {
+    var r = _periodeAppend_(baris, session);
     auditLog(session, 'periode.impor', 'PERIODE_LUAR', null, null,
-      { dibuat: siap.length, dobel: dobel, dilewati: lewatNit.length });
-    return { dibuat: siap.length, dobel: dobel, dilewati_nit: lewatNit };
+      { dibuat: r.dibuat, dobel: r.dobel, dilewati: r.dilewati_nit.length });
+    return { dibuat: r.dibuat, dobel: r.dobel, dilewati_nit: r.dilewati_nit };
   });
 }
 

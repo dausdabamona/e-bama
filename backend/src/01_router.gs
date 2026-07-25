@@ -21,8 +21,10 @@ var ACTION_MAP = {
   'auth.change_pin':  { handler: authChangePin,  roles: [] },
 
   // Master (TAHAP 3)
-  'taruna.list':      { handler: tarunaList,     roles: [] },
-  'taruna.upsert':    { handler: tarunaUpsert,   roles: ['ADMIN', 'BAAK'] },
+  'taruna.list':          { handler: tarunaList,        roles: [] },
+  'taruna.upsert':        { handler: tarunaUpsert,      roles: ['ADMIN', 'BAAK'] },
+  'taruna.tandai_keluar': { handler: tarunaTandaiKeluar, roles: ['ADMIN', 'PPK'] },
+  'taruna.batal_keluar':  { handler: tarunaBatalKeluar,  roles: ['ADMIN', 'PPK'] },
   'penyedia.list':    { handler: penyediaList,   roles: [] },
   'penyedia.upsert':  { handler: penyediaUpsert, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'kontrak.list':     { handler: kontrakList,    roles: [] },

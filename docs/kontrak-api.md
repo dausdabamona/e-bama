@@ -43,7 +43,9 @@ Modul: `taruna.*` → `10_taruna.gs`; `penyedia.*`, `kontrak.*` & `menu.*` → `
 | Action | Role | Keterangan |
 |---|---|---|
 | `taruna.list` | semua login | filter `{status?, prodi?, tingkat?, kelas?}` |
-| `taruna.upsert` | ADMIN, BAAK | tolak `rek_mask` yang memuat >4 digit angka (indikasi rekening lengkap); BAAK (Biro Administrasi Akademik & Kemahasiswaan) berdampingan dengan Admin — sumber otoritatif data NIT/akademik |
+| `taruna.upsert` | ADMIN, BAAK | tolak `rek_mask` yang memuat >4 digit angka (indikasi rekening lengkap); BAAK (Biro Administrasi Akademik & Kemahasiswaan) berdampingan dengan Admin — sumber otoritatif data NIT/akademik. Menerima juga `tgl_keluar`/`alasan_keluar` OPSIONAL (hanya di-set bila dikirim eksplisit — partial update, tak menghapus tanda keluar yang sudah ada) |
+| `taruna.tandai_keluar` | ADMIN, PPK | tandai taruna KELUAR massal `{jenis, nit_list, …}`. `jenis='PERMANEN'` (lulus/pindah/DO): `{tgl_keluar, alasan∈LULUS/PINDAH/DO}` → set `TARUNA.tgl_keluar`+`alasan_keluar` (status tak diubah; bulan keluar tetap terhitung, bulan berikutnya tereksklusi otomatis). `jenis='SEMENTARA'` (magang/PKL): `{status_kegiatan∈STATUS_LUAR_KAMPUS default MAGANG, tgl_keluar, tgl_kembali}` → buat PERIODE_LUAR (auto-kembali stlh tgl_kembali) via `_periodeAppend_`, TIDAK menyentuh `tgl_keluar`. 1 AUDIT_LOG |
+| `taruna.batal_keluar` | ADMIN, PPK | `{nit_list}` → kosongkan `tgl_keluar`/`alasan_keluar` (koreksi salah input keluar permanen). TIDAK menyentuh PERIODE_LUAR |
 | `penyedia.list` | semua login | |
 | `penyedia.upsert` | ADMIN, PPK | |
 | `kontrak.list` | semua login | tiap baris kontrak disisipkan `harga_per_hari_efektif` (turunan, lihat `_hargaPerHariKontrak_`) |

@@ -54,7 +54,8 @@ function _skema_() {
     ]],
     [SHEETS.TARUNA, [
       ['nit','s'], ['nama','s'], ['prodi','s'], ['tingkat','s'], ['kelas','s'],
-      ['bank', E.BANK], ['rek_mask','s'], ['status', E.AKTIF_STATUS]
+      ['bank', E.BANK], ['rek_mask','s'], ['status', E.AKTIF_STATUS],
+      ['tgl_keluar','d'], ['alasan_keluar','s']
     ]],
     [SHEETS.PENYEDIA, [
       ['penyedia_id','s'], ['nama','s'], ['kontak','s'], ['alamat','s'],

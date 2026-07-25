@@ -57,7 +57,25 @@ function rekapUpdate(tanggal) {
     });
   })();
 
-  var tarunaAktif = sheetRead(SHEETS.TARUNA, function (r) { return r.status === 'AKTIF'; });
+  // Taruna yang termasuk bulan ini: AKTIF & belum keluar permanen sebelum bulan
+  // ini (bulan keluar tetap terhitung; bulan berikutnya otomatis tereksklusi).
+  var tarunaAktif = sheetRead(SHEETS.TARUNA, function (r) { return _tarunaAktifBulan_(r, bulan); });
+
+  // Taruna keluar PERMANEN di TENGAH bulan ini: hari SETELAH tgl_keluar bukan
+  // hari makan kampus (cegah overcount di bulan keluar).
+  (function () {
+    var pk = bulan.split('-');
+    var awalBln = bulan + '-01';
+    var akhirBln = _tglStr_(new Date(Number(pk[0]), Number(pk[1]), 0));
+    tarunaAktif.forEach(function (t) {
+      var kel = _tglKeluarStr_(t);
+      if (!kel || kel < awalBln || kel >= akhirBln) return;
+      var kd = new Date(kel); kd.setDate(kd.getDate() + 1);
+      var nit = String(t.nit);
+      if (!statusPerNit[nit]) statusPerNit[nit] = {};
+      _daftarTanggal_(_tglStr_(kd), akhirBln).forEach(function (tg) { statusPerNit[nit][tg] = true; });
+    });
+  })();
 
   return withLock(function () {
     var sh = _sheet_(SHEETS.REKAP_BULANAN);
@@ -300,7 +318,7 @@ function rekapInputHistoris(payload, session) {
 function rekapHarian(payload, session) {
   var tgl = _wajibTgl_(payload && payload.tanggal, 'tanggal');
 
-  var tarunaAktif = sheetRead(SHEETS.TARUNA, function (r) { return r.status === 'AKTIF'; });
+  var tarunaAktif = sheetRead(SHEETS.TARUNA, function (r) { return _tarunaAktifTanggal_(r, tgl); });
   var statusHari = {};
   sheetRead(SHEETS.STATUS_HARIAN, function (r) { return _tglStr_(r.tanggal) === tgl; })
     .forEach(function (r) { statusHari[String(r.nit)] = String(r.status); });

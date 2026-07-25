@@ -119,6 +119,9 @@ export function HalamanTarunaList() {
               <div className={`min-w-0 flex-1 ${bisaUbah ? 'active:bg-primary-light/30' : ''}`} onClick={bisaUbah ? () => setModal(t) : undefined}>
                 <p className="font-semibold">{t.nama}</p>
                 <p className="text-sm text-gray-500">{t.nit} · {t.prodi} · Tk.{t.tingkat} · {t.kelas}</p>
+                {t.tgl_keluar && (
+                  <p className="text-xs font-medium text-amber-700">🎓 Keluar {t.alasan_keluar ? `(${t.alasan_keluar}) ` : ''}{t.tgl_keluar}</p>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {session?.role === 'ADMIN' && (
