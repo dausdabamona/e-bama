@@ -16,7 +16,7 @@ import { useListCache } from '../../lib/use-list-cache';
 import { SearchSelect } from '../../components/ui/search-select';
 import { useToast } from '../../components/ui/toast';
 
-interface Taruna { nit: string; nama: string; kelas: string; status: string }
+interface Taruna { nit: string; nama: string; kelas: string; tingkat: string; status: string }
 interface StatusHarian { status_id: string; tanggal: string; nit: string; status: string }
 
 // Urutan tampil: alasan non-kegiatan dulu, lalu kegiatan luar kampus (PKL/KPA/
@@ -104,6 +104,7 @@ export function HalamanStatusTaruna() {
   const [statusPilih, setStatusPilih] = useState(ENUM_STATUS[0]);
   const [nitTerpilih, setNitTerpilih] = useState('');
   const [kelasTerpilih, setKelasTerpilih] = useState('');
+  const [tingkatTerpilih, setTingkatTerpilih] = useState('');
   const [nitMassal, setNitMassal] = useState<Set<string>>(new Set());
   const [fotoNama, setFotoNama] = useState('');
   const [fotoBase64, setFotoBase64] = useState('');
@@ -112,7 +113,11 @@ export function HalamanStatusTaruna() {
 
   const daftarTaruna = tarunaQ.data?.taruna ?? [];
   const kelasUnik = Array.from(new Set(daftarTaruna.map((t) => t.kelas))).sort();
-  const anggotaKelas = daftarTaruna.filter((t) => t.kelas === kelasTerpilih);
+  // Filter tambahan Tingkat (permintaan Firdaus): satu kelas bisa berisi
+  // beberapa tingkat — kosong = semua tingkat.
+  const tingkatUnik = Array.from(new Set(daftarTaruna.map((t) => String(t.tingkat || '')).filter(Boolean))).sort();
+  const anggotaKelas = daftarTaruna.filter((t) =>
+    t.kelas === kelasTerpilih && (!tingkatTerpilih || String(t.tingkat || '') === tingkatTerpilih));
 
   async function pilihBerkas() {
     const file = await ambilFotoInput();
@@ -223,12 +228,24 @@ export function HalamanStatusTaruna() {
           </>
         ) : (
           <>
-            <label className="block text-sm font-medium text-gray-700">Kelas</label>
-            <select value={kelasTerpilih} onChange={(e) => { setKelasTerpilih(e.target.value); setNitMassal(new Set()); }}
-              className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2.5">
-              <option value="">— Pilih kelas —</option>
-              {kelasUnik.map((k) => <option key={k} value={k}>{k}</option>)}
-            </select>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700">Kelas</label>
+                <select value={kelasTerpilih} onChange={(e) => { setKelasTerpilih(e.target.value); setNitMassal(new Set()); }}
+                  className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2.5">
+                  <option value="">— Pilih kelas —</option>
+                  {kelasUnik.map((k) => <option key={k} value={k}>{k}</option>)}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="mb-1 block text-sm font-medium text-gray-700">Tingkat</label>
+                <select value={tingkatTerpilih} onChange={(e) => { setTingkatTerpilih(e.target.value); setNitMassal(new Set()); }}
+                  className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2.5">
+                  <option value="">Semua tingkat</option>
+                  {tingkatUnik.map((t) => <option key={t} value={t}>Tingkat {t}</option>)}
+                </select>
+              </div>
+            </div>
             {kelasTerpilih && (
               <div className="flex flex-col gap-1 rounded-xl border border-gray-200 p-2">
                 <button className="text-left text-sm text-primary underline"
