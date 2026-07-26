@@ -195,6 +195,7 @@ export function HalamanTarunaKeluar() {
   const [tglKeluar, setTglKeluar] = useState('');
   const [tglKembali, setTglKembali] = useState('');
   const [prosesTandai, setProsesTandai] = useState(false);
+  const [prosesBatal, setProsesBatal] = useState(false);
 
   async function tandaiKeluar() {
     if (!pilih.size) { toast('Pilih taruna dulu.', 'galat'); return; }
@@ -214,6 +215,23 @@ export function HalamanTarunaKeluar() {
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Gagal menandai.', 'galat');
     } finally { setProsesTandai(false); }
+  }
+
+  // Koreksi salah tandai PERMANEN (mis. Tingkat 1/2 ikut tertandai wisuda) —
+  // kosongkan tgl_keluar & alasan_keluar taruna terpilih. Hanya utk PERMANEN;
+  // keluar SEMENTARA (PERIODE_LUAR) dicabut lewat menu Ketua Jurusan.
+  async function batalkanKeluar() {
+    if (!pilih.size) { toast('Pilih taruna dulu.', 'galat'); return; }
+    if (!window.confirm(`Batalkan tanda keluar PERMANEN untuk ${pilih.size} taruna terpilih?`)) return;
+    setProsesBatal(true);
+    try {
+      const r = await api<{ dibatalkan: number }>('taruna.batal_keluar', { nit_list: Array.from(pilih) });
+      toast(`${r.dibatalkan ?? pilih.size} taruna dibatalkan tanda keluarnya.`, 'sukses');
+      tarunaQ.refresh?.();
+      setPilih(new Set());
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal membatalkan.', 'galat');
+    } finally { setProsesBatal(false); }
   }
 
   const adaTanpaRek = (dok?.baris ?? []).some((b) => !b.rekening_lengkap_ada);
@@ -349,6 +367,13 @@ export function HalamanTarunaKeluar() {
           <Button onClick={() => void tandaiKeluar()} disabled={prosesTandai || !pilih.size}>
             {prosesTandai ? 'Menandai…' : `✅ Tandai ${pilih.size} Taruna Keluar`}
           </Button>
+          <Button varian="garis" onClick={() => void batalkanKeluar()} disabled={prosesBatal || !pilih.size}>
+            {prosesBatal ? 'Membatalkan…' : `↩️ Batalkan Tandai Keluar Permanen (${pilih.size})`}
+          </Button>
+          <p className="text-xs text-gray-400">
+            Batalkan hanya berlaku utk tanda keluar PERMANEN (koreksi salah pilih, mis. Tingkat 1/2
+            ikut tertandai). Keluar SEMENTARA (Magang/PKL) dicabut lewat menu Ketua Jurusan.
+          </p>
         </Card>
       )}
 
