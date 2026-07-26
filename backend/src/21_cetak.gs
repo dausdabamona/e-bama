@@ -423,50 +423,56 @@ function cetakKuasaDebetKeluar(payload, session) {
   var basis = String((payload && payload.basis) || 'REKAP').toUpperCase();
   if (basis !== 'REKAP' && basis !== 'PESANAN') throw _fail_('basis harus REKAP atau PESANAN.');
 
-  return withLock(function () {
-    var d = _daftarKuasaDebet_(bulan, nitList.map(String), basis);
-    if (!d.baris.length) {
-      throw _fail_(basis === 'PESANAN'
-        ? 'Tidak ada taruna terpilih yang terhitung di pesanan final bulan ' + bulan + ' — pastikan ada PESANAN DISETUJUI/TERKIRIM bulan ini.'
-        : 'Tidak ada taruna terpilih yang punya nominal rekap bulan ' + bulan + ' — pastikan rekap bulan ini sudah di-update & nominal > 0, atau pilih Dasar Nilai "Pesanan (proyeksi)".');
-    }
+  // Perhitungan di bawah ini murni BACA (tanpa efek samping) — sengaja TIDAK
+  // dibungkus withLock supaya tidak menahan lock skrip global selama proses
+  // yang bisa berdetik-detik (basis PESANAN membaca banyak sheet). Menahan
+  // lock lama di sini pernah membuat aksi tulis LAIN (mis. taruna.tandai_keluar)
+  // gagal dgn "Sistem sedang sibuk" walau tak menyentuh data yang sama.
+  // Hanya baris AUDIT_LOG di bawah yang perlu withLock (penulisan singkat).
+  var d = _daftarKuasaDebet_(bulan, nitList.map(String), basis);
+  if (!d.baris.length) {
+    throw _fail_(basis === 'PESANAN'
+      ? 'Tidak ada taruna terpilih yang terhitung di pesanan final bulan ' + bulan + ' — pastikan ada PESANAN DISETUJUI/TERKIRIM bulan ini.'
+      : 'Tidak ada taruna terpilih yang punya nominal rekap bulan ' + bulan + ' — pastikan rekap bulan ini sudah di-update & nominal > 0, atau pilih Dasar Nilai "Pesanan (proyeksi)".');
+  }
+  withLock(function () {
     auditLog(session, 'cetak.kuasa_debet_keluar', 'TARUNA_REKENING', d.nitList.join(','), null, { nit_list: d.nitList, basis: basis });
-
-    // PEMBAYARAN opsional: bila sudah ada, sertakan header + rekening penyedia
-    // dari KONTRAK; bila belum, header kosong & penyedia fallback Script Property.
-    var pembayaran = sheetRead(SHEETS.PEMBAYARAN, function (r) { return _bulanStr_(r.bulan) === bulan; })[0];
-    var kontrak = pembayaran
-      ? sheetRead(SHEETS.KONTRAK, function (r) { return String(r.kontrak_id) === String(pembayaran.kontrak_id); })[0]
-      : null;
-    var rekPenyedia = {
-      BNI: (kontrak && kontrak.rek_penyedia_bni) ? String(kontrak.rek_penyedia_bni) : (d.rekInst.penyedia.BNI || ''),
-      BSI: (kontrak && kontrak.rek_penyedia_bsi) ? String(kontrak.rek_penyedia_bsi) : (d.rekInst.penyedia.BSI || '')
-    };
-    return {
-      bulan: bulan,
-      basis: basis,
-      pembayaran: pembayaran ? {
-        bayar_id: pembayaran.bayar_id,
-        nilai_total: _int_(pembayaran.nilai_total, 'nilai_total'),
-        no_spm: pembayaran.no_spm, tgl_spm: _tglStr_(pembayaran.tgl_spm),
-        no_sp2d: pembayaran.no_sp2d, tgl_sp2d: _tglStr_(pembayaran.tgl_sp2d),
-        status: pembayaran.status
-      } : null,
-      baris: d.baris,
-      total_nominal: d.total_nominal,
-      biaya_admin_bank: d.biaya_admin_bank,
-      pejabat: PEJABAT,
-      rekening_senat: d.rekening_senat,
-      rekening_penyedia: rekPenyedia,
-      rekening_senat_nama: d.rekening_senat_nama,
-      rekening_penyedia_nama: d.rekInst.penyedia_nama,
-      kontrak: {
-        no_kontrak: kontrak ? String(kontrak.no_kontrak || '') : '',
-        tgl_kontrak: kontrak ? _tglStr_(kontrak.tgl_kontrak) : '',
-        adendum: kontrak ? String(kontrak.adendum || '') : ''
-      }
-    };
   });
+
+  // PEMBAYARAN opsional: bila sudah ada, sertakan header + rekening penyedia
+  // dari KONTRAK; bila belum, header kosong & penyedia fallback Script Property.
+  var pembayaran = sheetRead(SHEETS.PEMBAYARAN, function (r) { return _bulanStr_(r.bulan) === bulan; })[0];
+  var kontrak = pembayaran
+    ? sheetRead(SHEETS.KONTRAK, function (r) { return String(r.kontrak_id) === String(pembayaran.kontrak_id); })[0]
+    : null;
+  var rekPenyedia = {
+    BNI: (kontrak && kontrak.rek_penyedia_bni) ? String(kontrak.rek_penyedia_bni) : (d.rekInst.penyedia.BNI || ''),
+    BSI: (kontrak && kontrak.rek_penyedia_bsi) ? String(kontrak.rek_penyedia_bsi) : (d.rekInst.penyedia.BSI || '')
+  };
+  return {
+    bulan: bulan,
+    basis: basis,
+    pembayaran: pembayaran ? {
+      bayar_id: pembayaran.bayar_id,
+      nilai_total: _int_(pembayaran.nilai_total, 'nilai_total'),
+      no_spm: pembayaran.no_spm, tgl_spm: _tglStr_(pembayaran.tgl_spm),
+      no_sp2d: pembayaran.no_sp2d, tgl_sp2d: _tglStr_(pembayaran.tgl_sp2d),
+      status: pembayaran.status
+    } : null,
+    baris: d.baris,
+    total_nominal: d.total_nominal,
+    biaya_admin_bank: d.biaya_admin_bank,
+    pejabat: PEJABAT,
+    rekening_senat: d.rekening_senat,
+    rekening_penyedia: rekPenyedia,
+    rekening_senat_nama: d.rekening_senat_nama,
+    rekening_penyedia_nama: d.rekInst.penyedia_nama,
+    kontrak: {
+      no_kontrak: kontrak ? String(kontrak.no_kontrak || '') : '',
+      tgl_kontrak: kontrak ? _tglStr_(kontrak.tgl_kontrak) : '',
+      adendum: kontrak ? String(kontrak.adendum || '') : ''
+    }
+  };
 }
 
 /**
