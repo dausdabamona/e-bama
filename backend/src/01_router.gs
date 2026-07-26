@@ -207,6 +207,12 @@ var ACTION_MAP = {
   // Kokpit PPK — agregasi baca murni, tidak menulis apa pun
   'ppk.kokpit':         { handler: ppkKokpit,         roles: ['PPK', 'STAF_PPK', 'KPA', 'WADIR3'] },
 
+  // Dashboard Rekap Bulan Berjalan (27_dashboard.gs) — agregasi baca murni,
+  // tidak menulis apa pun. PENYEDIA ikut (dikonfirmasi Firdaus) — HARUS juga
+  // terdaftar di PENYEDIA_ACTIONS di bawah, karena role itu tidak tunduk
+  // semantik roles:[] biasa (lihat pagar khusus PENYEDIA di doPost).
+  'dashboard.running':  { handler: dashboardRunning,   roles: ['PPK', 'STAF_PPK', 'PENYEDIA'] },
+
   // Portal Penyedia (rekanan eksternal) — akses SANGAT terbatas, lihat PENYEDIA_ACTIONS
   'penyedia.portal':    { handler: penyediaPortal,    roles: ['PENYEDIA'] }
 };
@@ -222,9 +228,10 @@ var ACTION_MAP = {
  * Semua data yang dilihatnya di-scope ke session.penyedia_id di handler.
  */
 var PENYEDIA_ACTIONS = {
-  'penyedia.portal': true,
-  'auth.logout':     true,
-  'auth.change_pin': true
+  'penyedia.portal':   true,
+  'dashboard.running': true,
+  'auth.logout':       true,
+  'auth.change_pin':   true
 };
 
 /**

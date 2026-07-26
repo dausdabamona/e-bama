@@ -41,6 +41,7 @@ export const NAV_PER_ROLE: Record<Role, ItemNav[]> = {
   PPK: [
     { ke: '/kokpit-ppk', label: 'Kokpit', ikon: '🧭' },
     { ke: '/rekap', label: 'Rekap', ikon: '📊' },
+    { ke: '/dashboard-running', label: 'Dashboard', ikon: '📈' },
     { ke: '/realisasi', label: 'Realisasi', ikon: '✅' },
     { ke: '/pembayaran', label: 'Bayar', ikon: '🏦' },
     { ke: '/tagihan', label: 'Tagihan', ikon: '💳' },
@@ -51,6 +52,7 @@ export const NAV_PER_ROLE: Record<Role, ItemNav[]> = {
   STAF_PPK: [
     { ke: '/kokpit-ppk', label: 'Kokpit', ikon: '🧭' },
     { ke: '/rekap', label: 'Rekap', ikon: '📊' },
+    { ke: '/dashboard-running', label: 'Dashboard', ikon: '📈' },
     { ke: '/realisasi', label: 'Realisasi', ikon: '✅' },
     { ke: '/pembayaran', label: 'Bayar', ikon: '🏦' },
     { ke: '/tagihan', label: 'Tagihan', ikon: '💳' },

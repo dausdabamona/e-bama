@@ -29,6 +29,7 @@ import { HalamanCetakPendebetanPenyedia } from './pages/cetak/pendebetan-penyedi
 import { HalamanCetakSuratPendebetanBank } from './pages/cetak/surat-pendebetan-bank';
 import { HalamanCetakLaporanPenyaluranPenyedia } from './pages/cetak/laporan-penyaluran-penyedia';
 import { HalamanDashboardKpa } from './pages/dashboard-kpa/dashboard-kpa';
+import { HalamanDashboardRunning } from './pages/dashboard-running/dashboard-running';
 import { HalamanKokpitPpk } from './pages/kokpit-ppk/kokpit-ppk';
 import { HalamanKontrak } from './pages/kontrak/kontrak';
 import { HalamanLaporan } from './pages/laporan/laporan';
@@ -98,6 +99,7 @@ export default function App() {
               <Route path="/rekap" element={<WajibLogin roles={['PPK', 'STAF_PPK']}><HalamanRekap /></WajibLogin>} />
               <Route path="/rekap/historis" element={<WajibLogin roles={['PPK', 'STAF_PPK', 'ADMIN']}><HalamanRekapHistoris /></WajibLogin>} />
               <Route path="/kokpit-ppk" element={<WajibLogin roles={['PPK', 'STAF_PPK', 'KPA', 'WADIR3']}><HalamanKokpitPpk /></WajibLogin>} />
+              <Route path="/dashboard-running" element={<WajibLogin roles={['PPK', 'STAF_PPK']}><HalamanDashboardRunning /></WajibLogin>} />
               <Route path="/kontrak" element={<WajibLogin roles={['PPK', 'STAF_PPK']}><HalamanKontrak /></WajibLogin>} />
               <Route path="/pembayaran" element={<WajibLogin roles={['PPK', 'STAF_PPK', 'SENAT', 'KPA', 'WADIR3']}><HalamanPembayaran /></WajibLogin>} />
               {/* Senat + PPK (+KPA/Wadir3 lihat) */}
