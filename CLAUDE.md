@@ -122,7 +122,9 @@ diproteksi warning-only):
   `tagihan.create`.
 - **`REKAP_BULANAN`** (hari_makan, nominal, dst.) — materialized view yang
   hanya di-update sistem untuk bulan berjalan; ditolak bila status `FINAL`.
-  Pemicunya DUA: otomatis saat `realisasi.ttd` melengkapi kedua tanda tangan,
+  Pemicunya DUA: otomatis saat `realisasi.ttd` / **`realisasi.ttd_massal`**
+  (tanda tangan banyak hari sekaligus — penandatangan tetap HANYA **Pembina &
+  Senat**, TIDAK pernah Penyedia) melengkapi kedua tanda tangan,
   DAN manual lewat **`rekap.recompute`** (role PPK/STAF_PPK) supaya rekap bulan
   berjalan bisa **dipantau & dibentuk sebelum bulan tutup** — rumusnya sama
   persis (hanya hari realisasi SAH yang dihitung), jadi ini alat pantau, bukan

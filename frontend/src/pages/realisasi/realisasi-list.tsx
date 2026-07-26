@@ -1,15 +1,29 @@
-// /realisasi (Senat + Pembina) — pesanan TERKIRIM menunggu realisasi + riwayat realisasi.
-import { useState } from 'react';
+// /realisasi (Senat + Pembina menandatangani; PPK/Staf PPK memantau read-only)
+// — pesanan TERKIRIM menunggu realisasi + riwayat realisasi.
+//
+// Kartu "Menunggu Tanda Tangan Anda" (HANYA Pembina/Senat) memungkinkan tanda
+// tangan BANYAK hari sekaligus lewat realisasi.ttd_massal — mengejar bulan yang
+// tertunda tanpa membuka puluhan halaman. Tanggal dipilih EKSPLISIT & kata sandi
+// tetap wajib: tanda tangan adalah bukti pertanggungjawaban, bukan formalitas.
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../auth/auth-context';
 import { BulanPicker, bulanIni } from '../../components/bulan-picker';
+import { PinConfirmModal } from '../../components/pin-confirm';
 import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { EmptyState } from '../../components/ui/empty-state';
 import { ErrorMessage } from '../../components/ui/error-message';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
+import { useToast } from '../../components/ui/toast';
+import { api } from '../../lib/api';
 import { useListCache } from '../../lib/use-list-cache';
 import type { Pesanan } from '../pesanan/tipe';
 import type { Realisasi } from './tipe';
+
+/** Batas per panggilan — samakan dengan _TTD_MASSAL_MAKS_ di 13_realisasi.gs. */
+const TTD_MASSAL_MAKS = 40;
 
 function statusTtd(r: Realisasi): { label: string; status: string } {
   if (r.ttd_pembina_at && r.ttd_senat_at) return { label: 'Lengkap', status: 'SELESAI' };
@@ -20,6 +34,8 @@ function statusTtd(r: Realisasi): { label: string; status: string } {
 
 export function HalamanRealisasiList() {
   const [bulan, setBulan] = useState(bulanIni());
+  const { session } = useAuth();
+  const { toast } = useToast();
   const pesananQ = useListCache<{ pesanan: Pesanan[] }>('pesanan.list', { bulan });
   const realisasiQ = useListCache<{ realisasi: Realisasi[] }>('realisasi.list', { bulan });
 
@@ -29,6 +45,44 @@ export function HalamanRealisasiList() {
 
   const punyaRealisasi = new Set(data?.realisasi?.map((r) => r.pesanan_id));
   const menunggu = data?.pesanan?.filter((p) => p.status === 'TERKIRIM' && !punyaRealisasi.has(p.pesanan_id)) ?? [];
+
+  // ── Tanda tangan massal (Pembina/Senat) ──
+  // Frontend hanya menyembunyikan; otorisasi sebenarnya di ACTION_MAP.
+  const bisaTtd = session?.role === 'PEMBINA' || session?.role === 'SENAT';
+  const perluTtdSaya = useMemo(() => {
+    if (!bisaTtd) return [];
+    return (data?.realisasi ?? [])
+      .filter((r) => (session?.role === 'PEMBINA' ? !r.ttd_pembina_at : !r.ttd_senat_at))
+      .sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+  }, [data?.realisasi, bisaTtd, session?.role]);
+
+  const [pilih, setPilih] = useState<Set<string>>(new Set());
+  const [tampilPin, setTampilPin] = useState(false);
+  const terpilih = perluTtdSaya.filter((r) => pilih.has(r.real_id));
+
+  function toggle(id: string) {
+    setPilih((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  }
+  function pilihSemua() {
+    // Batasi ke maksimum satu panggilan; sisanya bisa ditandatangani di batch berikutnya.
+    setPilih(new Set(perluTtdSaya.slice(0, TTD_MASSAL_MAKS).map((r) => r.real_id)));
+  }
+
+  async function ttdMassal(kataSandi: string) {
+    const hasil = await api<{ ditandatangani: number; lengkap: number; dilewati: number }>(
+      'realisasi.ttd_massal',
+      { real_ids: terpilih.map((r) => r.real_id), pin: kataSandi }
+    );
+    toast(
+      `${hasil.ditandatangani} hari ditandatangani`
+      + (hasil.lengkap ? ` · ${hasil.lengkap} hari kini LENGKAP (masuk rekap)` : '')
+      + (hasil.dilewati ? ` · ${hasil.dilewati} dilewati (sudah ada tanda tangan Anda)` : ''),
+      'sukses'
+    );
+    setTampilPin(false);
+    setPilih(new Set());
+    realisasiQ.refresh();
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -40,6 +94,58 @@ export function HalamanRealisasiList() {
 
       {memuat && !data && <LoadingSpinner label="Memuat…" />}
       {galat && !data && <ErrorMessage pesan={galat} onRetry={() => { pesananQ.refresh(); realisasiQ.refresh(); }} />}
+
+      {data && perluTtdSaya.length > 0 && (
+        <Card className="flex flex-col gap-2 border-l-4 border-l-amber-500">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-gray-700">
+              Menunggu Tanda Tangan Anda ({perluTtdSaya.length} hari)
+            </p>
+            <div className="flex gap-2">
+              <Button varian="garis" className="px-3 text-xs" onClick={pilihSemua}>Pilih Semua</Button>
+              <Button varian="polos" className="px-3 text-xs" onClick={() => setPilih(new Set())}>Kosongkan</Button>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500">
+            Hari yang belum bertanda tangan <strong>Pembina dan Senat</strong> tidak
+            dihitung sebagai hari makan sah di rekap bulanan.
+          </p>
+          <div className="max-h-64 overflow-y-auto rounded border border-gray-200">
+            {perluTtdSaya.map((r) => (
+              <label key={r.real_id} className="flex min-h-tap items-center gap-2 border-b border-gray-100 px-2 py-1 text-sm">
+                <input type="checkbox" checked={pilih.has(r.real_id)} onChange={() => toggle(r.real_id)} className="h-5 w-5" />
+                <span className="flex-1">
+                  {r.tanggal}
+                  <span className="text-gray-400"> · {r.jml_taruna_makan} taruna makan</span>
+                </span>
+                <Badge status={statusTtd(r).status}>{statusTtd(r).label}</Badge>
+              </label>
+            ))}
+          </div>
+          {perluTtdSaya.length > TTD_MASSAL_MAKS && (
+            <p className="text-xs text-amber-700">
+              ⓘ Maksimal {TTD_MASSAL_MAKS} hari sekali tanda tangan — sisanya bisa
+              ditandatangani pada putaran berikutnya.
+            </p>
+          )}
+          <Button onClick={() => setTampilPin(true)} disabled={!terpilih.length}>
+            ✍️ Tanda Tangani {terpilih.length} Hari Sekaligus
+          </Button>
+        </Card>
+      )}
+
+      {tampilPin && terpilih.length > 0 && (
+        <PinConfirmModal
+          judul={`Tanda Tangan ${terpilih.length} Hari`}
+          keterangan={
+            `Anda akan menandatangani ${terpilih.length} hari realisasi `
+            + `(${terpilih[0].tanggal}${terpilih.length > 1 ? ` s.d. ${terpilih[terpilih.length - 1].tanggal}` : ''}) `
+            + `sebagai ${session?.role}. Masukkan kata sandi Anda untuk mengesahkan.`
+          }
+          onBatal={() => setTampilPin(false)}
+          onKonfirmasi={ttdMassal}
+        />
+      )}
 
       {data && (
         <>

@@ -324,6 +324,25 @@ function realisasiCreate(payload, session) {
   return { realisasi: obj };
 }
 
+/** Kolom ttd milik role pemanggil — HANYA Pembina & Senat yang menandatangani. */
+function _kolomTtdRole_(session) {
+  if (session.role === 'PEMBINA') return 'ttd_pembina_at';
+  if (session.role === 'SENAT') return 'ttd_senat_at';
+  throw _fail_('Hanya Pembina atau Senat yang menandatangani realisasi.');
+}
+
+/**
+ * Konfirmasi kata sandi pemilik sesi sebelum menandatangani (kredensial yang
+ * sama dengan login). Dipakai realisasi.ttd DAN realisasi.ttd_massal.
+ */
+function _konfirmasiKataSandi_(session, pin) {
+  var sandi = (pin != null) ? String(pin) : '';
+  var u = sheetRead(SHEETS.PENGGUNA, function (x) { return String(x.user_id) === String(session.user_id); })[0];
+  if (!u || String(u.pin_hash) !== _sha256Hex_(sandi + _getSalt_())) {
+    throw _fail_('Kata sandi salah — tanda tangan dibatalkan.');
+  }
+}
+
 /**
  * Tanda tangan digital (konfirmasi kata sandi ulang). Payload {real_id, pin} —
  * kunci `pin` dipertahankan demi kompatibilitas kontrak, nilainya kata sandi
@@ -334,17 +353,8 @@ function realisasiCreate(payload, session) {
 function realisasiTtd(payload, session) {
   var r = _realisasi_(payload && payload.real_id);
 
-  // Konfirmasi kata sandi pemilik sesi
-  var pin = (payload && payload.pin != null) ? String(payload.pin) : '';
-  var u = sheetRead(SHEETS.PENGGUNA, function (x) { return String(x.user_id) === String(session.user_id); })[0];
-  if (!u || String(u.pin_hash) !== _sha256Hex_(pin + _getSalt_())) {
-    throw _fail_('Kata sandi salah — tanda tangan dibatalkan.');
-  }
-
-  var kolom;
-  if (session.role === 'PEMBINA') kolom = 'ttd_pembina_at';
-  else if (session.role === 'SENAT') kolom = 'ttd_senat_at';
-  else throw _fail_('Hanya Pembina atau Senat yang menandatangani realisasi.');
+  _konfirmasiKataSandi_(session, payload && payload.pin);
+  var kolom = _kolomTtdRole_(session);
 
   if (r[kolom]) throw _fail_('Anda (' + session.role + ') sudah menandatangani realisasi ini.');
 
@@ -360,4 +370,73 @@ function realisasiTtd(payload, session) {
   if (lengkap) rekapUpdate(_tglStr_(baru.tanggal));
 
   return { real_id: r.real_id, ttd: kolom, lengkap: lengkap };
+}
+
+/** Batas realisasi per panggilan ttd massal — jaga kuota eksekusi GAS 6 menit. */
+var _TTD_MASSAL_MAKS_ = 40;
+
+/**
+ * realisasi.ttd_massal {real_ids:[], pin} → {ditandatangani, lengkap, dilewati,
+ * bulan:[]} — tanda tangan BANYAK hari sekaligus (PEMBINA/SENAT).
+ *
+ * Dibuat karena mengejar sebulan tertunda lewat realisasi.ttd berarti membuka
+ * ~26 halaman dan mengetik kata sandi 26 kali. Tanda tangan adalah bukti
+ * pertanggungjawaban, jadi kecepatan ini ditahan TIGA pagar:
+ *   1. `real_ids` WAJIB eksplisit (bukan "semua bulan ini") — penandatangan
+ *      memilih sendiri tanggal mana yang ia akui;
+ *   2. kata sandi tetap WAJIB (diverifikasi sekali untuk satu batch);
+ *   3. SETIAP realisasi tetap mencatat satu baris AUDIT_LOG atas nama
+ *      penandatangan (CLAUDE.md § 4), bukan satu baris untuk seluruh batch.
+ *
+ * Hanya mengisi kolom ttd milik ROLE PEMANGGIL. Baris yang sudah ia tandatangani
+ * DILEWATI (bukan menggagalkan seluruh batch) supaya klik ulang aman/idempotent.
+ * `rekapUpdate` dipanggil SEKALI per bulan yang tersentuh di akhir — bukan per
+ * baris — karena satu panggilan sudah menghitung ulang sebulan penuh.
+ */
+function realisasiTtdMassal(payload, session) {
+  var ids = (payload && payload.real_ids) || [];
+  if (!ids.length) throw _fail_('real_ids tidak boleh kosong — pilih tanggal yang akan ditandatangani.');
+  if (ids.length > _TTD_MASSAL_MAKS_) {
+    throw _fail_('Maksimal ' + _TTD_MASSAL_MAKS_ + ' hari sekali tanda tangan (dipilih ' + ids.length + ').');
+  }
+
+  _konfirmasiKataSandi_(session, payload && payload.pin);
+  var kolom = _kolomTtdRole_(session);
+
+  // Validasi SEMUA id dulu (di luar lock) — id tak dikenal membatalkan batch
+  // sebelum ada satu pun baris tersentuh.
+  var baris = ids.map(function (id) { return _realisasi_(id); });
+
+  return withLock(function () {
+    var ditandatangani = 0, dilewati = 0, menjadiLengkap = 0;
+    var bulanTersentuh = {}; // 'YYYY-MM' -> tanggal mana pun di bulan itu
+
+    baris.forEach(function (r) {
+      var kini = _realisasi_(r.real_id); // baca ulang di dalam lock
+      if (kini[kolom]) { dilewati++; return; }
+
+      var patch = {};
+      patch[kolom] = new Date();
+      sheetUpdate(SHEETS.REALISASI, 'real_id', kini.real_id, patch);
+      auditLog(session, 'realisasi.ttd_massal', 'REALISASI', kini.real_id, null,
+        { kolom: kolom, tanggal: _tglStr_(kini.tanggal) });
+      ditandatangani++;
+
+      // Hari ini menjadi SAH bila tanda tangan pasangannya sudah ada.
+      var pasangan = kolom === 'ttd_pembina_at' ? 'ttd_senat_at' : 'ttd_pembina_at';
+      if (kini[pasangan]) {
+        menjadiLengkap++;
+        bulanTersentuh[_bulanStr_(kini.tanggal)] = _tglStr_(kini.tanggal);
+      }
+    });
+
+    // Satu rekapUpdate per bulan (bukan per baris) — hemat kuota eksekusi.
+    var bulanList = Object.keys(bulanTersentuh);
+    bulanList.forEach(function (b) { rekapUpdate(bulanTersentuh[b], session); });
+
+    return {
+      ditandatangani: ditandatangani, lengkap: menjadiLengkap,
+      dilewati: dilewati, bulan: bulanList
+    };
+  });
 }

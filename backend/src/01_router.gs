@@ -83,6 +83,9 @@ var ACTION_MAP = {
   'realisasi.list':   { handler: realisasiList,  roles: [] },
   'realisasi.create': { handler: realisasiCreate, roles: ['PEMBINA', 'SENAT'] },
   'realisasi.ttd':    { handler: realisasiTtd,   roles: ['PEMBINA', 'SENAT'] },
+  // Tanda tangan BANYAK hari sekaligus — real_ids eksplisit + kata sandi wajib,
+  // tetap 1 baris AUDIT_LOG per realisasi (lihat 13_realisasi.gs).
+  'realisasi.ttd_massal': { handler: realisasiTtdMassal, roles: ['PEMBINA', 'SENAT'] },
   // Ownership Taruna Fitur 1b/2b — baca kebijakan piket + standar gizi
   'realisasi.kebijakan_piket': { handler: realisasiKebijakanPiket, roles: [] },
   // Penerimaan Barang Senat — checklist per waktu makan × komponen, BUKAN Penyedia

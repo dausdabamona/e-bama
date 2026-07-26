@@ -4,13 +4,20 @@
 // Mobile & role lain TIDAK terpengaruh — layout.tsx tetap pakai sidebar lama.
 //
 // CATATAN PENYESUAIAN dari desain asli (yang menampilkan nav ideal PPK):
-// beberapa item pada mockup (Verifikasi Pesanan, Realisasi, Penerimaan
-// Barang, Menu Hari Ini, Taruna, Pengguna) DIHILANGKAN karena route/action-nya
-// TIDAK diizinkan untuk role PPK saat ini (mis. pesanan.antrian_verifikasi
-// roles:['PEMBINA'] saja, /taruna roles:['ADMIN','BAAK','PEMBINA']) — sengaja
-// tidak mengubah guard/permission yang sudah ada. "SPM" & "SP2D Monitoring"
-// digabung ke halaman yang sudah memuatnya (Pembayaran, Laporan) karena belum
-// ada halaman terpisah untuk itu.
+// beberapa item pada mockup (Verifikasi Pesanan, Penerimaan Barang, Menu Hari
+// Ini, Taruna, Pengguna) DIHILANGKAN karena route/action-nya TIDAK diizinkan
+// untuk role PPK saat ini (mis. pesanan.antrian_verifikasi roles:['PEMBINA']
+// saja, /taruna roles:['ADMIN','BAAK','PEMBINA']) — sengaja tidak mengubah
+// guard/permission yang sudah ada. "SPM" & "SP2D Monitoring" digabung ke
+// halaman yang sudah memuatnya (Pembayaran, Laporan) karena belum ada halaman
+// terpisah untuk itu.
+//
+// "Realisasi & TTD" SEBELUMNYA ikut dihilangkan atas asumsi yang KELIRU: rute
+// /realisasi memang mengizinkan PPK & STAF_PPK (App.tsx) dan realisasi.list
+// ber-roles:[] (semua role), serta sudah ada di bottom-nav mobile PPK
+// (layout.tsx). PPK memerlukannya untuk MEMANTAU progres tanda tangan
+// Pembina/Senat — hari yang belum ber-ttd lengkap tidak dihitung sebagai hari
+// makan sah, jadi inilah penjelas kenapa angka rekap bulan berjalan bisa 0.
 import { NavLink } from 'react-router-dom';
 import { useListCache } from '../lib/use-list-cache';
 
@@ -49,7 +56,8 @@ export function SidebarPpkDesktop() {
       judul: 'Pengelolaan Makan',
       item: [
         { ke: '/rekap', label: 'Rekap Bulanan' },
-        { ke: '/taruna/rekap-harian', label: 'Rekap Harian Taruna' }
+        { ke: '/taruna/rekap-harian', label: 'Rekap Harian Taruna' },
+        { ke: '/realisasi', label: 'Realisasi & TTD' }
       ]
     },
     {
