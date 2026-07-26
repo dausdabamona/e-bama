@@ -59,11 +59,8 @@ function SuratKuasaBank({ bank, rows, bulan, keperluan, pejabat, rekSenat, rekSe
       </p>
       {basis === 'PESANAN' && (
         <p className="text-xs">
-          <strong>Dasar nilai: PESANAN (proyeksi).</strong> Nilai di bawah dihitung dari pesanan makan
-          harian yang sudah final tanggal 1{sampaiTanggal ? ` s.d. tanggal ${Number(sampaiTanggal.split('-')[2])}` : ''} bulan {labelBulan(bulan)} karena rekap realisasi bulan berjalan belum
-          disahkan. <strong>Nilai final yang didebet mengikuti rekap bulan {labelBulan(bulan)} yang
-          disahkan</strong> (permohonan pendebetan resmi ke bank / Form-07); bila nilai final lebih kecil,
-          yang didebet nilai final.
+          Nilai di bawah dihitung dari pesanan makan harian yang sudah final tanggal
+          1{sampaiTanggal ? ` s.d. tanggal ${Number(sampaiTanggal.split('-')[2])}` : ''} bulan {labelBulan(bulan)}.
         </p>
       )}
       <table className="w-full table-fixed border-collapse text-xs">
