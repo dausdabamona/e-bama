@@ -36,7 +36,10 @@ export function HalamanRekap() {
   const [bulan, setBulan] = useState(bulanIni());
   const { toast } = useToast();
   const { session } = useAuth();
-  const rekapQ = useListCache<{ rekap: BarisRekap[]; total: number; D?: number }>('rekap.get', { bulan });
+  const rekapQ = useListCache<{
+    rekap: BarisRekap[]; total: number; D?: number; total_hari_makan?: number;
+    basis_pesanan?: { hari_dipesan: number; oh_dipesan: number; nominal_proyeksi: number };
+  }>('rekap.get', { bulan });
   const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', {});
   const [tampilFinal, setTampilFinal] = useState(false);
   const [tampilRincian, setTampilRincian] = useState(false);
@@ -165,6 +168,47 @@ export function HalamanRekap() {
               ? ` Saat ini tercatat ${rekapQ.data.D} hari makan sah.`
               : ''}
           </p>
+          {/* Dua dasar dibandingkan (permintaan Firdaus): basis PESANAN final
+              (proyeksi) vs basis REALISASI sah (dasar bayar). Selisih besar =
+              realisasi belum di-TTD / over-order. */}
+          {rekapQ.data.basis_pesanan && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-200 text-left text-gray-500">
+                    <th className="py-1 pr-2"></th>
+                    <th className="py-1 pr-2 text-right">Basis Pesanan</th>
+                    <th className="py-1 pr-2 text-right">Basis Realisasi Sah</th>
+                    <th className="py-1 text-right">Selisih</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-gray-100">
+                    <td className="py-1 pr-2 text-gray-600">Hari</td>
+                    <td className="py-1 pr-2 text-right">{rekapQ.data.basis_pesanan.hari_dipesan}</td>
+                    <td className="py-1 pr-2 text-right">{rekapQ.data.D ?? 0}</td>
+                    <td className="py-1 text-right font-medium">{rekapQ.data.basis_pesanan.hari_dipesan - (rekapQ.data.D ?? 0)}</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="py-1 pr-2 text-gray-600">Orang-Hari</td>
+                    <td className="py-1 pr-2 text-right">{rekapQ.data.basis_pesanan.oh_dipesan.toLocaleString('id-ID')}</td>
+                    <td className="py-1 pr-2 text-right">{(rekapQ.data.total_hari_makan ?? 0).toLocaleString('id-ID')}</td>
+                    <td className="py-1 text-right font-medium">{(rekapQ.data.basis_pesanan.oh_dipesan - (rekapQ.data.total_hari_makan ?? 0)).toLocaleString('id-ID')}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-1 pr-2 text-gray-600">Nominal</td>
+                    <td className="py-1 pr-2 text-right">{formatRupiah(rekapQ.data.basis_pesanan.nominal_proyeksi)}</td>
+                    <td className="py-1 pr-2 text-right">{formatRupiah(rekapQ.data.total ?? 0)}</td>
+                    <td className="py-1 text-right font-medium">{formatRupiah(rekapQ.data.basis_pesanan.nominal_proyeksi - (rekapQ.data.total ?? 0))}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p className="mt-1 text-[11px] text-gray-400">
+                Basis pesanan = proyeksi dari pesanan final (belum tentu dimakan).
+                Dasar pembayaran tetap basis realisasi sah.
+              </p>
+            </div>
+          )}
           <Button varian="garis" onClick={() => void perbaruiRekap()} disabled={perbarui}>
             {perbarui ? 'Menghitung ulang…' : '🔄 Perbarui Rekap Bulan Berjalan'}
           </Button>

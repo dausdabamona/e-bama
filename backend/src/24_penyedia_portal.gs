@@ -134,7 +134,10 @@ function penyediaPortal(payload, session) {
   var rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) {
     return _bulanStr_(r.bulan) === bulanBerjalan;
   });
-  if (rekapRows.length) {
+  // basis_pesanan: pembanding proyeksi dari PESANAN final (dua dasar, lihat
+  // _basisPesananBulan_ di 14_rekap.gs) — tetap agregat, tanpa rincian taruna.
+  var basisPesanan = _basisPesananBulan_(bulanBerjalan);
+  if (rekapRows.length || basisPesanan.hari_dipesan > 0) {
     var totHari = 0, totNominal = 0;
     rekapRows.forEach(function (r) {
       totHari += _int_(r.hari_makan || 0, 'hari_makan');
@@ -145,7 +148,8 @@ function penyediaPortal(payload, session) {
       jml_taruna: rekapRows.length,
       total_hari_makan: totHari,
       total_nominal: totNominal,
-      status: String(rekapRows[0].status || 'DRAFT')
+      basis_pesanan: basisPesanan,
+      status: rekapRows.length ? String(rekapRows[0].status || 'DRAFT') : 'DRAFT'
     };
   }
 

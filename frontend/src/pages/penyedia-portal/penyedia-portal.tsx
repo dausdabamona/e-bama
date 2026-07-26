@@ -41,6 +41,8 @@ interface Portal {
   rekap_berjalan?: {
     bulan: string; jml_taruna: number; total_hari_makan: number;
     total_nominal: number; status: string;
+    // pembanding dua dasar: proyeksi dari pesanan final (agregat saja)
+    basis_pesanan?: { hari_dipesan: number; oh_dipesan: number; nominal_proyeksi: number };
   } | null;
 }
 
@@ -238,6 +240,22 @@ export function HalamanPenyediaPortal() {
               <p className="text-[11px] text-gray-400">Belum dipotong pajak/biaya bank</p>
             </Card>
           </div>
+          {/* Dua dasar: angka di atas = realisasi SAH (dasar bayar); baris ini
+              = proyeksi dari pesanan final, supaya rekanan tahu porsi yang
+              sudah dipesan tapi realisasinya belum ditandatangani. */}
+          {data.rekap_berjalan.basis_pesanan && (
+            <Card className="flex flex-col gap-0.5 bg-gray-50">
+              <p className="text-xs text-gray-500">Pembanding — Basis Pesanan (proyeksi)</p>
+              <p className="text-sm text-gray-700">
+                {data.rekap_berjalan.basis_pesanan.hari_dipesan} hari ·{' '}
+                {data.rekap_berjalan.basis_pesanan.oh_dipesan.toLocaleString('id-ID')} OH ·{' '}
+                <span className="font-semibold">{formatRupiah(data.rekap_berjalan.basis_pesanan.nominal_proyeksi)}</span>
+              </p>
+              <p className="text-[11px] text-gray-400">
+                Dari pesanan final (disetujui/terkirim). Dasar pembayaran tetap realisasi sah di atas.
+              </p>
+            </Card>
+          )}
           {data.rekap_berjalan.status !== 'FINAL' && (
             <p className="text-xs text-amber-700">
               ⓘ Angka di atas masih berjalan dan <strong>dapat berubah</strong> sampai

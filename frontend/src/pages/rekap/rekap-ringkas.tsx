@@ -28,7 +28,12 @@ interface Kelompok {
 
 export function HalamanRekapRingkas() {
   const [bulan, setBulan] = useState(bulanIni());
-  const rekapQ = useListCache<{ rekap: BarisRekap[] }>('rekap.get', { bulan });
+  // basis_pesanan: pembanding proyeksi dua dasar. Nominal SENGAJA tidak
+  // dibaca/ditampilkan di halaman ini (Pembina/Senat tanpa nominal).
+  const rekapQ = useListCache<{
+    rekap: BarisRekap[]; D?: number;
+    basis_pesanan?: { hari_dipesan: number; oh_dipesan: number };
+  }>('rekap.get', { bulan });
   const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', {});
   const [tampilRincian, setTampilRincian] = useState(false);
 
@@ -83,6 +88,31 @@ export function HalamanRekapRingkas() {
       {memuat && !data && <LoadingSpinner label="Memuat rekap…" />}
       {galat && !data && <ErrorMessage pesan={galat} onRetry={() => { rekapQ.refresh(); tarunaQ.refresh(); }} />}
       {data && baris.length === 0 && <EmptyState pesan="Belum ada rekap bulan ini." />}
+
+      {/* Dua dasar dibandingkan (tanpa nominal): pesanan final vs realisasi sah.
+          Dirender juga saat rekap kosong supaya Pembina melihat berapa hari
+          pesanan yang realisasinya belum ditandatangani. */}
+      {data?.basis_pesanan && (
+        <Card className="flex flex-col gap-1">
+          <p className="text-sm font-semibold text-gray-700">Pesanan vs Realisasi (bulan ini)</p>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="text-xs text-gray-500">Basis Pesanan</p>
+              <p>{data.basis_pesanan.hari_dipesan} hari · {data.basis_pesanan.oh_dipesan.toLocaleString('id-ID')} OH</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Basis Realisasi Sah</p>
+              <p>{data.D ?? 0} hari · {totalHariMakan.toLocaleString('id-ID')} OH</p>
+            </div>
+          </div>
+          {data.basis_pesanan.hari_dipesan - (data.D ?? 0) > 0 && (
+            <p className="text-xs text-amber-700">
+              ⚠️ {data.basis_pesanan.hari_dipesan - (data.D ?? 0)} hari pesanan belum
+              punya realisasi sah (TTD Pembina &amp; Senat belum lengkap).
+            </p>
+          )}
+        </Card>
+      )}
 
       {baris.length > 0 && (
         <>

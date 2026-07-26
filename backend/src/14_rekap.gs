@@ -174,6 +174,39 @@ function _rekapBulan_(bulan) {
 }
 
 /**
+ * _basisPesananBulan_(bulan) — agregat pembanding BASIS PESANAN untuk rekap
+ * bulan berjalan (permintaan Firdaus: rekap sementara dibandingkan dua dasar,
+ * pesanan vs realisasi). HANYA dihitung on-the-fly & TIDAK pernah ditulis ke
+ * REKAP_BULANAN — snapshot §5 tetap basis realisasi sah sebagai dasar bayar.
+ * Pesanan yang dihitung: status final (DISETUJUI/TERKIRIM), aturan sama dgn
+ * portal penyedia. `oh_dipesan` = Σ jml_taruna (orang-hari) — sebanding dgn
+ * Σ hari_makan di rekap. Nominal proyeksi memakai tarif kontrak per baris
+ * pesanan (fallback harga_per_porsi × porsi lewat _hargaPerHariKontrak_).
+ */
+function _basisPesananBulan_(bulan) {
+  var rows = sheetRead(SHEETS.PESANAN, function (r) {
+    return _bulanStr_(r.tgl_makan) === bulan &&
+      (r.status === 'DISETUJUI' || r.status === 'TERKIRIM');
+  });
+  var tarifPerKontrak = {};
+  var tglTerhitung = {};
+  var hari = 0, oh = 0, nominal = 0;
+  rows.forEach(function (p) {
+    var tgl = _tglStr_(p.tgl_makan);
+    if (!tglTerhitung[tgl]) { tglTerhitung[tgl] = true; hari++; }
+    var jml = _int_(p.jml_taruna || 0, 'jml_taruna');
+    oh += jml;
+    var kid = String(p.kontrak_id || '');
+    if (!(kid in tarifPerKontrak)) {
+      var k = sheetRead(SHEETS.KONTRAK, function (r) { return String(r.kontrak_id) === kid; })[0];
+      tarifPerKontrak[kid] = k ? _hargaPerHariKontrak_(k) : 0;
+    }
+    nominal += jml * tarifPerKontrak[kid];
+  });
+  return { bulan: bulan, hari_dipesan: hari, oh_dipesan: oh, nominal_proyeksi: Math.round(nominal) };
+}
+
+/**
  * rekap.get {bulan} → baris + total (PPK, KPA).
  * D = hari realisasi sah bulan itu (hari_makan + hari_tidak_makan per baris —
  * konstan untuk semua taruna AKTIF sejak recompute rekapUpdate terakhir).
@@ -186,7 +219,17 @@ function rekapGet(payload, session) {
   var total = 0;
   rows.forEach(function (r) { total += _int_(r.nominal || 0, 'nominal'); });
   var d = rows.length ? (_int_(rows[0].hari_makan || 0, 'hari_makan') + _int_(rows[0].hari_tidak_makan || 0, 'hari_tidak_makan')) : 0;
-  return { rekap: rows, total: total, bulan: bulan, D: d, ambang_outlier: getKebijakanRekap().ambangOutlier };
+  var totalHariMakan = 0;
+  rows.forEach(function (r) { totalHariMakan += _int_(r.hari_makan || 0, 'hari_makan'); });
+  // basis_pesanan: pembanding proyeksi (lihat _basisPesananBulan_). Ikut pola
+  // lama rekap.get utk SENAT/PEMBINA: nominal dikirim, frontend yang
+  // menyembunyikan (halaman /rekap-ringkas tanpa nominal).
+  return {
+    rekap: rows, total: total, bulan: bulan, D: d,
+    total_hari_makan: totalHariMakan,
+    basis_pesanan: _basisPesananBulan_(bulan),
+    ambang_outlier: getKebijakanRekap().ambangOutlier
+  };
 }
 
 /** Ubah status semua baris satu bulan (verify/final). */
