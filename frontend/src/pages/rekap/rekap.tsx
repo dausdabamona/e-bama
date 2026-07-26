@@ -1,6 +1,11 @@
 // /rekap (PPK) — tabel rekap bulanan, Verifikasi → Finalkan (konfirmasi ganda), ekspor CSV.
+// Ada kartu "Pemantauan Bulan Berjalan" (PPK/Staf PPK, selama status != FINAL)
+// dengan tombol Perbarui (rekap.recompute) — SENGAJA dirender SEBELUM EmptyState
+// supaya tetap muncul saat bulan masih kosong (bulan berjalan yang belum ada
+// realisasi ter-ttd); tanpa ini halaman buntu, tak ada aksi apa pun.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../auth/auth-context';
 import { BulanPicker, bulanIni } from '../../components/bulan-picker';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
@@ -30,11 +35,13 @@ interface Kelompok {
 export function HalamanRekap() {
   const [bulan, setBulan] = useState(bulanIni());
   const { toast } = useToast();
-  const rekapQ = useListCache<{ rekap: BarisRekap[]; total: number }>('rekap.get', { bulan });
+  const { session } = useAuth();
+  const rekapQ = useListCache<{ rekap: BarisRekap[]; total: number; D?: number }>('rekap.get', { bulan });
   const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', {});
   const [tampilFinal, setTampilFinal] = useState(false);
   const [tampilRincian, setTampilRincian] = useState(false);
   const [proses, setProses] = useState(false);
+  const [perbarui, setPerbarui] = useState(false);
 
   const memuat = rekapQ.memuat || tarunaQ.memuat;
   const galat = rekapQ.galat || tarunaQ.galat;
@@ -42,6 +49,8 @@ export function HalamanRekap() {
   const namaByNit = new Map((tarunaQ.data?.taruna ?? []).map((t) => [t.nit, t.nama]));
   const baris = rekapQ.data?.rekap ?? [];
   const status = baris[0]?.status ?? '';
+  // Frontend hanya menyembunyikan tombol; otorisasi sebenarnya di ACTION_MAP.
+  const bisaPerbarui = session?.role === 'PPK' || session?.role === 'STAF_PPK';
 
   // Kelompokkan per Prodi + Tingkat (taruna tanpa data TARUNA → grup "Lainnya/?").
   const kelompok: Kelompok[] = (() => {
@@ -75,6 +84,26 @@ export function HalamanRekap() {
       const t = tarunaByNit.get(r.nit);
       return (t?.prodi || 'Lainnya') === k.prodi && (t?.tingkat || '?') === k.tingkat;
     });
+  }
+
+  // Hitung ulang rekap bulan berjalan dari realisasi yang SUDAH ditandatangani
+  // Pembina+Senat. Tidak memunculkan nominal dari realisasi yang belum ter-ttd —
+  // ini alat pantau, bukan pengganti proses tanda tangan.
+  async function perbaruiRekap() {
+    if (!window.confirm(
+      `Hitung ulang rekap ${bulan} dari realisasi yang sudah ditandatangani Pembina & Senat?\n`
+      + 'Hanya hari yang sudah ber-tanda tangan lengkap yang dihitung.'
+    )) return;
+    setPerbarui(true);
+    try {
+      const r = await api<{ hari_sah: number; taruna: number }>('rekap.recompute', { bulan });
+      toast(`Rekap diperbarui: ${r.hari_sah} hari makan sah, ${r.taruna} taruna.`, 'sukses');
+      rekapQ.refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal memperbarui rekap.', 'galat');
+    } finally {
+      setPerbarui(false);
+    }
   }
 
   async function verifikasi() {
@@ -122,6 +151,29 @@ export function HalamanRekap() {
 
       {memuat && !rekapQ.data && <LoadingSpinner label="Memuat rekap…" />}
       {galat && !rekapQ.data && <ErrorMessage pesan={galat} onRetry={rekapQ.refresh} />}
+
+      {/* Pemantauan bulan berjalan — dirender SEBELUM EmptyState supaya tetap
+          tampil (dan bisa diklik) walau rekap bulan ini masih kosong. */}
+      {bisaPerbarui && rekapQ.data && status !== 'FINAL' && (
+        <Card className="flex flex-col gap-2 border-l-4 border-l-primary">
+          <p className="text-sm font-semibold text-gray-700">Pemantauan Bulan Berjalan</p>
+          <p className="text-xs text-gray-500">
+            Rekap terbentuk dari realisasi harian yang <strong>sudah ditandatangani
+            Pembina &amp; Senat</strong>. Klik Perbarui untuk menarik data terkini
+            tanpa menunggu bulan berakhir.
+            {baris.length > 0 && rekapQ.data.D
+              ? ` Saat ini tercatat ${rekapQ.data.D} hari makan sah.`
+              : ''}
+          </p>
+          <Button varian="garis" onClick={() => void perbaruiRekap()} disabled={perbarui}>
+            {perbarui ? 'Menghitung ulang…' : '🔄 Perbarui Rekap Bulan Berjalan'}
+          </Button>
+          <Link to="/taruna/rekap-harian" className="text-xs text-primary underline">
+            Pantau per hari di Rekap Harian Taruna →
+          </Link>
+        </Card>
+      )}
+
       {rekapQ.data && baris.length === 0 && <EmptyState pesan="Belum ada rekap bulan ini." />}
 
       {baris.length > 0 && (

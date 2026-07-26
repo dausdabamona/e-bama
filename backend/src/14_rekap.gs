@@ -5,8 +5,10 @@
  *
  * ACTION: rekap.get (PPK, KPA), rekap.verify (PPK), rekap.final (PPK),
  *         rekap.approve_wadir3 / rekap.batal_wadir3 (WADIR3),
- *         rekap.input_historis (PPK, Admin) — migrasi bulan pra-aplikasi
- * INTERNAL: rekapUpdate(tanggal) — dipanggil realisasi.ttd, BUKAN action publik.
+ *         rekap.input_historis (PPK, Admin) — migrasi bulan pra-aplikasi,
+ *         rekap.recompute (PPK, Staf PPK) — hitung ulang bulan berjalan on-demand
+ * INTERNAL: rekapUpdate(tanggal, session) — dipanggil realisasi.ttd (session
+ *         kosong) DAN rekap.recompute (session pemanggil), BUKAN action publik.
  *
  * Uang selalu integer rupiah: nominal = hari_makan × harga_per_hari (tarif
  * kontrak, lihat _hargaPerHariKontrak_ di 05_master.gs — fallback ke
@@ -15,12 +17,15 @@
  */
 
 /**
- * rekapUpdate(tanggal) — hitung ulang bulan berjalan secara incremental.
+ * rekapUpdate(tanggal, session) — hitung ulang bulan berjalan secara incremental.
  * hari_makan  = jumlah hari realisasi SAH (kedua ttd) bulan itu MINUS hari
  *               taruna berstatus harian; hari_tidak_makan = hari berstatus.
  * Ditulis batch per baris (bukan 247 update terpisah) demi kuota GAS 6 menit.
+ * `session` OPSIONAL — diisi saat dipicu manual (rekap.recompute) supaya
+ * AUDIT_LOG mencatat siapa yang menghitung ulang; kosong bila dipicu otomatis
+ * dari realisasi.ttd (perilaku lama tetap sama).
  */
-function rekapUpdate(tanggal) {
+function rekapUpdate(tanggal, session) {
   var bulan = _bulanStr_(tanggal);
   var kontrak = _kontrakAktifPada_(tanggal);
   var hargaPerHari = _hargaPerHariKontrak_(kontrak);
@@ -124,10 +129,41 @@ function rekapUpdate(tanggal) {
       sh.getRange(sh.getLastRow() + 1, 1, barisBaru.length, lastCol).setValues(barisBaru);
     }
 
-    auditLog(null, 'rekap.update', 'REKAP_BULANAN', bulan, null,
+    auditLog(session || null, 'rekap.update', 'REKAP_BULANAN', bulan, null,
       { hari_sah: jmlHariSah, taruna: tarunaAktif.length, harga_per_hari: hargaPerHari });
     return { bulan: bulan, hari_sah: jmlHariSah, taruna: tarunaAktif.length };
   });
+}
+
+/**
+ * rekap.recompute {bulan} → {bulan, hari_sah, taruna} (PPK, Staf PPK).
+ *
+ * Pemicu MANUAL untuk rekapUpdate — supaya PPK/Staf PPK bisa MEMANTAU dan
+ * membentuk rekap BULAN BERJALAN kapan saja, tanpa menunggu bulan tutup.
+ * Sebelumnya rekap hanya terbentuk otomatis saat realisasi.ttd melengkapi kedua
+ * tanda tangan, sehingga bulan yang belum ada ttd tampak kosong tanpa jalan
+ * keluar (mis. penyiapan kuasa debet taruna wisuda di tengah bulan).
+ *
+ * Rumusnya TIDAK diubah: yang dihitung tetap HANYA hari realisasi SAH (kedua
+ * ttd). Bila belum ada realisasi ter-ttd, hasilnya memang 0 — action ini
+ * memantau progres, bukan pengganti tanda tangan Pembina/Senat.
+ *
+ * Bulan berjalan dihitung s.d. HARI INI; bulan lampau s.d. akhir bulan. Guard
+ * FINAL & withLock ikut dari rekapUpdate (bulan FINAL ditolak di sana).
+ */
+function rekapRecompute(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+
+  var kini = new Date();
+  if (bulan > _bulanStr_(kini)) throw _fail_('Bulan ' + bulan + ' belum berjalan.');
+
+  // Tanggal acuan = min(hari ini, akhir bulan tsb) — bulan berjalan dihitung
+  // sampai hari ini, bulan lampau dihitung penuh.
+  var bg = bulan.split('-');
+  var akhirBulan = new Date(Number(bg[0]), Number(bg[1]), 0);
+  var acuan = akhirBulan < kini ? akhirBulan : kini;
+
+  return rekapUpdate(_tglStr_(acuan), session);
 }
 
 /** Baris rekap satu bulan. */

@@ -124,6 +124,31 @@ function penyediaPortal(payload, session) {
     }
   });
 
+  // ── Rekap BULAN BERJALAN (agregat) — supaya penyedia bisa memantau porsi &
+  //    nilai berjalan tanpa menunggu rekap difinalkan PPK (dikonfirmasi Firdaus).
+  //    HANYA angka agregat: TIDAK ADA nit/nama/rekening/rincian per taruna,
+  //    konsisten dgn prinsip data sensitif portal di kepala berkas ini.
+  //    `status` disertakan agar frontend melabeli "sementara" selama != FINAL. ──
+  var bulanBerjalan = _bulanStr_(new Date());
+  var rekapBerjalan = null;
+  var rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) {
+    return _bulanStr_(r.bulan) === bulanBerjalan;
+  });
+  if (rekapRows.length) {
+    var totHari = 0, totNominal = 0;
+    rekapRows.forEach(function (r) {
+      totHari += _int_(r.hari_makan || 0, 'hari_makan');
+      totNominal += _int_(r.nominal || 0, 'nominal');
+    });
+    rekapBerjalan = {
+      bulan: bulanBerjalan,
+      jml_taruna: rekapRows.length,
+      total_hari_makan: totHari,
+      total_nominal: totNominal,
+      status: String(rekapRows[0].status || 'DRAFT')
+    };
+  }
+
   // ── Status pembayaran miliknya (agregat per bulan/kontrak — bukan per taruna) ──
   var pembayaran = sheetRead(SHEETS.PEMBAYARAN, function (r) { return kontrakIds[String(r.kontrak_id)]; })
     .map(function (p) {
@@ -172,6 +197,7 @@ function penyediaPortal(payload, session) {
     pesanan: pesanan,
     realisasi: realisasi,
     pembayaran: pembayaran,
-    ringkasan_pembayaran: ringkasanBayar
+    ringkasan_pembayaran: ringkasanBayar,
+    rekap_berjalan: rekapBerjalan
   };
 }

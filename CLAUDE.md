@@ -122,6 +122,15 @@ diproteksi warning-only):
   `tagihan.create`.
 - **`REKAP_BULANAN`** (hari_makan, nominal, dst.) — materialized view yang
   hanya di-update sistem untuk bulan berjalan; ditolak bila status `FINAL`.
+  Pemicunya DUA: otomatis saat `realisasi.ttd` melengkapi kedua tanda tangan,
+  DAN manual lewat **`rekap.recompute`** (role PPK/STAF_PPK) supaya rekap bulan
+  berjalan bisa **dipantau & dibentuk sebelum bulan tutup** — rumusnya sama
+  persis (hanya hari realisasi SAH yang dihitung), jadi ini alat pantau, bukan
+  pengganti tanda tangan Pembina/Senat. Bulan `FINAL` tetap ditolak.
+  Rekap bulan berjalan (walau belum disetujui) tampil untuk **PPK/STAF_PPK**
+  (`/rekap`, dengan nominal), **PEMBINA** (`/rekap-ringkas`, TANPA nominal), dan
+  **PENYEDIA** (`penyedia.portal` → `rekap_berjalan`, agregat + nominal, dilabeli
+  "Sementara — belum final", tanpa rincian per taruna).
 - **`PEMBAYARAN.nilai_total`** — snapshot SUM(nominal) rekap FINAL.
 
 ---

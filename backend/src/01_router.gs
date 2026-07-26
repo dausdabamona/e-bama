@@ -99,6 +99,10 @@ var ACTION_MAP = {
   'rekap.approve_wadir3': { handler: rekapApproveWadir3, roles: ['WADIR3'] },
   'rekap.batal_wadir3': { handler: rekapBatalWadir3, roles: ['WADIR3'] },
   'rekap.input_historis': { handler: rekapInputHistoris, roles: ['PPK', 'STAF_PPK', 'ADMIN'] },
+  // rekap.recompute: pemicu MANUAL rekapUpdate — PPK/Staf PPK memantau &
+  // membentuk rekap BULAN BERJALAN tanpa menunggu bulan tutup. Aksi tulis
+  // (withLock + AUDIT_LOG ikut dari rekapUpdate); bulan FINAL ditolak.
+  'rekap.recompute':  { handler: rekapRecompute, roles: ['PPK', 'STAF_PPK'] },
   // rekap.harian: rekonsiliasi 3 titik HARIAN per Prodi+Tingkat, read-only —
   // internal login mana pun (pola sama seperti taruna.list), TIDAK di
   // PENYEDIA_ACTIONS/KETUA_JURUSAN_ACTIONS jadi otomatis dikecualikan.

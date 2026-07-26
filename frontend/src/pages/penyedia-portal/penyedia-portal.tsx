@@ -36,6 +36,12 @@ interface Portal {
     dalam_proses: number; sudah_dibayar: number; total: number;
     total_berhasil_debet?: number; total_gagal_debet?: number;
   };
+  // Agregat rekap bulan berjalan (tanpa rincian per taruna) — angka sementara
+  // selama status belum FINAL.
+  rekap_berjalan?: {
+    bulan: string; jml_taruna: number; total_hari_makan: number;
+    total_nominal: number; status: string;
+  } | null;
 }
 
 const LABEL_STATUS_BAYAR: Record<string, string> = {
@@ -203,6 +209,43 @@ export function HalamanPenyediaPortal() {
           </Card>
         )}
       </section>
+
+      {/* Rekap bulan berjalan — agregat, boleh dilihat penyedia walau belum
+          disetujui/final (angka masih bisa berubah; diberi label jelas). */}
+      {data.rekap_berjalan && (
+        <section className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-600">
+              Rekap Bulan Berjalan · {labelBulan(data.rekap_berjalan.bulan)}
+            </h2>
+            {data.rekap_berjalan.status !== 'FINAL' && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                Sementara — belum final
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Card className="flex flex-col gap-0.5">
+              <p className="text-xs text-gray-500">Total Hari Makan</p>
+              <p className="text-lg font-bold text-primary-dark">
+                {data.rekap_berjalan.total_hari_makan.toLocaleString('id-ID')} <span className="text-sm font-normal text-gray-400">hari</span>
+              </p>
+              <p className="text-[11px] text-gray-400">{data.rekap_berjalan.jml_taruna} taruna</p>
+            </Card>
+            <Card className="flex flex-col gap-0.5">
+              <p className="text-xs text-gray-500">Total Nominal</p>
+              <p className="text-lg font-bold text-primary-dark">{formatRupiah(data.rekap_berjalan.total_nominal)}</p>
+              <p className="text-[11px] text-gray-400">Belum dipotong pajak/biaya bank</p>
+            </Card>
+          </div>
+          {data.rekap_berjalan.status !== 'FINAL' && (
+            <p className="text-xs text-amber-700">
+              ⓘ Angka di atas masih berjalan dan <strong>dapat berubah</strong> sampai
+              rekap difinalkan PPK. Bukan dasar penagihan.
+            </p>
+          )}
+        </section>
+      )}
 
       {/* Status pembayaran */}
       <section className="flex flex-col gap-2">
