@@ -27,7 +27,7 @@ import {
 
 interface Pejabat { nama: string; nip: string }
 interface DokKeluar {
-  bulan: string; basis?: 'REKAP' | 'PESANAN'; baris: BarisKuasaDebet[]; total_nominal: number; biaya_admin_bank: number;
+  bulan: string; basis?: 'REKAP' | 'PESANAN'; sampai_tanggal?: string; baris: BarisKuasaDebet[]; total_nominal: number; biaya_admin_bank: number;
   pejabat: { PPK: Pejabat; KPA: Pejabat; DIREKTUR: Pejabat; WADIR3: Pejabat };
   rekening_senat?: { BNI?: string; BSI?: string };
   rekening_senat_nama?: { BNI?: string; BSI?: string };
@@ -37,9 +37,9 @@ const STATUS_KEGIATAN = ['MAGANG', 'PKL_1', 'PKL_2', 'PKL_3', 'KPA', 'PTB'];
 const ALASAN = ['LULUS', 'PINDAH', 'DO'];
 
 /** Satu surat kuasa debet untuk SATU bank (BNI/BSI/tanpa rekening). */
-function SuratKuasaBank({ bank, rows, bulan, keperluan, pejabat, rekSenat, rekSenatNama, pisahHalaman, basis }: {
+function SuratKuasaBank({ bank, rows, bulan, keperluan, pejabat, rekSenat, rekSenatNama, pisahHalaman, basis, sampaiTanggal }: {
   bank: string; rows: BarisKuasaDebet[]; bulan: string; keperluan: string; pejabat: DokKeluar['pejabat'];
-  rekSenat?: string; rekSenatNama?: string; pisahHalaman: boolean; basis?: 'REKAP' | 'PESANAN';
+  rekSenat?: string; rekSenatNama?: string; pisahHalaman: boolean; basis?: 'REKAP' | 'PESANAN'; sampaiTanggal?: string;
 }) {
   const total = rows.reduce((s, b) => s + b.nilai_debet, 0);
   const labelBank = bank === 'TANPA_REKENING' ? 'BELUM ADA REKENING' : bank;
@@ -60,7 +60,7 @@ function SuratKuasaBank({ bank, rows, bulan, keperluan, pejabat, rekSenat, rekSe
       {basis === 'PESANAN' && (
         <p className="text-xs">
           <strong>Dasar nilai: PESANAN (proyeksi).</strong> Nilai di bawah dihitung dari pesanan makan
-          harian yang sudah final bulan {labelBulan(bulan)} karena rekap realisasi bulan berjalan belum
+          harian yang sudah final tanggal 1{sampaiTanggal ? ` s.d. tanggal ${Number(sampaiTanggal.split('-')[2])}` : ''} bulan {labelBulan(bulan)} karena rekap realisasi bulan berjalan belum
           disahkan. <strong>Nilai final yang didebet mengikuti rekap bulan {labelBulan(bulan)} yang
           disahkan</strong> (permohonan pendebetan resmi ke bank / Form-07); bila nilai final lebih kecil,
           yang didebet nilai final.
@@ -177,11 +177,19 @@ export function HalamanTarunaKeluar() {
   // Dasar nilai: REKAP (realisasi sah — default) atau PESANAN (proyeksi, utk
   // wisuda saat rekap bulan berjalan belum terbentuk; dokumen diberi label).
   const [basis, setBasis] = useState<'REKAP' | 'PESANAN'>('REKAP');
+  // Batas proyeksi (HANYA basis PESANAN, dikonfirmasi Firdaus): dihitung
+  // tanggal 1 s.d. tanggal ini — supaya taruna wisuda di tengah bulan tidak
+  // ikut menghitung hari SETELAH tanggal keluarnya. Default hari ini bila
+  // masih di bulan yang dipilih, kosong bila bulan lain (mis. bulan lampau).
+  const [sampaiTanggal, setSampaiTanggal] = useState(() => (hariIni().slice(0, 7) === bulanIni() ? hariIni() : ''));
   async function buatDokumen() {
     if (!pilih.size) { toast('Pilih taruna dulu.', 'galat'); return; }
+    if (basis === 'PESANAN' && !sampaiTanggal) { toast('Isi tanggal batas proyeksi.', 'galat'); return; }
     setProsesDok(true); setDok(null);
     try {
-      const r = await api<DokKeluar>('cetak.kuasa_debet_keluar', { bulan, nit_list: Array.from(pilih), basis });
+      const payload: Record<string, unknown> = { bulan, nit_list: Array.from(pilih), basis };
+      if (basis === 'PESANAN') payload.sampai_tanggal = sampaiTanggal;
+      const r = await api<DokKeluar>('cetak.kuasa_debet_keluar', payload);
       setDok(r);
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Gagal membuat dokumen.', 'galat');
@@ -309,11 +317,18 @@ export function HalamanTarunaKeluar() {
             </Button>
           </div>
           {basis === 'PESANAN' && (
-            <p className="mt-1 text-xs text-amber-700">
-              ⚠️ Nilai proyeksi dari pesanan final — dipakai bila rekap bulan berjalan belum
-              disahkan (mis. wisuda sebelum tutup bulan). Dokumen diberi label; nilai final
-              yang didebet tetap mengikuti rekap yang disahkan.
-            </p>
+            <>
+              <p className="mt-1 text-xs text-amber-700">
+                ⚠️ Nilai proyeksi dari pesanan final — dipakai bila rekap bulan berjalan belum
+                disahkan (mis. wisuda sebelum tutup bulan). Dokumen diberi label; nilai final
+                yang didebet tetap mengikuti rekap yang disahkan.
+              </p>
+              <Input
+                label={`Proyeksi dihitung tanggal 1 s.d. tanggal (bulan ${labelBulan(bulan)})`}
+                type="date" value={sampaiTanggal} min={`${bulan}-01`} max={`${bulan}-31`}
+                onChange={(e) => { setSampaiTanggal(e.target.value); setDok(null); }}
+              />
+            </>
           )}
         </div>
         <Button onClick={() => void buatDokumen()} disabled={prosesDok || !pilih.size}>
@@ -383,7 +398,9 @@ export function HalamanTarunaKeluar() {
         <div ref={dokRef} className="flex flex-col gap-4">
           <div className="flex items-center justify-between rounded-xl border-2 border-primary bg-primary/5 px-3 py-2 print:hidden">
             <p className="text-sm font-semibold text-primary-dark">
-              ✅ Dokumen {dok.baris.length} taruna siap ({dok.basis === 'PESANAN' ? 'basis Pesanan' : 'basis Rekap'})
+              ✅ Dokumen {dok.baris.length} taruna siap ({dok.basis === 'PESANAN'
+                ? `basis Pesanan s.d. ${dok.sampai_tanggal || dok.bulan}`
+                : 'basis Rekap'})
             </p>
             <Button varian="garis" onClick={() => window.print()}>🖨️ Cetak</Button>
           </div>
@@ -408,7 +425,7 @@ export function HalamanTarunaKeluar() {
           )}
           {kelompokBank(dok.baris).map((g, i) => (
             <SuratKuasaBank key={g.bank} bank={g.bank} rows={g.rows} bulan={dok.bulan} keperluan={keperluan}
-              pejabat={dok.pejabat} pisahHalaman={i > 0} basis={dok.basis}
+              pejabat={dok.pejabat} pisahHalaman={i > 0} basis={dok.basis} sampaiTanggal={dok.sampai_tanggal}
               rekSenat={g.bank === 'BNI' ? dok.rekening_senat?.BNI : g.bank === 'BSI' ? dok.rekening_senat?.BSI : ''}
               rekSenatNama={g.bank === 'BNI' ? dok.rekening_senat_nama?.BNI : g.bank === 'BSI' ? dok.rekening_senat_nama?.BSI : ''} />
           ))}

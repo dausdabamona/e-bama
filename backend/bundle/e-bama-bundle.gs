@@ -3401,15 +3401,22 @@ function _basisPesananBulan_(bulan) {
 }
 
 /**
- * _rekapProyeksiPesanan_(bulan) — proyeksi PER TARUNA basis PESANAN final:
- * utk tiap tanggal yang punya PESANAN DISETUJUI/TERKIRIM bulan itu, taruna
- * dihitung bila aktif pada tanggal tsb (_tarunaAktifTanggal_ — menghormati
- * tgl_keluar wisuda) DAN tidak berstatus tidak-makan. Tarif per tanggal =
- * tarif kontrak baris pesanannya. Return array {nit, hari_makan, nominal}
- * (nominal integer rupiah) — BUKAN pengganti REKAP_BULANAN dan TIDAK pernah
- * ditulis ke sheet; dipakai kuasa debet taruna keluar saat rekap realisasi
- * bulan berjalan belum terbentuk (dikonfirmasi Firdaus: kuasa debet boleh
- * basis pesanan, dgn label jelas).
+ * _rekapProyeksiPesanan_(bulan, sampaiTanggal?) — proyeksi PER TARUNA basis
+ * PESANAN final: utk tiap tanggal yang punya PESANAN DISETUJUI/TERKIRIM
+ * bulan itu, taruna dihitung bila aktif pada tanggal tsb (_tarunaAktifTanggal_
+ * — menghormati tgl_keluar wisuda) DAN tidak berstatus tidak-makan. Tarif per
+ * tanggal = tarif kontrak baris pesanannya. Return array {nit, hari_makan,
+ * nominal} (nominal integer rupiah) — BUKAN pengganti REKAP_BULANAN dan TIDAK
+ * pernah ditulis ke sheet; dipakai kuasa debet taruna keluar saat rekap
+ * realisasi bulan berjalan belum terbentuk (dikonfirmasi Firdaus: kuasa debet
+ * boleh basis pesanan, dgn label jelas).
+ *
+ * `sampaiTanggal` (opsional, 'YYYY-MM-DD') — batasi proyeksi HANYA tanggal 1
+ * s.d. tanggal itu (dikonfirmasi Firdaus: taruna wisuda keluar di tengah
+ * bulan, proyeksi tidak boleh ikut menghitung hari SETELAH tanggal keluarnya
+ * yang belum tentu makan). Kosong = seluruh bulan (perilaku lama, dipakai
+ * pemanggil lain yang tidak mengirim parameter ini — TIDAK ada perubahan
+ * perilaku bagi mereka).
  *
  * PERFORMA: STATUS_HARIAN & PERIODE_LUAR dibaca SEKALI di awal (bukan lewat
  * _tidakMakanKampusPada_ per tanggal) — versi awal memanggilnya di dalam
@@ -3420,10 +3427,12 @@ function _basisPesananBulan_(bulan) {
  * padahal jaringan baik-baik saja. Sekarang O(1) pembacaan sheet apa pun
  * jumlah harinya.
  */
-function _rekapProyeksiPesanan_(bulan) {
+function _rekapProyeksiPesanan_(bulan, sampaiTanggal) {
   var pesanan = sheetRead(SHEETS.PESANAN, function (r) {
-    return _bulanStr_(r.tgl_makan) === bulan &&
-      (r.status === 'DISETUJUI' || r.status === 'TERKIRIM');
+    if (_bulanStr_(r.tgl_makan) !== bulan) return false;
+    if (r.status !== 'DISETUJUI' && r.status !== 'TERKIRIM') return false;
+    if (sampaiTanggal && _tglStr_(r.tgl_makan) > sampaiTanggal) return false;
+    return true;
   });
   var tarifPerKontrak = {};
   var taruna = sheetRead(SHEETS.TARUNA);
@@ -6185,16 +6194,18 @@ function cetakForm06(payload, session) {
  * Baca REKAP_BULANAN bulan itu (nominal>0), join TARUNA + TARUNA_REKENING,
  * hitung `nilai_debet = max(0, nominal − biayaAdminBank)`. TIDAK meng-audit &
  * TIDAK withLock — pemanggil yang membungkus & mencatat AUDIT_LOG (baca rekening).
+ * `sampaiTanggal` (opsional) HANYA berlaku utk basis PESANAN — lihat
+ * _rekapProyeksiPesanan_; diabaikan utk basis REKAP (snapshot bulan penuh).
  * Return {baris, nitList, total_nominal, biaya_admin_bank, rekening_senat,
  * rekening_senat_nama, rekInst}.
  */
-function _daftarKuasaDebet_(bulan, nitFilter, basis) {
+function _daftarKuasaDebet_(bulan, nitFilter, basis, sampaiTanggal) {
   // basis 'PESANAN' (opsional; HANYA dipakai kuasa debet taruna keluar):
   // proyeksi per-taruna dari PESANAN final (_rekapProyeksiPesanan_) — untuk
   // wisuda saat rekap realisasi bulan berjalan belum terbentuk. Form-07 &
   // pemanggil lain TIDAK mengirim basis → tetap REKAP_BULANAN (dasar bayar).
   var rekapRows = (basis === 'PESANAN')
-    ? _rekapProyeksiPesanan_(bulan)
+    ? _rekapProyeksiPesanan_(bulan, sampaiTanggal)
     : sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
   // Abaikan taruna bernilai Rp0 (tidak makan bulan ini) — tak perlu diblokir/didebet,
   // dan rekening lengkapnya tidak perlu ikut terbaca/diaudit.
@@ -6293,9 +6304,10 @@ function cetakForm07(payload, session) {
 /**
  * Kuasa debet rekening taruna yang KELUAR KAMPUS (wisuda/magang/pindah) untuk
  * SUBSET terpilih — bulan berjalan, ditandatangani tiap taruna sebelum keluar.
- * Payload {bulan, nit_list} (wajib). Sama seperti Form-07 (per bank, nilai_debet)
- * TAPI difilter nit_list & PEMBAYARAN OPSIONAL (dokumen bisa disiapkan sebelum
- * pembayaran dibuat). Role ADMIN/PPK; 1 AUDIT_LOG (baca rekening).
+ * Payload {bulan, nit_list, basis?, sampai_tanggal?} (bulan & nit_list wajib).
+ * Sama seperti Form-07 (per bank, nilai_debet) TAPI difilter nit_list &
+ * PEMBAYARAN OPSIONAL (dokumen bisa disiapkan sebelum pembayaran dibuat).
+ * Role ADMIN/PPK; 1 AUDIT_LOG (baca rekening).
  */
 function cetakKuasaDebetKeluar(payload, session) {
   _hanyaAdminPPK_(session);
@@ -6308,20 +6320,36 @@ function cetakKuasaDebetKeluar(payload, session) {
   var basis = String((payload && payload.basis) || 'REKAP').toUpperCase();
   if (basis !== 'REKAP' && basis !== 'PESANAN') throw _fail_('basis harus REKAP atau PESANAN.');
 
+  // sampai_tanggal (opsional, HANYA dipakai basis PESANAN — dikonfirmasi
+  // Firdaus): batasi proyeksi tanggal 1 s.d. tanggal ini (mis. taruna wisuda
+  // keluar tgl 28, proyeksi tak boleh ikut menghitung tgl 29-31 yang belum
+  // tentu makan). Kosong = seluruh bulan (perilaku lama). Wajib dalam bulan
+  // yang sama dgn `bulan`.
+  var sampaiTanggal = '';
+  if (payload && payload.sampai_tanggal) {
+    sampaiTanggal = _wajibTgl_(payload.sampai_tanggal, 'sampai_tanggal');
+    if (_bulanStr_(sampaiTanggal) !== bulan) {
+      throw _fail_('sampai_tanggal harus di dalam bulan ' + bulan + '.');
+    }
+  }
+
   // Perhitungan di bawah ini murni BACA (tanpa efek samping) — sengaja TIDAK
   // dibungkus withLock supaya tidak menahan lock skrip global selama proses
   // yang bisa berdetik-detik (basis PESANAN membaca banyak sheet). Menahan
   // lock lama di sini pernah membuat aksi tulis LAIN (mis. taruna.tandai_keluar)
   // gagal dgn "Sistem sedang sibuk" walau tak menyentuh data yang sama.
   // Hanya baris AUDIT_LOG di bawah yang perlu withLock (penulisan singkat).
-  var d = _daftarKuasaDebet_(bulan, nitList.map(String), basis);
+  var d = _daftarKuasaDebet_(bulan, nitList.map(String), basis, sampaiTanggal);
   if (!d.baris.length) {
     throw _fail_(basis === 'PESANAN'
-      ? 'Tidak ada taruna terpilih yang terhitung di pesanan final bulan ' + bulan + ' — pastikan ada PESANAN DISETUJUI/TERKIRIM bulan ini.'
+      ? 'Tidak ada taruna terpilih yang terhitung di pesanan final bulan ' + bulan +
+        (sampaiTanggal ? (' s.d. ' + sampaiTanggal) : '') +
+        ' — pastikan ada PESANAN DISETUJUI/TERKIRIM pada rentang tersebut.'
       : 'Tidak ada taruna terpilih yang punya nominal rekap bulan ' + bulan + ' — pastikan rekap bulan ini sudah di-update & nominal > 0, atau pilih Dasar Nilai "Pesanan (proyeksi)".');
   }
   withLock(function () {
-    auditLog(session, 'cetak.kuasa_debet_keluar', 'TARUNA_REKENING', d.nitList.join(','), null, { nit_list: d.nitList, basis: basis });
+    auditLog(session, 'cetak.kuasa_debet_keluar', 'TARUNA_REKENING', d.nitList.join(','), null,
+      { nit_list: d.nitList, basis: basis, sampai_tanggal: sampaiTanggal || null });
   });
 
   // PEMBAYARAN opsional: bila sudah ada, sertakan header + rekening penyedia
@@ -6337,6 +6365,7 @@ function cetakKuasaDebetKeluar(payload, session) {
   return {
     bulan: bulan,
     basis: basis,
+    sampai_tanggal: sampaiTanggal || '',
     pembayaran: pembayaran ? {
       bayar_id: pembayaran.bayar_id,
       nilai_total: _int_(pembayaran.nilai_total, 'nilai_total'),
