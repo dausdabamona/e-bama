@@ -41,7 +41,11 @@ export function HalamanPesananDetail() {
   const p = data.pesanan;
   const bisaSubmit = p.status === 'DRAFT' && p.created_by === session?.user_id;
   const bisaKirim = p.status === 'DISETUJUI' && session?.role === 'SENAT';
-  const bisaRevisi = p.status === 'TERKIRIM';
+  // pesanan.revisi role SENAT saja di backend (01_router.gs) — sebelumnya
+  // tombol ini tampil ke siapa pun yang buka halaman (mis. PEMBINA) lalu
+  // ditolak backend; disamakan di sini sekalian saat menambah akses baca
+  // PPK/STAF_PPK ke halaman ini.
+  const bisaRevisi = p.status === 'TERKIRIM' && session?.role === 'SENAT';
   const idxTimeline = TIMELINE.findIndex((t) => t.status === p.status);
 
   async function submit() {

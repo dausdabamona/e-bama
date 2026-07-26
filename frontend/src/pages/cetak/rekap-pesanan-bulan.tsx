@@ -96,7 +96,8 @@ export function HalamanRekapPesananBulan() {
           <div className="overflow-x-auto">
             <TabelCetak headers={['Tgl', 'Hari', 'Menu (ringkas)', 'Jml', 'Status', 'Catatan']}>
               {data.baris.map((b) => (
-                <BarisCetak key={b.pesanan_id}>
+                <BarisCetak key={b.pesanan_id} className="hover:bg-gray-50"
+                  onClick={() => nav(`/pesanan/${b.pesanan_id}`)}>
                   <SelCetak className="whitespace-nowrap">{tglIndoPendek(b.tgl_makan)}</SelCetak>
                   <SelCetak className="whitespace-nowrap">{b.hari}</SelCetak>
                   <SelCetak>{menuRingkas(b.menu)}</SelCetak>

@@ -22,8 +22,14 @@ export function TabelCetak({ headers, children, className = '' }: {
 }
 
 /** Baris data — sel bergaris tipis, konsisten dengan header TabelCetak. */
-export function BarisCetak({ children }: { children: ReactNode }) {
-  return <tr>{children}</tr>;
+export function BarisCetak({ children, onClick, className = '' }: {
+  children: ReactNode; onClick?: () => void; className?: string;
+}) {
+  return (
+    <tr onClick={onClick} className={onClick ? `cursor-pointer print:cursor-default ${className}` : className}>
+      {children}
+    </tr>
+  );
 }
 
 export function SelCetak({ children, className = '' }: { children?: ReactNode; className?: string }) {

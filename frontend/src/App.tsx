@@ -81,10 +81,13 @@ export default function App() {
             <Route path="/login" element={<HalamanLogin />} />
             <Route element={<WajibLogin><Layout /></WajibLogin>}>
               <Route path="/" element={<Beranda />} />
-              {/* Senat */}
-              <Route path="/pesanan" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanPesananList /></WajibLogin>} />
+              {/* Senat — PPK/STAF_PPK ikut boleh LIHAT (daftar & detail, termasuk Daftar
+                  Penerima per taruna); "+ Buat" tetap disembunyikan frontend utk role
+                  itu (pesanan-list.tsx) & aksi tulis pesanan.* tetap SENAT/PEMBINA saja
+                  di backend — ini murni tambahan akses baca. */}
+              <Route path="/pesanan" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK']}><HalamanPesananList /></WajibLogin>} />
               <Route path="/pesanan/baru" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanPesananBuat /></WajibLogin>} />
-              <Route path="/pesanan/:id" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanPesananDetail /></WajibLogin>} />
+              <Route path="/pesanan/:id" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK']}><HalamanPesananDetail /></WajibLogin>} />
               {/* Senat + Pembina */}
               <Route path="/realisasi" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK']}><HalamanRealisasiList /></WajibLogin>} />
               <Route path="/realisasi/baru/:pesananId" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanRealisasiBuat /></WajibLogin>} />
