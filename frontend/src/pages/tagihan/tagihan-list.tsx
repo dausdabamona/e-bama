@@ -78,16 +78,26 @@ export function HalamanTagihanList() {
   const ringkasanQ = useListCache<Ringkasan>('tagihan.summary', {});
   const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', {});
   const namaByNit = new Map((tarunaQ.data?.taruna ?? []).map((t) => [t.nit, t.nama]));
+  // TAGIHAN tidak menyimpan prodi/tingkat sendiri (lihat docs/skema-sheet.md §10)
+  // — diturunkan dari join ke TARUNA yang sudah ter-load lewat tarunaQ di atas,
+  // tidak perlu backend baru untuk filter ini.
+  const tingkatByNit = new Map((tarunaQ.data?.taruna ?? []).map((t) => [t.nit, t.tingkat]));
   const tampilRingkasan = sepertiPpk(session?.role) || session?.role === 'KPA' || session?.role === 'WADIR3';
 
   const [cari, setCari] = useState('');
+  const [fTingkat, setFTingkat] = useState('');
+  const tingkatOpsi = useMemo(
+    () => Array.from(new Set((tarunaQ.data?.taruna ?? []).map((t) => t.tingkat).filter(Boolean))).sort(),
+    [tarunaQ.data]
+  );
   const daftar = useMemo(() => {
     const q = cari.trim().toLowerCase();
     return (data?.tagihan ?? [])
       .filter((t) => !q || (namaByNit.get(t.nit) ?? '').toLowerCase().includes(q) || t.nit.toLowerCase().includes(q))
+      .filter((t) => !fTingkat || tingkatByNit.get(t.nit) === fTingkat)
       .slice()
       .sort((a, b) => b.bulan.localeCompare(a.bulan));
-  }, [data, cari, tarunaQ.data]);
+  }, [data, cari, fTingkat, tarunaQ.data]);
 
   // Grup UTAMA per bulan (terbaru dulu), sub-grup per tahap pembayaran di dalamnya.
   const kelompokBulan = useMemo(() => {
@@ -178,13 +188,23 @@ export function HalamanTagihanList() {
       {data && (data.tagihan ?? []).length === 0 && <EmptyState pesan="Tidak ada tagihan." />}
 
       {data && (data.tagihan ?? []).length > 0 && (
-        <input
-          type="search"
-          placeholder="Cari nama atau NIT…"
-          value={cari}
-          onChange={(e) => setCari(e.target.value)}
-          className="min-h-tap w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light"
-        />
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            type="search"
+            placeholder="Cari nama atau NIT…"
+            value={cari}
+            onChange={(e) => setCari(e.target.value)}
+            className="min-h-tap w-full flex-1 rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-light"
+          />
+          <select
+            value={fTingkat}
+            onChange={(e) => setFTingkat(e.target.value)}
+            className="min-h-tap rounded-xl border border-gray-300 px-3 py-2 text-sm sm:w-40"
+          >
+            <option value="">Semua Tingkat</option>
+            {tingkatOpsi.map((tk) => <option key={tk} value={tk}>Tk.{tk}</option>)}
+          </select>
+        </div>
       )}
       {data && (data.tagihan ?? []).length > 0 && daftar.length === 0 && (
         <EmptyState pesan="Tidak ada tagihan yang cocok dengan pencarian." />
