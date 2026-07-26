@@ -76,21 +76,52 @@ function pasangTrigger() {
 }
 
 /**
+ * Ubah satu kolom MENU_KONTRAK (item dipisah baris baru) jadi SATU baris
+ * dipisah koma. Cerminan persis itemsMenu() di pesanan-buat.tsx — bila salah
+ * satu diubah, ubah keduanya, kalau tidak menu pesanan otomatis akan beda
+ * bentuk dari menu pesanan manual untuk kontrak yang sama.
+ */
+function _itemMenuSatuBaris_(teks) {
+  return String(teks || '').split('\n')
+    .map(function (s) { return s.trim(); })
+    .filter(function (s) { return s; })
+    .join(', ');
+}
+
+/**
  * pesananOtomatis21() — Fitur D: dijalankan trigger harian jam 21.00 WIT.
  * Target tanggal D = BESOK (tgl_makan berikutnya). Bila BELUM ada PESANAN
- * (manual/Pembina/sistem, status ≠ DIKEMBALIKAN) untuk D → buat otomatis:
- * `jml_taruna` = SALIN PERSIS dari PESANAN valid TERAKHIR sebelum D
- * (dikonfirmasi Firdaus — BUKAN dihitung ulang dari TARUNA/STATUS_HARIAN,
- * demi kesederhanaan; REALISASI tetap jadi titik verifikasi sebenarnya di
- * hilir, lihat docs/uji-terima.md §H). `menu` dirakit dari MENU_KONTRAK
- * (Malam D + Pagi/Siang D+1, pola sama seperti pesanan.create/
- * pesanan.pembina_kirim). status LANGSUNG `TERKIRIM` (melewati verifikasi
- * Pembina) — `created_by`/`verif_by` = 'SISTEM'.
+ * (manual/Pembina/sistem, status ≠ DIKEMBALIKAN) untuk D → buat otomatis.
+ *
+ * `jml_taruna` = _hitungJmlTaruna_(D) — taruna AKTIF pada D dikurangi yang
+ * tidak makan di kampus. Ini MEMBALIK keputusan awal "salin persis dari
+ * pesanan terakhir" (disetujui Firdaus pada sesi perbaikan trigger; alasan
+ * awalnya "demi kesederhanaan" gugur karena _hitungJmlTaruna_ sudah ada dan
+ * menerima tanggal). Menyalin membuat angka basi menular tanpa batas: data
+ * Juli 2026 memesan 244 porsi sementara taruna AKTIF tinggal 227, sehingga
+ * 17 taruna non-aktif terus dipesankan makan. Karena pesanan otomatis
+ * langsung TERKIRIM tanpa verifikasi Pembina, tidak ada penyaring di
+ * belakangnya. Batas yang tetap ada: status harian yang baru diinput
+ * BESOK PAGI belum terbaca jam 21.00 — mitigasinya tinjauan Pembina, lihat
+ * `catatan` baris yang dibuat.
+ *
+ * `menu` dirakit dari MENU_KONTRAK (Malam D + Pagi/Siang D+1) dengan item
+ * digabung koma lewat _itemMenuSatuBaris_ — HARUS sama persis dengan
+ * itemsMenu() di frontend/src/pages/pesanan/pesanan-buat.tsx, karena portal
+ * penyedia & form cetak memecah `menu` per baris. Sebelum perbaikan ini
+ * nilai MENU_KONTRAK dipakai mentah sehingga menghasilkan 12 baris
+ * (tiap lauk satu baris), bukan 3.
+ *
+ * status LANGSUNG `TERKIRIM` (melewati verifikasi Pembina) —
+ * `created_by`/`verif_by` = 'SISTEM'.
  *
  * SAKLAR LIBUR (`getLiburAutoPesanan`, 00_config.gs): bila D masuk rentang
  * libur aktif → SKIP total (tidak membuat apa pun), dicatat AUDIT_LOG.
- * Tanpa PESANAN prior sama sekali → SKIP + AUDIT_LOG (butuh pesanan manual
- * pertama) — "notifikasi" via Audit Log karena aplikasi ini belum punya
+ * Tanpa PESANAN sebelum D sama sekali → SKIP + AUDIT_LOG. Sejak jml_taruna
+ * dihitung ulang, syarat ini TIDAK lagi dibutuhkan untuk mengambil angka;
+ * ia SENGAJA dipertahankan sebagai pengaman: sistem yang belum pernah
+ * dipakai manusia tidak boleh mulai memesan makanan sendiri.
+ * "notifikasi" via Audit Log karena aplikasi ini belum punya
  * infrastruktur push/email; PPK/Admin diharapkan memeriksa Audit Log secara
  * berkala (lihat catatan sama di pesanan.pembina_kirim, 12_pesanan.gs).
  *
@@ -120,11 +151,12 @@ function pesananOtomatis21() {
       return hasil;
     }
 
-    var prior = sheetRead(SHEETS.PESANAN, function (r) {
+    // Pengaman, BUKAN sumber angka: cukup tahu ADA/TIDAK, tak perlu diurutkan.
+    var adaHistori = sheetRead(SHEETS.PESANAN, function (r) {
       return r.status !== 'DIKEMBALIKAN' && _tglStr_(r.tgl_makan) < d;
-    }).sort(function (a, b) { return _tglStr_(b.tgl_makan).localeCompare(_tglStr_(a.tgl_makan)); })[0];
+    }).length > 0;
 
-    if (!prior) {
+    if (!adaHistori) {
       hasil.alasan = 'Tidak ada histori PESANAN sebelumnya — butuh pesanan manual pertama, dilewati.';
       auditLog(null, 'pesanan.otomatis_lewati', 'PESANAN', null, null, { tanggal: d, alasan: hasil.alasan });
       Logger.log('pesananOtomatis21: ' + hasil.alasan);
@@ -147,15 +179,18 @@ function pesananOtomatis21() {
     var menuMalamRow = menuHari.filter(function (r) { return r.hari === hariMalam; })[0];
     var menuPagiSiangRow = menuHari.filter(function (r) { return r.hari === hariPagiSiang; })[0];
     var barisMenu = [];
-    if (menuMalamRow && menuMalamRow.menu_malam) barisMenu.push(hariMalam + ' Malam: ' + menuMalamRow.menu_malam);
-    if (menuPagiSiangRow && menuPagiSiangRow.menu_pagi) barisMenu.push(hariPagiSiang + ' Pagi: ' + menuPagiSiangRow.menu_pagi);
-    if (menuPagiSiangRow && menuPagiSiangRow.menu_siang) barisMenu.push(hariPagiSiang + ' Siang: ' + menuPagiSiangRow.menu_siang);
+    var malam = menuMalamRow ? _itemMenuSatuBaris_(menuMalamRow.menu_malam) : '';
+    var pagi = menuPagiSiangRow ? _itemMenuSatuBaris_(menuPagiSiangRow.menu_pagi) : '';
+    var siang = menuPagiSiangRow ? _itemMenuSatuBaris_(menuPagiSiangRow.menu_siang) : '';
+    if (malam) barisMenu.push(hariMalam + ' Malam: ' + malam);
+    if (pagi) barisMenu.push(hariPagiSiang + ' Pagi: ' + pagi);
+    if (siang) barisMenu.push(hariPagiSiang + ' Siang: ' + siang);
 
     var obj = {
       pesanan_id: nextId('PSN'),
       tgl_makan: d,
       kontrak_id: kontrak.kontrak_id,
-      jml_taruna: _int_(prior.jml_taruna, 'jml_taruna'), // SALIN PERSIS — bukan hitung ulang
+      jml_taruna: _hitungJmlTaruna_(d), // dihitung ulang, bukan disalin — lihat komentar fungsi
       menu: barisMenu.join('\n'),
       catatan: 'Pesanan otomatis 21:00 — belum diverifikasi Pembina',
       status: 'TERKIRIM',
@@ -163,9 +198,9 @@ function pesananOtomatis21() {
     };
     sheetAppend(SHEETS.PESANAN, obj);
     auditLog(null, 'pesanan.otomatis', 'PESANAN', obj.pesanan_id, null,
-      { tanggal: d, jml_taruna: obj.jml_taruna, disalin_dari: prior.pesanan_id, kontrak_id: kontrak.kontrak_id });
+      { tanggal: d, jml_taruna: obj.jml_taruna, sumber_jml: 'dihitung', kontrak_id: kontrak.kontrak_id });
     Logger.log('pesananOtomatis21: dibuat ' + obj.pesanan_id + ' untuk ' + d +
-      ' (jml_taruna=' + obj.jml_taruna + ', disalin dari ' + prior.pesanan_id + ').');
+      ' (jml_taruna=' + obj.jml_taruna + ', dihitung dari TARUNA/STATUS_HARIAN).');
 
     hasil.dibuat = true;
     hasil.pesanan_id = obj.pesanan_id;

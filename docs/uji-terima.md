@@ -107,18 +107,26 @@
 
 > Sejak Fitur D: trigger harian `pesananOtomatis21()` (`20_trigger.gs`, jam
 > 21.00 Asia/Jayapura) membuat pesanan H-1 **otomatis** bila belum ada sama
-> sekali untuk besok — `jml_taruna` **disalin persis** dari pesanan valid
-> terakhir (BUKAN dihitung ulang dari status harian), status **langsung**
-> `TERKIRIM` (melewati verifikasi Pembina). Kontrol pengganti: (a) REALISASI
-> tetap wajib TTD Pembina **dan** Senat — jumlah dimakan SAH tetap dari
-> realisasi, over-order otomatis terkoreksi di rekap; (b) foto Realisasi
-> berwatermark (Fitur E) memperkuat bukti kalau ada koreksi pasca-fakta.
+> sekali untuk besok, status **langsung** `TERKIRIM` (melewati verifikasi
+> Pembina). Kontrol pengganti: (a) REALISASI tetap wajib TTD Pembina **dan**
+> Senat — jumlah dimakan SAH tetap dari realisasi, over-order otomatis
+> terkoreksi di rekap; (b) foto Realisasi berwatermark (Fitur E) memperkuat
+> bukti kalau ada koreksi pasca-fakta.
+>
+> **Perubahan perilaku (sesi perbaikan trigger):** `jml_taruna` kini
+> **dihitung ulang** lewat `_hitungJmlTaruna_(D)` (taruna AKTIF − yang tidak
+> makan di kampus), MENGGANTI perilaku lama "disalin persis dari pesanan
+> terakhir". Alasan: angka salinan menular tanpa batas — data Juli 2026
+> memesan 244 porsi sementara taruna AKTIF tinggal 227. Batas yang tetap ada:
+> status harian yang baru diinput besok pagi belum terbaca jam 21.00, jadi
+> tinjauan Pembina tetap kontrol terakhir.
 
 | # | Langkah | Hasil | Tanggal | Paraf |
 |---|---|---|---|---|
-| H.1 | Pastikan ADA pesanan valid utk hari ini (jml_taruna = N); **jangan** buat pesanan manual untuk besok | ☐ | | |
+| H.1 | Pastikan ADA pesanan valid utk hari ini; **jangan** buat pesanan manual untuk besok. Catat M = jumlah taruna AKTIF − yang berstatus (pesiar/KPA/dll) besok | ☐ | | |
 | H.2 | Jalankan `pesananOtomatis21()` dari editor GAS (simulasi jam 21.00) | ☐ | | |
-| H.3 | Cek: 1 `PESANAN` baru utk besok, `jml_taruna` = N (sama persis dgn H.1, BUKAN hasil hitung ulang taruna aktif−status harian) | ☐ | | |
+| H.3 | Cek: 1 `PESANAN` baru utk besok, `jml_taruna` = **M** (hasil hitung ulang, BUKAN salinan angka pesanan hari ini) | ☐ | | |
+| H.3b | Cek kolom `menu`: tepat **3 baris** (`… Malam:` / `… Pagi:` / `… Siang:`), tiap baris lauk dipisah **koma** — sama bentuknya dgn pesanan yang dibuat manual lewat aplikasi | ☐ | | |
 | H.4 | Cek: `status = TERKIRIM`, `created_by = SISTEM`, `verif_by = SISTEM`, `catatan` = "Pesanan otomatis 21:00 — belum diverifikasi Pembina" | ☐ | | |
 | H.5 | Jalankan `pesananOtomatis21()` LAGI (simulasi trigger dobel) → **tidak** membuat baris kedua (idempoten) | ☐ | | |
 | H.6 | `setLiburAutoPesanan([{mulai:'<besok>',akhir:'<besok>'}])` → hapus pesanan hasil H.2 (kalau ada) → jalankan `pesananOtomatis21()` → **tidak** membuat pesanan apa pun (saklar libur aktif) | ☐ | | |
