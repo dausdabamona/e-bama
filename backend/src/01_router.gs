@@ -188,6 +188,7 @@ var ACTION_MAP = {
   'cetak.form09':     { handler: cetakForm09, roles: ['SENAT', 'PPK', 'STAF_PPK', 'ADMIN', 'OPERATOR_SAKTI'] },
   'form09.simpan_bukti': { handler: form09SimpanBukti, roles: ['SENAT', 'PPK', 'STAF_PPK', 'ADMIN'] },
   'cetak.form10':     { handler: cetakForm10, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
+  'cetak.rekap_pesanan_bulan': { handler: cetakRekapPesananBulan, roles: ['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN'] },
 
   // Rekening lengkap (TARUNA_REKENING) — TAHAP SENSITIF, lihat CLAUDE.md § 4/§ 7
   'rekening.lihat_lengkap': { handler: rekeningLihatLengkap, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },

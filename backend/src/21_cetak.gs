@@ -1033,3 +1033,55 @@ function cetakForm10(payload, session) {
     };
   });
 }
+
+/**
+ * cetak.rekap_pesanan_bulan {bulan} — Rekap PESANAN satu bulan penuh (bukan
+ * salah satu dari 10 form SOP; laporan kontrol tambahan). Menampilkan SEMUA
+ * baris PESANAN bulan itu apa pun statusnya (termasuk DRAFT/DIAJUKAN/
+ * DIKEMBALIKAN — supaya alur verifikasi yang macet ikut kelihatan, bukan
+ * cuma yang sudah final) diurutkan tanggal, PLUS daftar tanggal kalender
+ * bulan itu yang SAMA SEKALI tidak ada baris PESANAN-nya (`tanggal_kosong`)
+ * — deteksi celah seperti yang terjadi Juli 2026 (lihat riwayat perbaikan
+ * pesananOtomatis21, 20_trigger.gs). `basis` dipakai dari
+ * _basisPesananBulan_ (14_rekap.gs) supaya angka proyeksi (hari/OH/nominal
+ * status final saja) konsisten dgn yang tampil di /rekap & portal penyedia
+ * — SATU rumus, bukan dihitung ulang beda cara di sini.
+ */
+function cetakRekapPesananBulan(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  var rows = sheetRead(SHEETS.PESANAN, function (r) { return _bulanStr_(r.tgl_makan) === bulan; })
+    .sort(function (a, b) { return _tglStr_(a.tgl_makan) < _tglStr_(b.tgl_makan) ? -1 : 1; });
+
+  var baris = rows.map(function (r) {
+    var tgl = _tglStr_(r.tgl_makan);
+    return {
+      pesanan_id: r.pesanan_id,
+      tgl_makan: tgl,
+      hari: _hariDalamMinggu_(tgl),
+      jml_taruna: _int_(r.jml_taruna || 0, 'jml_taruna'),
+      status: String(r.status || ''),
+      menu: String(r.menu || ''),
+      catatan: String(r.catatan || ''),
+      created_by: String(r.created_by || '')
+    };
+  });
+
+  var adaTgl = {};
+  baris.forEach(function (b) { adaTgl[b.tgl_makan] = true; });
+  var bagianBulan = bulan.split('-');
+  var tahun = Number(bagianBulan[0]), bln = Number(bagianBulan[1]);
+  var akhirBulan = new Date(tahun, bln, 0).getDate(); // trik standar: hari ke-0 bulan berikutnya
+  var tanggalKosong = [];
+  for (var d = 1; d <= akhirBulan; d++) {
+    var t = bulan + '-' + ('0' + d).slice(-2);
+    if (!adaTgl[t]) tanggalKosong.push(t);
+  }
+
+  return {
+    bulan: bulan,
+    baris: baris,
+    tanggal_kosong: tanggalKosong,
+    hari_kalender: akhirBulan,
+    basis: _basisPesananBulan_(bulan)
+  };
+}

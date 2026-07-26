@@ -21,6 +21,7 @@ import { HalamanTarunaKeluar } from './pages/cetak/taruna-keluar';
 import { HalamanCetakForm08 } from './pages/cetak/form-08';
 import { HalamanCetakForm09 } from './pages/cetak/form-09';
 import { HalamanCetakForm10 } from './pages/cetak/form-10';
+import { HalamanRekapPesananBulan } from './pages/cetak/rekap-pesanan-bulan';
 import { HalamanFormatSerahTerima } from './pages/cetak/format-serah-terima';
 import { HalamanCetakSp1 } from './pages/cetak/sp1';
 import { HalamanCetakBlokirGagalDebet } from './pages/cetak/blokir-gagal-debet';
@@ -156,6 +157,7 @@ export default function App() {
               <Route path="/cetak/form-09/:bulan" element={<WajibLogin roles={['SENAT', 'PPK', 'STAF_PPK', 'ADMIN', 'OPERATOR_SAKTI']}><HalamanCetakForm09 /></WajibLogin>} />
               <Route path="/cetak/form-10" element={<WajibLogin roles={['ADMIN', 'PPK', 'STAF_PPK']}><HalamanCetakForm10 /></WajibLogin>} />
               <Route path="/cetak/form-10/:bulan" element={<WajibLogin roles={['ADMIN', 'PPK', 'STAF_PPK']}><HalamanCetakForm10 /></WajibLogin>} />
+              <Route path="/cetak/rekap-pesanan-bulan" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK', 'ADMIN']}><HalamanRekapPesananBulan /></WajibLogin>} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

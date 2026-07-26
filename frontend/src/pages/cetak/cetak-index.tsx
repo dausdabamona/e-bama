@@ -75,6 +75,13 @@ export function HalamanCetakIndex() {
             </div>
             <Link to="/cetak/format-serah-terima"><Button varian="garis">Buka</Button></Link>
           </Card>
+          <Card className="flex items-center justify-between">
+            <div>
+              <p className="font-semibold">Rekap Pesanan Bulanan</p>
+              <p className="text-sm text-gray-500">Semua baris pesanan satu bulan (apa pun status) + tanggal yang belum ada pesanan sama sekali</p>
+            </div>
+            <Link to="/cetak/rekap-pesanan-bulan"><Button varian="garis">Buka</Button></Link>
+          </Card>
           {(session?.role === 'ADMIN' || session?.role === 'PPK' || session?.role === 'STAF_PPK') && (
             <Card className="flex items-center justify-between">
               <div>
