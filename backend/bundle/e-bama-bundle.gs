@@ -8695,6 +8695,27 @@ function ppkKokpit(payload, session) {
   var porsiDimakan = 0;
   realisasiRows.forEach(function (r) { porsiDimakan += _int_(r.jml_taruna_makan || 0, 'jml_taruna_makan'); });
 
+  // Tanggal bulan ini (s.d. HARI INI, bukan sisa bulan yang memang belum
+  // waktunya dipesan) yang SAMA SEKALI tidak punya baris PESANAN — deteksi
+  // dini celah seperti Juli 2026 (lihat riwayat pesananOtomatis21,
+  // 20_trigger.gs, dan cetakRekapPesananBulan yang punya rumus sama persis)
+  // supaya PPK ketahuan dari hari pertama, bukan mendadak sebelum acara
+  // seperti wisuda (Trigger Tahap 2, Task #113).
+  var adaTglPesanan = {};
+  pesananRows.forEach(function (p) { adaTglPesanan[_tglStr_(p.tgl_makan)] = true; });
+  var tanggalKosong = [];
+  (function () {
+    var bulanIni = _bulanStr_(today);
+    if (bulan > bulanIni) return; // bulan depan — belum ada yang "seharusnya" dipesan
+    var bg = bulan.split('-');
+    var akhirBulan = new Date(Number(bg[0]), Number(bg[1]), 0).getDate();
+    var batas = bulan === bulanIni ? Number(today.slice(8, 10)) : akhirBulan;
+    for (var d = 1; d <= batas; d++) {
+      var t = bulan + '-' + ('0' + d).slice(-2);
+      if (!adaTglPesanan[t]) tanggalKosong.push(t);
+    }
+  })();
+
   // ── Bagian 1: ringkasan (angka kunci) ─────────────────────────────────────
   var ringkasan = {
     bulan: bulan,
@@ -8702,7 +8723,8 @@ function ppkKokpit(payload, session) {
     terbayar_sp2d: terbayarSp2d,
     outstanding_tagihan: outstandingTagihan,
     porsi_dipesan: porsiDipesan,
-    porsi_dimakan: porsiDimakan
+    porsi_dimakan: porsiDimakan,
+    tanggal_kosong: tanggalKosong
   };
 
   // ── Bagian 2: tahapan tutup-bulan (status diturunkan + gerbang prasyarat) ──
@@ -8758,6 +8780,14 @@ function ppkKokpit(payload, session) {
   });
   if (semuaRekapAda && !semuaRekapFinal) {
     tindakan.push({ prioritas: 1, apa: 'Verifikasi & finalkan REKAP bulan ' + bulan, kenapa: 'REKAP belum FINAL — tak bisa lanjut ke PEMBAYARAN/SPM.', link: '/rekap' });
+  }
+  if (tanggalKosong.length > 0) {
+    tindakan.push({
+      prioritas: 1,
+      apa: 'Lengkapi ' + tanggalKosong.length + ' tanggal tanpa pesanan bulan ' + bulan,
+      kenapa: 'Tanggal ' + tanggalKosong.join(', ') + ' sama sekali belum ada PESANAN — proyeksi & rekap bulan ini akan meleset selama belum dilengkapi.',
+      link: '/cetak/rekap-pesanan-bulan'
+    });
   }
   if (spmAda && spmAdaDraft) {
     var jmlDraft = spmRows.filter(function (s) { return s.status === 'DRAFT'; }).length;
