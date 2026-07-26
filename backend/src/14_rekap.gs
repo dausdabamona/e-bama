@@ -210,12 +210,21 @@ function _basisPesananBulan_(bulan) {
  * _rekapProyeksiPesanan_(bulan) — proyeksi PER TARUNA basis PESANAN final:
  * utk tiap tanggal yang punya PESANAN DISETUJUI/TERKIRIM bulan itu, taruna
  * dihitung bila aktif pada tanggal tsb (_tarunaAktifTanggal_ — menghormati
- * tgl_keluar wisuda) DAN tidak berstatus tidak-makan (_tidakMakanKampusPada_).
- * Tarif per tanggal = tarif kontrak baris pesanannya. Return array
- * {nit, hari_makan, nominal} (nominal integer rupiah) — BUKAN pengganti
- * REKAP_BULANAN dan TIDAK pernah ditulis ke sheet; dipakai kuasa debet
- * taruna keluar saat rekap realisasi bulan berjalan belum terbentuk
- * (dikonfirmasi Firdaus: kuasa debet boleh basis pesanan, dgn label jelas).
+ * tgl_keluar wisuda) DAN tidak berstatus tidak-makan. Tarif per tanggal =
+ * tarif kontrak baris pesanannya. Return array {nit, hari_makan, nominal}
+ * (nominal integer rupiah) — BUKAN pengganti REKAP_BULANAN dan TIDAK pernah
+ * ditulis ke sheet; dipakai kuasa debet taruna keluar saat rekap realisasi
+ * bulan berjalan belum terbentuk (dikonfirmasi Firdaus: kuasa debet boleh
+ * basis pesanan, dgn label jelas).
+ *
+ * PERFORMA: STATUS_HARIAN & PERIODE_LUAR dibaca SEKALI di awal (bukan lewat
+ * _tidakMakanKampusPada_ per tanggal) — versi awal memanggilnya di dalam
+ * loop tanggal, artinya 1 bulan dgn N hari terisi = 2×N pembacaan sheet
+ * penuh berturut-turut ke Google Sheets. Untuk Juli (26 hari terisi setelah
+ * pemulihan PESANAN) ini menyebabkan permintaan >30 detik → klien menyerah
+ * dgn pesan "Jaringan bermasalah" (frontend/src/lib/api.ts, TIMEOUT_MS)
+ * padahal jaringan baik-baik saja. Sekarang O(1) pembacaan sheet apa pun
+ * jumlah harinya.
  */
 function _rekapProyeksiPesanan_(bulan) {
   var pesanan = sheetRead(SHEETS.PESANAN, function (r) {
@@ -224,6 +233,22 @@ function _rekapProyeksiPesanan_(bulan) {
   });
   var tarifPerKontrak = {};
   var taruna = sheetRead(SHEETS.TARUNA);
+
+  var tidakMakanPerTgl = {}; // tgl -> {nit: true}
+  sheetRead(SHEETS.STATUS_HARIAN).forEach(function (r) {
+    var t = _tglStr_(r.tanggal);
+    if (!tidakMakanPerTgl[t]) tidakMakanPerTgl[t] = {};
+    tidakMakanPerTgl[t][String(r.nit)] = true;
+  });
+  var periodeLuar = _periodeLuarRows_();
+  function tidakMakanPada(tgl) {
+    var set = tidakMakanPerTgl[tgl] ? Object.assign({}, tidakMakanPerTgl[tgl]) : {};
+    periodeLuar.forEach(function (p) {
+      if (p.tgl_mulai && p.tgl_akhir && p.tgl_mulai <= tgl && tgl <= p.tgl_akhir) set[p.nit] = true;
+    });
+    return set;
+  }
+
   var per = {}; // nit -> {hari, nominal}
   var tglSudah = {};
   pesanan.forEach(function (p) {
@@ -236,7 +261,7 @@ function _rekapProyeksiPesanan_(bulan) {
       tarifPerKontrak[kid] = k ? _hargaPerHariKontrak_(k) : 0;
     }
     var tarif = tarifPerKontrak[kid];
-    var tidakMakan = _tidakMakanKampusPada_(tgl);
+    var tidakMakan = tidakMakanPada(tgl);
     taruna.forEach(function (t) {
       if (!_tarunaAktifTanggal_(t, tgl)) return;
       var nit = String(t.nit);
