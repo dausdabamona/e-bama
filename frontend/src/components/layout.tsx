@@ -68,6 +68,9 @@ export const NAV_PER_ROLE: Record<Role, ItemNav[]> = {
     { ke: '/status-taruna', label: 'Status', ikon: '📋' },
     { ke: '/tagihan', label: 'Tagihan', ikon: '💳' },
     { ke: '/pengguna', label: 'Pengguna', ikon: '👥' },
+    // Cetak: pintu masuk Admin ke dokumen cetak — terutama Taruna Keluar
+    // (wisuda/pindah/DO) yang route-nya memang mengizinkan ADMIN.
+    { ke: '/cetak', label: 'Cetak', ikon: '📄' },
     { ke: '/laporan', label: 'Laporan', ikon: '🖨️' },
     { ke: '/akun', label: 'Akun', ikon: '👤' }
   ],
