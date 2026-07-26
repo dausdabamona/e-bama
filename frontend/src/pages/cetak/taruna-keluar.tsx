@@ -4,7 +4,7 @@
 // rekening PENUH (cetak.kuasa_debet_keluar) → TIDAK di-cache Dexie (pola form-07).
 // Sekaligus menandai keluar: PERMANEN (tgl_keluar) / SEMENTARA (PERIODE_LUAR auto-
 // kembali) lewat taruna.tandai_keluar.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/auth-context';
 import { BulanPicker, bulanIni, labelBulan } from '../../components/bulan-picker';
@@ -207,6 +207,14 @@ export function HalamanTarunaKeluar() {
 
   const adaTanpaRek = (dok?.baris ?? []).some((b) => !b.rekening_lengkap_ada);
 
+  // Dokumen dirender JAUH di bawah tombol "Buat Dokumen" (setelah panel Tandai
+  // Keluar) dan tombol Cetak-nya cuma ada di paling atas halaman — tanpa ini,
+  // setelah klik "Buat Dokumen" layar terlihat tidak berubah sama sekali.
+  const dokRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (dok) dokRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [dok]);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between print:hidden">
@@ -327,9 +335,16 @@ export function HalamanTarunaKeluar() {
         </Card>
       )}
 
-      {/* Dokumen */}
+      {/* Dokumen — scrollIntoView otomatis (lihat dokRef) supaya terlihat
+          langsung setelah "Buat Dokumen", tanpa scroll manual. */}
       {dok && (
-        <div className="flex flex-col gap-4">
+        <div ref={dokRef} className="flex flex-col gap-4">
+          <div className="flex items-center justify-between rounded-xl border-2 border-primary bg-primary/5 px-3 py-2 print:hidden">
+            <p className="text-sm font-semibold text-primary-dark">
+              ✅ Dokumen {dok.baris.length} taruna siap ({dok.basis === 'PESANAN' ? 'basis Pesanan' : 'basis Rekap'})
+            </p>
+            <Button varian="garis" onClick={() => window.print()}>🖨️ Cetak</Button>
+          </div>
           <div className="flex flex-col gap-1 print:hidden">
             <p className="text-xs font-semibold text-gray-600">Data untuk Bank (buka di Excel):</p>
             <div className="flex flex-wrap gap-2">
