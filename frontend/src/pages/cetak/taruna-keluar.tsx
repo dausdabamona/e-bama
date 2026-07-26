@@ -26,7 +26,7 @@ import {
 
 interface Pejabat { nama: string; nip: string }
 interface DokKeluar {
-  bulan: string; baris: BarisKuasaDebet[]; total_nominal: number; biaya_admin_bank: number;
+  bulan: string; basis?: 'REKAP' | 'PESANAN'; baris: BarisKuasaDebet[]; total_nominal: number; biaya_admin_bank: number;
   pejabat: { PPK: Pejabat; KPA: Pejabat; DIREKTUR: Pejabat; WADIR3: Pejabat };
   rekening_senat?: { BNI?: string; BSI?: string };
   rekening_senat_nama?: { BNI?: string; BSI?: string };
@@ -36,9 +36,9 @@ const STATUS_KEGIATAN = ['MAGANG', 'PKL_1', 'PKL_2', 'PKL_3', 'KPA', 'PTB'];
 const ALASAN = ['LULUS', 'PINDAH', 'DO'];
 
 /** Satu surat kuasa debet untuk SATU bank (BNI/BSI/tanpa rekening). */
-function SuratKuasaBank({ bank, rows, bulan, keperluan, pejabat, rekSenat, rekSenatNama, pisahHalaman }: {
+function SuratKuasaBank({ bank, rows, bulan, keperluan, pejabat, rekSenat, rekSenatNama, pisahHalaman, basis }: {
   bank: string; rows: BarisKuasaDebet[]; bulan: string; keperluan: string; pejabat: DokKeluar['pejabat'];
-  rekSenat?: string; rekSenatNama?: string; pisahHalaman: boolean;
+  rekSenat?: string; rekSenatNama?: string; pisahHalaman: boolean; basis?: 'REKAP' | 'PESANAN';
 }) {
   const total = rows.reduce((s, b) => s + b.nilai_debet, 0);
   const labelBank = bank === 'TANPA_REKENING' ? 'BELUM ADA REKENING' : bank;
@@ -56,6 +56,15 @@ function SuratKuasaBank({ bank, rows, bulan, keperluan, pejabat, rekSenat, rekSe
         <strong> Rekening Senat Taruna {bank}</strong> ({rekSenat || '…… belum diisi Admin'}
         {rekSenatNama ? ` a.n. ${rekSenatNama}` : ''}).
       </p>
+      {basis === 'PESANAN' && (
+        <p className="text-xs">
+          <strong>Dasar nilai: PESANAN (proyeksi).</strong> Nilai di bawah dihitung dari pesanan makan
+          harian yang sudah final bulan {labelBulan(bulan)} karena rekap realisasi bulan berjalan belum
+          disahkan. <strong>Nilai final yang didebet mengikuti rekap bulan {labelBulan(bulan)} yang
+          disahkan</strong> (permohonan pendebetan resmi ke bank / Form-07); bila nilai final lebih kecil,
+          yang didebet nilai final.
+        </p>
+      )}
       <table className="w-full table-fixed border-collapse text-xs">
         <colgroup>
           <col style={{ width: '5%' }} /><col style={{ width: '13%' }} /><col style={{ width: '20%' }} />
@@ -154,11 +163,14 @@ export function HalamanTarunaKeluar() {
   // ── Dokumen (sensitif — dipanggil manual saat tombol, tidak auto/cache) ──
   const [dok, setDok] = useState<DokKeluar | null>(null);
   const [prosesDok, setProsesDok] = useState(false);
+  // Dasar nilai: REKAP (realisasi sah — default) atau PESANAN (proyeksi, utk
+  // wisuda saat rekap bulan berjalan belum terbentuk; dokumen diberi label).
+  const [basis, setBasis] = useState<'REKAP' | 'PESANAN'>('REKAP');
   async function buatDokumen() {
     if (!pilih.size) { toast('Pilih taruna dulu.', 'galat'); return; }
     setProsesDok(true); setDok(null);
     try {
-      const r = await api<DokKeluar>('cetak.kuasa_debet_keluar', { bulan, nit_list: Array.from(pilih) });
+      const r = await api<DokKeluar>('cetak.kuasa_debet_keluar', { bulan, nit_list: Array.from(pilih), basis });
       setDok(r);
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Gagal membuat dokumen.', 'galat');
@@ -241,6 +253,26 @@ export function HalamanTarunaKeluar() {
           {!terfilter.length && <p className="p-3 text-sm text-gray-400">Tak ada taruna cocok filter.</p>}
         </div>
         <Input label="Keperluan (tampil di dokumen, mis. Wisuda / Magang)" value={keperluan} onChange={(e) => setKeperluan(e.target.value)} />
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Dasar Nilai</label>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button type="button" varian={basis === 'REKAP' ? 'utama' : 'garis'} className="flex-1"
+              onClick={() => { setBasis('REKAP'); setDok(null); }}>
+              Rekap (realisasi sah)
+            </Button>
+            <Button type="button" varian={basis === 'PESANAN' ? 'utama' : 'garis'} className="flex-1"
+              onClick={() => { setBasis('PESANAN'); setDok(null); }}>
+              Pesanan (proyeksi)
+            </Button>
+          </div>
+          {basis === 'PESANAN' && (
+            <p className="mt-1 text-xs text-amber-700">
+              ⚠️ Nilai proyeksi dari pesanan final — dipakai bila rekap bulan berjalan belum
+              disahkan (mis. wisuda sebelum tutup bulan). Dokumen diberi label; nilai final
+              yang didebet tetap mengikuti rekap yang disahkan.
+            </p>
+          )}
+        </div>
         <Button onClick={() => void buatDokumen()} disabled={prosesDok || !pilih.size}>
           {prosesDok ? 'Memproses…' : `📄 Buat Dokumen Kuasa Debet (${pilih.size})`}
         </Button>
@@ -319,7 +351,7 @@ export function HalamanTarunaKeluar() {
           )}
           {kelompokBank(dok.baris).map((g, i) => (
             <SuratKuasaBank key={g.bank} bank={g.bank} rows={g.rows} bulan={dok.bulan} keperluan={keperluan}
-              pejabat={dok.pejabat} pisahHalaman={i > 0}
+              pejabat={dok.pejabat} pisahHalaman={i > 0} basis={dok.basis}
               rekSenat={g.bank === 'BNI' ? dok.rekening_senat?.BNI : g.bank === 'BSI' ? dok.rekening_senat?.BSI : ''}
               rekSenatNama={g.bank === 'BNI' ? dok.rekening_senat_nama?.BNI : g.bank === 'BSI' ? dok.rekening_senat_nama?.BSI : ''} />
           ))}

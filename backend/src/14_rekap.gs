@@ -207,6 +207,51 @@ function _basisPesananBulan_(bulan) {
 }
 
 /**
+ * _rekapProyeksiPesanan_(bulan) — proyeksi PER TARUNA basis PESANAN final:
+ * utk tiap tanggal yang punya PESANAN DISETUJUI/TERKIRIM bulan itu, taruna
+ * dihitung bila aktif pada tanggal tsb (_tarunaAktifTanggal_ — menghormati
+ * tgl_keluar wisuda) DAN tidak berstatus tidak-makan (_tidakMakanKampusPada_).
+ * Tarif per tanggal = tarif kontrak baris pesanannya. Return array
+ * {nit, hari_makan, nominal} (nominal integer rupiah) — BUKAN pengganti
+ * REKAP_BULANAN dan TIDAK pernah ditulis ke sheet; dipakai kuasa debet
+ * taruna keluar saat rekap realisasi bulan berjalan belum terbentuk
+ * (dikonfirmasi Firdaus: kuasa debet boleh basis pesanan, dgn label jelas).
+ */
+function _rekapProyeksiPesanan_(bulan) {
+  var pesanan = sheetRead(SHEETS.PESANAN, function (r) {
+    return _bulanStr_(r.tgl_makan) === bulan &&
+      (r.status === 'DISETUJUI' || r.status === 'TERKIRIM');
+  });
+  var tarifPerKontrak = {};
+  var taruna = sheetRead(SHEETS.TARUNA);
+  var per = {}; // nit -> {hari, nominal}
+  var tglSudah = {};
+  pesanan.forEach(function (p) {
+    var tgl = _tglStr_(p.tgl_makan);
+    if (tglSudah[tgl]) return; // satu tanggal dihitung sekali
+    tglSudah[tgl] = true;
+    var kid = String(p.kontrak_id || '');
+    if (!(kid in tarifPerKontrak)) {
+      var k = sheetRead(SHEETS.KONTRAK, function (r) { return String(r.kontrak_id) === kid; })[0];
+      tarifPerKontrak[kid] = k ? _hargaPerHariKontrak_(k) : 0;
+    }
+    var tarif = tarifPerKontrak[kid];
+    var tidakMakan = _tidakMakanKampusPada_(tgl);
+    taruna.forEach(function (t) {
+      if (!_tarunaAktifTanggal_(t, tgl)) return;
+      var nit = String(t.nit);
+      if (tidakMakan[nit]) return;
+      if (!per[nit]) per[nit] = { hari: 0, nominal: 0 };
+      per[nit].hari++;
+      per[nit].nominal += tarif;
+    });
+  });
+  return Object.keys(per).map(function (nit) {
+    return { nit: nit, hari_makan: per[nit].hari, nominal: Math.round(per[nit].nominal) };
+  });
+}
+
+/**
  * rekap.get {bulan} → baris + total (PPK, KPA).
  * D = hari realisasi sah bulan itu (hari_makan + hari_tidak_makan per baris —
  * konstan untuk semua taruna AKTIF sejak recompute rekapUpdate terakhir).

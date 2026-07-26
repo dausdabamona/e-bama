@@ -303,8 +303,14 @@ function cetakForm06(payload, session) {
  * Return {baris, nitList, total_nominal, biaya_admin_bank, rekening_senat,
  * rekening_senat_nama, rekInst}.
  */
-function _daftarKuasaDebet_(bulan, nitFilter) {
-  var rekapRows = sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
+function _daftarKuasaDebet_(bulan, nitFilter, basis) {
+  // basis 'PESANAN' (opsional; HANYA dipakai kuasa debet taruna keluar):
+  // proyeksi per-taruna dari PESANAN final (_rekapProyeksiPesanan_) — untuk
+  // wisuda saat rekap realisasi bulan berjalan belum terbentuk. Form-07 &
+  // pemanggil lain TIDAK mengirim basis → tetap REKAP_BULANAN (dasar bayar).
+  var rekapRows = (basis === 'PESANAN')
+    ? _rekapProyeksiPesanan_(bulan)
+    : sheetRead(SHEETS.REKAP_BULANAN, function (r) { return _bulanStr_(r.bulan) === bulan; });
   // Abaikan taruna bernilai Rp0 (tidak makan bulan ini) — tak perlu diblokir/didebet,
   // dan rekening lengkapnya tidak perlu ikut terbaca/diaudit.
   rekapRows = rekapRows.filter(function (r) { return _int_(r.nominal || 0, 'nominal') > 0; });
@@ -411,13 +417,20 @@ function cetakKuasaDebetKeluar(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
   var nitList = (payload && payload.nit_list) || [];
   if (!nitList.length) throw _fail_('nit_list wajib diisi (pilih taruna yang keluar).');
+  // basis 'PESANAN' = nilai PROYEKSI dari pesanan final (utk wisuda sebelum
+  // rekap terbentuk); default 'REKAP'. Dokumen wajib melabeli basisnya —
+  // nilai final yang didebet tetap mengikuti rekap sah (Form-07).
+  var basis = String((payload && payload.basis) || 'REKAP').toUpperCase();
+  if (basis !== 'REKAP' && basis !== 'PESANAN') throw _fail_('basis harus REKAP atau PESANAN.');
 
   return withLock(function () {
-    var d = _daftarKuasaDebet_(bulan, nitList.map(String));
+    var d = _daftarKuasaDebet_(bulan, nitList.map(String), basis);
     if (!d.baris.length) {
-      throw _fail_('Tidak ada taruna terpilih yang punya nominal rekap bulan ' + bulan + ' — pastikan rekap bulan ini sudah di-update & nominal > 0.');
+      throw _fail_(basis === 'PESANAN'
+        ? 'Tidak ada taruna terpilih yang terhitung di pesanan final bulan ' + bulan + ' — pastikan ada PESANAN DISETUJUI/TERKIRIM bulan ini.'
+        : 'Tidak ada taruna terpilih yang punya nominal rekap bulan ' + bulan + ' — pastikan rekap bulan ini sudah di-update & nominal > 0, atau pilih Dasar Nilai "Pesanan (proyeksi)".');
     }
-    auditLog(session, 'cetak.kuasa_debet_keluar', 'TARUNA_REKENING', d.nitList.join(','), null, { nit_list: d.nitList });
+    auditLog(session, 'cetak.kuasa_debet_keluar', 'TARUNA_REKENING', d.nitList.join(','), null, { nit_list: d.nitList, basis: basis });
 
     // PEMBAYARAN opsional: bila sudah ada, sertakan header + rekening penyedia
     // dari KONTRAK; bila belum, header kosong & penyedia fallback Script Property.
@@ -431,6 +444,7 @@ function cetakKuasaDebetKeluar(payload, session) {
     };
     return {
       bulan: bulan,
+      basis: basis,
       pembayaran: pembayaran ? {
         bayar_id: pembayaran.bayar_id,
         nilai_total: _int_(pembayaran.nilai_total, 'nilai_total'),
