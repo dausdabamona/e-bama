@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/auth-context';
 import { BulanPicker, bulanIni, labelBulan } from '../../components/bulan-picker';
+import { hariIni } from '../../lib/tanggal';
 import { BlokTtd2Kolom, BlokTtdTengah } from '../../components/cetak/blok-ttd';
 import { KopSurat } from '../../components/cetak/kop-surat';
 import { SelCetak } from '../../components/cetak/tabel-cetak';
@@ -133,7 +134,17 @@ export function HalamanTarunaKeluar() {
 
   const [bulan, setBulan] = useState(bulanIni());
   const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', { status: 'AKTIF' });
-  const semua = useMemo(() => (tarunaQ.data?.taruna ?? []).filter((t) => !t.tgl_keluar), [tarunaQ.data]);
+  // Sembunyikan HANYA taruna yang SUDAH lewat tanggal keluarnya (benar-benar
+  // sudah pergi) — BUKAN yang tgl_keluar-nya masih di masa depan (mis. wisuda
+  // yang sudah ditandai tapi belum tiba tanggalnya). Sebelumnya `!t.tgl_keluar`
+  // langsung menyembunyikan begitu tgl_keluar terisi APA PUN tanggalnya,
+  // sehingga taruna yang sudah ditandai keluar (utk tanggal mendatang) hilang
+  // dari daftar sebelum sempat dibuatkan dokumen Kuasa Debet-nya.
+  const hariIniStr = hariIni();
+  const semua = useMemo(
+    () => (tarunaQ.data?.taruna ?? []).filter((t) => !t.tgl_keluar || t.tgl_keluar >= hariIniStr),
+    [tarunaQ.data, hariIniStr]
+  );
 
   const [fTingkat, setFTingkat] = useState('');
   const [fProdi, setFProdi] = useState('');
@@ -255,7 +266,13 @@ export function HalamanTarunaKeluar() {
           {terfilter.map((t) => (
             <label key={t.nit} className="flex min-h-tap items-center gap-2 border-b border-gray-100 px-2 py-1 text-sm">
               <input type="checkbox" checked={pilih.has(t.nit)} onChange={() => toggle(t.nit)} className="h-5 w-5" />
-              <span className="flex-1">{t.nama} <span className="text-gray-400">· {t.nit} · Tk.{t.tingkat} {t.kelas}</span></span>
+              <span className="flex-1">{t.nama} <span className="text-gray-400">· {t.nit} · Tk.{t.tingkat} {t.kelas}</span>
+                {t.tgl_keluar && (
+                  <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700">
+                    sudah ditandai keluar
+                  </span>
+                )}
+              </span>
             </label>
           ))}
           {!terfilter.length && <p className="p-3 text-sm text-gray-400">Tak ada taruna cocok filter.</p>}
