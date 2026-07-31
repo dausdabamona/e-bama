@@ -11,10 +11,16 @@ import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { EmptyState } from '../../components/ui/empty-state';
 import { ErrorMessage } from '../../components/ui/error-message';
+import { KartuStat } from '../../components/ui/kartu-stat';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
 import { useListCache } from '../../lib/use-list-cache';
 import { SearchSelect } from '../../components/ui/search-select';
 import { useToast } from '../../components/ui/toast';
+
+// Role yang boleh menginput status (backend status.set/batch/tandai_kembali:
+// roles ['ADMIN','PEMBINA','BAAK']) — PPK/STAF_PPK HANYA memantau (read-only),
+// sesuai permintaan Firdaus, jadi form input & tombol tulis disembunyikan.
+const ROLE_BISA_TULIS = new Set(['ADMIN', 'PEMBINA', 'BAAK']);
 
 interface Taruna { nit: string; nama: string; kelas: string; tingkat: string; status: string }
 interface StatusHarian { status_id: string; tanggal: string; nit: string; status: string }
@@ -59,6 +65,8 @@ interface GrupMendatang { nit: string; status: string; sedangHariIni: boolean; t
 
 export function HalamanStatusTaruna() {
   const { toast } = useToast();
+  const { session } = useAuth();
+  const bisaTulis = ROLE_BISA_TULIS.has(session?.role ?? '');
   const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', { status: 'AKTIF' });
   const dari = useMemo(() => {
     const d = new Date(); d.setDate(d.getDate() - 14); return d.toISOString().slice(0, 10);
@@ -83,6 +91,18 @@ export function HalamanStatusTaruna() {
       };
     }).sort((a, b) => (b.sedangHariIni ? 1 : 0) - (a.sedangHariIni ? 1 : 0));
   }, [mendatangQ.data]);
+
+  // Ringkasan monitoring kampus/luar-kampus HARI INI (permintaan PPK) — dari
+  // data yang sudah dimuat (grupMendatang), TANPA action backend baru.
+  const luarKampusHariIni = useMemo(() => grupMendatang.filter((g) => g.sedangHariIni), [grupMendatang]);
+  const jmlAktif = tarunaQ.data?.taruna?.length ?? 0;
+  const jmlLuarKampus = luarKampusHariIni.length;
+  const jmlDiKampus = Math.max(0, jmlAktif - jmlLuarKampus);
+  const breakdownStatusLuar = useMemo(() => {
+    const per: Record<string, number> = {};
+    luarKampusHariIni.forEach((g) => { per[g.status] = (per[g.status] ?? 0) + 1; });
+    return Object.entries(per).sort((a, b) => b[1] - a[1]);
+  }, [luarKampusHariIni]);
 
   async function tandaiKembali(nit: string) {
     setProsesKembali(nit);
@@ -180,9 +200,26 @@ export function HalamanStatusTaruna() {
     <div className="flex flex-col gap-4">
       <h1 className="text-xl font-bold text-primary-dark">Status Taruna</h1>
 
+      <Card className="flex flex-col gap-3">
+        <p className="text-sm font-semibold text-gray-600">📋 Ringkasan Hari Ini — Kampus vs Luar Kampus</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <KartuStat label="Taruna Aktif" nilai={String(jmlAktif)} satuan="orang" />
+          <KartuStat label="Di Kampus" nilai={String(jmlDiKampus)} satuan="orang" tekankan />
+          <KartuStat label="Di Luar Kampus" nilai={String(jmlLuarKampus)} satuan="orang" />
+        </div>
+        {breakdownStatusLuar.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {breakdownStatusLuar.map(([s, n]) => (
+              <Badge key={s} status="DIKEMBALIKAN">{labelStatus(s)}: {n}</Badge>
+            ))}
+          </div>
+        )}
+      </Card>
+
       <KartuMigrasiPeriode />
       <KartuImporPeriode />
 
+      {bisaTulis && (
       <Card className="flex flex-col gap-3">
         <div className="flex gap-2">
           <Button varian={mode === 'individu' ? 'utama' : 'garis'} className="flex-1" onClick={() => setMode('individu')}>Individu</Button>
@@ -272,6 +309,7 @@ export function HalamanStatusTaruna() {
           {proses ? 'Menyimpan…' : 'Simpan'}
         </Button>
       </Card>
+      )}
 
       <h2 className="text-sm font-semibold text-gray-600">Sedang / Akan Berstatus ({grupMendatang.length})</h2>
       <p className="-mt-2 text-xs text-gray-400">
@@ -294,6 +332,7 @@ export function HalamanStatusTaruna() {
                 </div>
                 <Badge status="DIKEMBALIKAN">{labelStatus(g.status)}</Badge>
               </div>
+              {bisaTulis && (
               <div className="flex items-center gap-2">
                 <input type="date" min={hariIni()} max={g.tglAkhir}
                   value={tglKembali[g.nit] || hariIni()}
@@ -303,6 +342,7 @@ export function HalamanStatusTaruna() {
                   {prosesKembali === g.nit ? 'Memproses…' : 'Tandai Sudah Kembali'}
                 </Button>
               </div>
+              )}
             </Card>
           );
         })}

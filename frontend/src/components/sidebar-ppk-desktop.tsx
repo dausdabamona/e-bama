@@ -57,7 +57,8 @@ export function SidebarPpkDesktop() {
       item: [
         { ke: '/rekap', label: 'Rekap Bulanan' },
         { ke: '/taruna/rekap-harian', label: 'Rekap Harian Taruna' },
-        { ke: '/realisasi', label: 'Realisasi & TTD' }
+        { ke: '/realisasi', label: 'Realisasi & TTD' },
+        { ke: '/status-taruna', label: 'Status Taruna' }
       ]
     },
     {

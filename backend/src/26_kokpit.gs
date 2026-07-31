@@ -71,6 +71,13 @@ function ppkKokpit(payload, session) {
   var porsiDimakan = 0;
   realisasiRows.forEach(function (r) { porsiDimakan += _int_(r.jml_taruna_makan || 0, 'jml_taruna_makan'); });
 
+  // Nilai rupiah pesanan (proyeksi) vs realisasi (sah) — REUSE _basisPesananBulan_
+  // (14_rekap.gs) & REKAP_BULANAN, pola identik dashboardRunning (27_dashboard.gs),
+  // supaya PPK melihat perbandingan nominal tanpa pindah halaman (permintaan Firdaus).
+  var nominalPesananProyeksi = _basisPesananBulan_(bulan).nominal_proyeksi;
+  var nominalRealisasiSah = 0;
+  rekapRows.forEach(function (rr) { nominalRealisasiSah += _int_(rr.nominal || 0, 'nominal'); });
+
   // Tanggal bulan ini (s.d. HARI INI, bukan sisa bulan yang memang belum
   // waktunya dipesan) yang SAMA SEKALI tidak punya baris PESANAN — deteksi
   // dini celah seperti Juli 2026 (lihat riwayat pesananOtomatis21,
@@ -100,6 +107,9 @@ function ppkKokpit(payload, session) {
     outstanding_tagihan: outstandingTagihan,
     porsi_dipesan: porsiDipesan,
     porsi_dimakan: porsiDimakan,
+    nominal_pesanan_proyeksi: nominalPesananProyeksi,
+    nominal_realisasi_sah: nominalRealisasiSah,
+    selisih_nominal: nominalPesananProyeksi - nominalRealisasiSah,
     tanggal_kosong: tanggalKosong
   };
 

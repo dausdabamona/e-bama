@@ -14,6 +14,7 @@ import { formatRupiah } from '../tagihan/tipe';
 interface Ringkasan {
   bulan: string; target_rekap: number; terbayar_sp2d: number;
   outstanding_tagihan: number; porsi_dipesan: number; porsi_dimakan: number;
+  nominal_pesanan_proyeksi: number; nominal_realisasi_sah: number; selisih_nominal: number;
 }
 type StatusTahap = 'hijau' | 'kuning' | 'merah' | 'n_a';
 interface Tahap {
@@ -115,6 +116,9 @@ export function HalamanKokpitPpk() {
           ? (data.ringkasan.porsi_dimakan / data.ringkasan.porsi_dipesan) * 100 : 0;
         const persenTerbayar = formatPersen(data.ringkasan.terbayar_sp2d, data.ringkasan.target_rekap);
         const persenPorsi = formatPersen(data.ringkasan.porsi_dimakan, data.ringkasan.porsi_dipesan);
+        const barNominal = data.ringkasan.nominal_pesanan_proyeksi > 0
+          ? (data.ringkasan.nominal_realisasi_sah / data.ringkasan.nominal_pesanan_proyeksi) * 100 : 0;
+        const persenNominal = formatPersen(data.ringkasan.nominal_realisasi_sah, data.ringkasan.nominal_pesanan_proyeksi);
         return (
         <>
           <PipelineStepper tahapan={data.tahapan} />
@@ -139,6 +143,15 @@ export function HalamanKokpitPpk() {
               label="Porsi Dipesan vs Dimakan" nilai={`${data.ringkasan.porsi_dipesan} / ${data.ringkasan.porsi_dimakan}`}
               persen={barPorsi} warnaBullet="bg-[#0369A1]"
               sub={data.ringkasan.porsi_dipesan > 0 ? `${persenPorsi}% sesuai` : undefined}
+            />
+            <KartuKpi
+              ikon="💰" warnaIkon="text-[#059669]" bgIkon="bg-[#ECFDF5]"
+              label="Nilai Pesanan vs Realisasi"
+              nilai={`${formatRupiah(data.ringkasan.nominal_pesanan_proyeksi)} / ${formatRupiah(data.ringkasan.nominal_realisasi_sah)}`}
+              persen={barNominal} warnaBullet="bg-[#059669]"
+              sub={data.ringkasan.nominal_pesanan_proyeksi > 0
+                ? `${persenNominal}% dari proyeksi pesanan · selisih ${formatRupiah(data.ringkasan.selisih_nominal)}`
+                : undefined}
             />
           </div>
 

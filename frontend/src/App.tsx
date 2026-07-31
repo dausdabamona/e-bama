@@ -95,7 +95,7 @@ export default function App() {
               <Route path="/menu-hari-ini" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanMenuHariIni /></WajibLogin>} />
               {/* Pembina */}
               <Route path="/verifikasi" element={<WajibLogin roles={['PEMBINA']}><HalamanVerifikasi /></WajibLogin>} />
-              <Route path="/status-taruna" element={<WajibLogin roles={['PEMBINA', 'ADMIN', 'BAAK']}><HalamanStatusTaruna /></WajibLogin>} />
+              <Route path="/status-taruna" element={<WajibLogin roles={['PEMBINA', 'ADMIN', 'BAAK', 'PPK', 'STAF_PPK']}><HalamanStatusTaruna /></WajibLogin>} />
               {/* Rekap ringkas baca-saja (Senat, Pembina) — grup Prodi+Tingkat, tanpa nominal */}
               <Route path="/rekap-ringkas" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanRekapRingkas /></WajibLogin>} />
               {/* PPK */}
