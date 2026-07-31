@@ -90,7 +90,7 @@ export default function App() {
               <Route path="/pesanan/:id" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK']}><HalamanPesananDetail /></WajibLogin>} />
               {/* Senat + Pembina */}
               <Route path="/realisasi" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK']}><HalamanRealisasiList /></WajibLogin>} />
-              <Route path="/realisasi/baru/:pesananId" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanRealisasiBuat /></WajibLogin>} />
+              <Route path="/realisasi/baru/:pesananId" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK']}><HalamanRealisasiBuat /></WajibLogin>} />
               <Route path="/realisasi/:id" element={<WajibLogin roles={['SENAT', 'PEMBINA', 'PPK', 'STAF_PPK']}><HalamanRealisasiDetail /></WajibLogin>} />
               <Route path="/menu-hari-ini" element={<WajibLogin roles={['SENAT', 'PEMBINA']}><HalamanMenuHariIni /></WajibLogin>} />
               {/* Pembina */}

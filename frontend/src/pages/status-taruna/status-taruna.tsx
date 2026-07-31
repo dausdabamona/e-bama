@@ -18,9 +18,9 @@ import { SearchSelect } from '../../components/ui/search-select';
 import { useToast } from '../../components/ui/toast';
 
 // Role yang boleh menginput status (backend status.set/batch/tandai_kembali:
-// roles ['ADMIN','PEMBINA','BAAK']) — PPK/STAF_PPK HANYA memantau (read-only),
-// sesuai permintaan Firdaus, jadi form input & tombol tulis disembunyikan.
-const ROLE_BISA_TULIS = new Set(['ADMIN', 'PEMBINA', 'BAAK']);
+// roles ['ADMIN','PEMBINA','BAAK','PPK','STAF_PPK'] — PPK/STAF_PPK diberi
+// wewenang input & koreksi juga, sesuai permintaan Firdaus).
+const ROLE_BISA_TULIS = new Set(['ADMIN', 'PEMBINA', 'BAAK', 'PPK', 'STAF_PPK']);
 
 interface Taruna { nit: string; nama: string; kelas: string; tingkat: string; status: string }
 interface StatusHarian { status_id: string; tanggal: string; nit: string; status: string }

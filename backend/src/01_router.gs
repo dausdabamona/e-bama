@@ -38,10 +38,10 @@ var ACTION_MAP = {
   'menu.hari_ini':    { handler: menuHariIni,    roles: ['SENAT', 'PEMBINA'] },
 
   // Status harian (TAHAP 3)
-  'status.set':       { handler: statusSet,      roles: ['ADMIN', 'PEMBINA', 'BAAK'] },
-  'status.batch':     { handler: statusBatch,    roles: ['ADMIN', 'PEMBINA', 'BAAK'] },
+  'status.set':       { handler: statusSet,      roles: ['ADMIN', 'PEMBINA', 'BAAK', 'PPK', 'STAF_PPK'] },
+  'status.batch':     { handler: statusBatch,    roles: ['ADMIN', 'PEMBINA', 'BAAK', 'PPK', 'STAF_PPK'] },
   'status.list':      { handler: statusList,     roles: [] },
-  'status.tandai_kembali': { handler: statusTandaiKembali, roles: ['ADMIN', 'PEMBINA', 'BAAK'] },
+  'status.tandai_kembali': { handler: statusTandaiKembali, roles: ['ADMIN', 'PEMBINA', 'BAAK', 'PPK', 'STAF_PPK'] },
   'luar.migrasi_periode': { handler: migrasiLuarKePeriode, roles: ['ADMIN'] },
   'periode.impor':      { handler: periodeImpor,      roles: ['ADMIN'] },
 
@@ -81,7 +81,10 @@ var ACTION_MAP = {
 
   // Realisasi (TAHAP 3)
   'realisasi.list':   { handler: realisasiList,  roles: [] },
-  'realisasi.create': { handler: realisasiCreate, roles: ['PEMBINA', 'SENAT'] },
+  // PPK/STAF_PPK diberi akses input (permintaan Firdaus) — TTD tetap HANYA
+  // Pembina & Senat (CLAUDE.md §5: penandatangan snapshot rekap tak pernah
+  // pihak lain), jadi realisasi.ttd/ttd_massal SENGAJA TIDAK ikut diperluas.
+  'realisasi.create': { handler: realisasiCreate, roles: ['PEMBINA', 'SENAT', 'PPK', 'STAF_PPK'] },
   'realisasi.ttd':    { handler: realisasiTtd,   roles: ['PEMBINA', 'SENAT'] },
   // Tanda tangan BANYAK hari sekaligus — real_ids eksplisit + kata sandi wajib,
   // tetap 1 baris AUDIT_LOG per realisasi (lihat 13_realisasi.gs).
