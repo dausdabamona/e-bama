@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BulanPicker, bulanIni, labelBulan } from '../../components/bulan-picker';
+import { alamatTujuanBank } from '../../components/cetak/alamat-bank';
 import { BlokTtd2Kolom, BlokTtdTengah } from '../../components/cetak/blok-ttd';
 import { KopSurat } from '../../components/cetak/kop-surat';
 import { SelCetak } from '../../components/cetak/tabel-cetak';
@@ -98,7 +99,14 @@ function SuratBlokirBank({ bank, rows, pejabat, rekSenat, rekSenatNama, lamaBlok
         <p className="text-xs">(Tunggakan Bantuan Uang Makan — Gagal Auto-Debet, Belum Disetor)</p>
         <p className="text-xs">Bank {labelBank} · Nomor: {noSurat || 'B. ______ /POLTEK.SRG/KU.110/…/2026'}</p>
       </div>
-      <p className="text-xs">Kepada Yth. Pimpinan Bank {labelBank} — di tempat.</p>
+      {alamatTujuanBank(bank) ? (
+        <div className="text-xs">
+          <p>Kepada Yth.</p>
+          {alamatTujuanBank(bank)!.map((l, i) => <p key={i}>{l}</p>)}
+        </div>
+      ) : (
+        <p className="text-xs">Kepada Yth. Pimpinan Bank {labelBank} — di tempat.</p>
+      )}
       <p className="text-xs">
         Sehubungan dengan taruna pada daftar di bawah yang <strong>belum menyelesaikan kewajiban</strong>{' '}
         pengembalian dana Bantuan Uang Makan (auto-debet gagal dan belum disetorkan kembali ke Senat),

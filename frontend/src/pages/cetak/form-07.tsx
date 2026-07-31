@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BulanPicker, bulanIni, labelBulan } from '../../components/bulan-picker';
+import { alamatTujuanBank } from '../../components/cetak/alamat-bank';
 import { BlokTtd2Kolom, BlokTtdTengah } from '../../components/cetak/blok-ttd';
 import { KopSurat } from '../../components/cetak/kop-surat';
 import { SelCetak } from '../../components/cetak/tabel-cetak';
@@ -195,7 +196,14 @@ function LampiranBlokirBank({ bank, rows, bulan, pejabat, rekSenat, rekPenyedia,
         <h2 className="text-sm font-bold">PERMOHONAN PEMBLOKIRAN DAN PENDEBETAN REKENING TARUNA</h2>
         <p className="text-xs">Bank {labelBank} · Bulan {labelBulan(bulan)} · Nomor: {noSurat || 'B. ______ /POLTEK.SRG/KU.110/…/2026'}</p>
       </div>
-      <p className="text-xs">Kepada Yth. Pimpinan Bank {labelBank} — di tempat.</p>
+      {alamatTujuanBank(bank) ? (
+        <div className="text-xs">
+          <p>Kepada Yth.</p>
+          {alamatTujuanBank(bank)!.map((l, i) => <p key={i}>{l}</p>)}
+        </div>
+      ) : (
+        <p className="text-xs">Kepada Yth. Pimpinan Bank {labelBank} — di tempat.</p>
+      )}
       <p className="text-xs">
         Setelah dana bantuan biaya makan taruna bulan {labelBulan(bulan)} cair ke rekening masing-masing
         taruna, dengan ini kami mengajukan permohonan kepada Bank {labelBank} untuk: <strong>(1)</strong> memblokir

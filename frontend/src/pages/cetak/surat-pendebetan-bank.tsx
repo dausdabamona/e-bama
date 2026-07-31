@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { labelBulan } from '../../components/bulan-picker';
+import { alamatTujuanBank } from '../../components/cetak/alamat-bank';
 import { BlokTtd2Kolom } from '../../components/cetak/blok-ttd';
 import { KopSurat } from '../../components/cetak/kop-surat';
 import { Button } from '../../components/ui/button';
@@ -117,7 +118,10 @@ export function HalamanCetakSuratPendebetanBank() {
             <p className="text-xs">(Dana Tagih-Ulang Gagal Debet — Bulan {labelBulan(bulan)})</p>
             <p className="text-xs">Bank {bank} · Nomor: {noSurat || 'B. ______ /SENAT-TARUNA.POLTEK.KP.SRG/…/2026'}</p>
           </div>
-          <p className="text-xs">Kepada Yth. Pimpinan Bank {bank} — di tempat.</p>
+          <div className="text-xs">
+            <p>Kepada Yth.</p>
+            {(alamatTujuanBank(bank) ?? [`Pimpinan Bank ${bank}`, 'di tempat']).map((l, i) => <p key={i}>{l}</p>)}
+          </div>
           <p className="text-xs leading-relaxed">
             Menindaklanjuti pengembalian dana Bantuan Uang Makan bulan <strong>{labelBulan(bulan)}</strong> yang gagal
             auto-debet dan telah disetorkan kembali oleh <strong>{data.jml_taruna} taruna</strong> ke rekening Senat
