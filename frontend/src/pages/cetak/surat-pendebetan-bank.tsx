@@ -6,15 +6,17 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { labelBulan } from '../../components/bulan-picker';
-import { BlokTtd2Kolom, BlokTtdTengah } from '../../components/cetak/blok-ttd';
+import { BlokTtd2Kolom } from '../../components/cetak/blok-ttd';
 import { KopSurat } from '../../components/cetak/kop-surat';
 import { Button } from '../../components/ui/button';
 import { EmptyState } from '../../components/ui/empty-state';
 import { ErrorMessage } from '../../components/ui/error-message';
 import { LoadingSpinner } from '../../components/ui/loading-spinner';
+import { SearchSelect } from '../../components/ui/search-select';
 import { useListCache } from '../../lib/use-list-cache';
 import { terbilangRupiah } from '../../lib/terbilang';
 import { formatRupiah } from '../tagihan/tipe';
+import type { Taruna } from '../taruna/tipe';
 
 interface Pejabat { nama: string; nip: string }
 interface RekBank { BNI?: string; BSI?: string }
@@ -31,6 +33,15 @@ export function HalamanCetakSuratPendebetanBank() {
   const { data, memuat, galat, refresh } = useListCache<BankData>('cetak.surat_pendebetan_bank', { bulan });
   const [bank, setBank] = useState<'BNI' | 'BSI'>('BNI');
   const [noSurat, setNoSurat] = useState('');
+
+  // Ketua Senat/Pjs — bukan pejabat tetap tersimpan sistem (posisi taruna,
+  // berganti tiap periode), jadi namanya dipilih langsung dari data taruna
+  // (bukan diketik bebas) supaya tidak salah eja. Layar saja, tidak dikirim
+  // ke server (pola sama field "Keperluan" di halaman cetak lain).
+  const tarunaQ = useListCache<{ taruna: Taruna[] }>('taruna.list', { status: 'AKTIF' });
+  const [nitSenat, setNitSenat] = useState('');
+  const [pjs, setPjs] = useState(false);
+  const namaSenat = (tarunaQ.data?.taruna ?? []).find((t) => t.nit === nitSenat)?.nama ?? '';
 
   const rekSenat = bank === 'BNI' ? data?.rekening_senat?.BNI : data?.rekening_senat?.BSI;
   const rekSenatNama = bank === 'BNI' ? data?.rekening_senat_nama?.BNI : data?.rekening_senat_nama?.BSI;
@@ -66,6 +77,27 @@ export function HalamanCetakSuratPendebetanBank() {
         </label>
       </div>
 
+      <div className="flex flex-wrap items-end gap-3 print:hidden">
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <span>Jabatan:</span>
+          <select value={pjs ? '1' : '0'} onChange={(e) => setPjs(e.target.value === '1')}
+            className="min-h-tap rounded-xl border border-gray-300 px-3 py-1.5 text-sm">
+            <option value="0">Ketua Senat Taruna</option>
+            <option value="1">Pjs. Ketua Senat Taruna</option>
+          </select>
+        </label>
+        <div className="min-w-[240px] flex-1">
+          <SearchSelect
+            label="Nama (dari data taruna)"
+            value={nitSenat}
+            onChange={setNitSenat}
+            placeholder="Ketik nama atau NIT…"
+            opsi={(tarunaQ.data?.taruna ?? []).map((t) => ({ value: t.nit, label: `${t.nama} (${t.nit})` }))}
+            storageKey="surat-pendebetan-bank-senat"
+          />
+        </div>
+      </div>
+
       {memuat && !data && <LoadingSpinner label="Memuat data…" />}
       {galat && !data && <ErrorMessage pesan={galat} onRetry={refresh} />}
       {data && total === 0 && (
@@ -95,16 +127,11 @@ export function HalamanCetakSuratPendebetanBank() {
             {bank}</strong> ({rekPenyedia || '…… belum diisi Admin'}{rekPenyediaNama ? ` a.n. ${rekPenyediaNama}` : ''}).
           </p>
           <p className="text-xs italic">Terbilang: <strong>{terbilangRupiah(total)}</strong></p>
-          <p className="text-xs leading-relaxed">
-            Rincian nama penerima terlampir dalam <strong>Laporan Penyaluran Dana Uang Makan</strong> bulan{' '}
-            {labelBulan(bulan)}. Atas perhatian dan kerja samanya, kami ucapkan terima kasih.
-          </p>
           <div className="mt-6">
             <BlokTtd2Kolom
-              kiri={{ label: 'Mengajukan,', jabatan: 'Ketua Senat Taruna' }}
-              kanan={{ label: 'Menyetujui,', jabatan: 'Pejabat Pembuat Komitmen (PPK)', nama: data.pejabat.PPK.nama, nip: data.pejabat.PPK.nip }}
+              kiri={{ label: 'Mengajukan,', jabatan: pjs ? 'Pjs. Ketua Senat Taruna' : 'Ketua Senat Taruna', nama: namaSenat }}
+              kanan={{ label: 'Mengetahui,', jabatan: 'Direktur Politeknik KP Sorong', nama: data.pejabat.DIREKTUR.nama, nip: data.pejabat.DIREKTUR.nip }}
             />
-            <BlokTtdTengah pihak={{ label: 'Mengetahui, Direktur', jabatan: 'Politeknik KP Sorong', nama: data.pejabat.DIREKTUR.nama, nip: data.pejabat.DIREKTUR.nip }} />
           </div>
         </div>
       )}
