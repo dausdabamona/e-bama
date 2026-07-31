@@ -18,18 +18,17 @@ export function KopSurat() {
         onError={() => setGambarOk(false)}
       />
       {!gambarOk && (
-        <>
-          <div className="text-center leading-tight">
-            <p className="text-xs font-semibold">KEMENTERIAN KELAUTAN DAN PERIKANAN</p>
-            <p className="text-xs font-semibold">BADAN PENYULUHAN DAN PENGEMBANGAN SUMBER DAYA MANUSIA KELAUTAN DAN PERIKANAN</p>
-            <p className="text-sm font-bold">POLITEKNIK KELAUTAN DAN PERIKANAN SORONG</p>
-            <p className="text-[10px]">Jl. Kapitan Pattimura, Tanjung Kasuari - Suprau, Kota Sorong, Papua Barat Daya 98411</p>
-          </div>
-          {/* Gambar kop sudah punya garis penutup sendiri (lihat kop-surat-2024.png)
-              — garis ini HANYA utk kop teks fallback, supaya tidak dobel saat gambar dipakai. */}
-          <div className="mt-1 border-b-2 border-black" />
-        </>
+        <div className="text-center leading-tight">
+          <p className="text-xs font-semibold">KEMENTERIAN KELAUTAN DAN PERIKANAN</p>
+          <p className="text-xs font-semibold">BADAN PENYULUHAN DAN PENGEMBANGAN SUMBER DAYA MANUSIA KELAUTAN DAN PERIKANAN</p>
+          <p className="text-sm font-bold">POLITEKNIK KELAUTAN DAN PERIKANAN SORONG</p>
+          <p className="text-[10px]">Jl. Kapitan Pattimura, Tanjung Kasuari - Suprau, Kota Sorong, Papua Barat Daya 98411</p>
+        </div>
       )}
+      {/* kop-surat-2024.png sudah di-crop TANPA garis penutup bawaannya sendiri
+          (dulu ganda: garis tipis + garis tebal) — satu garis ini dipakai baik
+          utk gambar maupun kop teks fallback, supaya selalu tepat satu garis. */}
+      <div className="mt-1 border-b-2 border-black" />
     </div>
   );
 }
