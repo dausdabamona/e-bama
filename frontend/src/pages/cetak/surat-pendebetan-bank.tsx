@@ -129,7 +129,7 @@ export function HalamanCetakSuratPendebetanBank() {
           <p className="text-xs italic">Terbilang: <strong>{terbilangRupiah(total)}</strong></p>
           <div className="mt-6">
             <BlokTtd2Kolom
-              kiri={{ label: 'Mengajukan,', jabatan: pjs ? 'Pjs. Ketua Senat Taruna' : 'Ketua Senat Taruna', nama: namaSenat }}
+              kiri={{ label: 'Mengajukan,', jabatan: pjs ? 'Pjs. Ketua Senat Taruna' : 'Ketua Senat Taruna', nama: namaSenat, nip: nitSenat, labelId: 'NIT' }}
               kanan={{ label: 'Mengetahui,', jabatan: 'Direktur Politeknik KP Sorong', nama: data.pejabat.DIREKTUR.nama, nip: data.pejabat.DIREKTUR.nip }}
             />
           </div>

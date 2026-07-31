@@ -7,6 +7,7 @@ export interface TtdPihak {
   jabatan: string;    // mis. "Direktur Poltek KP Sorong,"
   nama?: string;      // kosong = blanko (garis kosong untuk ttd manual di kertas)
   nip?: string;       // kosong = tampilkan "(...........................)"
+  labelId?: string;   // label di depan nip, default 'NIP' — pakai 'NIT' utk penanda tangan taruna
   tanggal?: string;   // sertakan prop ini (boleh string kosong) untuk memunculkan baris Tanggal/Jam
 }
 
@@ -17,7 +18,7 @@ function TtdKolom({ pihak }: { pihak: TtdPihak }) {
       <p>{pihak.jabatan}</p>
       <div className="mt-12 font-semibold">{pihak.nama || ' '}</div>
       <p className="border-t border-black pt-0.5">
-        {pihak.nip ? `NIP ${pihak.nip}` : '(...........................)'}
+        {pihak.nip ? `${pihak.labelId ?? 'NIP'} ${pihak.nip}` : '(...........................)'}
       </p>
       {pihak.tanggal !== undefined && (
         <p className="mt-1 text-gray-500">Tanggal/Jam: {pihak.tanggal || '……………………'}</p>
