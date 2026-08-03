@@ -68,6 +68,33 @@ export function HalamanRealisasiList() {
     setPilih(new Set(perluTtdSaya.slice(0, TTD_MASSAL_MAKS).map((r) => r.real_id)));
   }
 
+  // ── Lengkapi realisasi otomatis basis Pesanan (PPK/KPA, kejar tenggat) ──
+  // Aksi eksplisit + konfirmasi; backend menolak sebelum akhir bulan + 3 hari
+  // kerja. TIDAK menandatangani apa pun — Pembina/Senat tetap ttd (massal).
+  const bisaAuto = session?.role === 'PPK' || session?.role === 'KPA';
+  const [prosesAuto, setProsesAuto] = useState(false);
+
+  async function lengkapiOtomatis() {
+    if (!window.confirm(
+      `Isi otomatis realisasi bulan ${bulan} untuk ${menunggu.length} tanggal yang belum ada realisasinya?\n\n`
+      + 'Nilainya DIASUMSIKAN sama dengan pesanan dan ditandai "Auto dari Pesanan" (jejak audit). '
+      + 'Tanda tangan Pembina & Senat tetap diperlukan agar masuk rekap; foto/bukti bisa diisi menyusul.'
+    )) return;
+    setProsesAuto(true);
+    try {
+      const r = await api<{ dibuat: number; tanggal: string[] }>('realisasi.lengkapi_otomatis', { bulan });
+      toast(r.dibuat > 0
+        ? `${r.dibuat} realisasi dibuat otomatis (${r.tanggal[0]} s.d. ${r.tanggal[r.tanggal.length - 1]}). Minta Pembina & Senat tanda tangan massal.`
+        : 'Tidak ada yang perlu dibuat — semua pesanan TERKIRIM sudah punya realisasi.', 'sukses');
+      realisasiQ.refresh();
+      pesananQ.refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal.', 'galat');
+    } finally {
+      setProsesAuto(false);
+    }
+  }
+
   async function ttdMassal(kataSandi: string) {
     const hasil = await api<{ ditandatangani: number; lengkap: number; dilewati: number }>(
       'realisasi.ttd_massal',
@@ -147,6 +174,21 @@ export function HalamanRealisasiList() {
         />
       )}
 
+      {data && bisaAuto && menunggu.length > 0 && (
+        <Card className="flex flex-col gap-2 border-l-4 border-l-primary">
+          <p className="text-sm font-semibold text-primary-dark">⚡ Kejar Tenggat Pencairan</p>
+          <p className="text-xs text-gray-600">
+            {menunggu.length} tanggal bulan ini belum ada realisasinya. Isi otomatis memakai nilai{' '}
+            <strong>sama dengan pesanan</strong> (ditandai "Auto dari Pesanan" — jejak audit), supaya Pembina &amp;
+            Senat tinggal tanda tangan massal dan rekap bulanan bisa dibentuk. Foto/bukti tetap bisa diisi menyusul.
+            Baru dibuka mulai <strong>akhir bulan + 3 hari kerja</strong>.
+          </p>
+          <Button varian="garis" onClick={() => void lengkapiOtomatis()} disabled={prosesAuto}>
+            {prosesAuto ? 'Memproses…' : `⚡ Isi Otomatis ${menunggu.length} Realisasi dari Pesanan`}
+          </Button>
+        </Card>
+      )}
+
       {data && (
         <>
           <h2 className="text-sm font-semibold text-gray-600">Menunggu Realisasi</h2>
@@ -176,6 +218,9 @@ export function HalamanRealisasiList() {
                     <div>
                       <p className="font-semibold">{r.tanggal}</p>
                       <p className="text-sm text-gray-500">{r.jml_taruna_makan} taruna makan · {r.porsi_diterima} porsi</p>
+                      {r.auto_dari_pesanan && (
+                        <p className="text-xs text-amber-700">⚡ Auto dari Pesanan — asumsi, bukti bisa menyusul</p>
+                      )}
                     </div>
                     <Badge status={st.status}>{st.label}</Badge>
                   </Card>

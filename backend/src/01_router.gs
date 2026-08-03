@@ -89,6 +89,10 @@ var ACTION_MAP = {
   // Tanda tangan BANYAK hari sekaligus — real_ids eksplisit + kata sandi wajib,
   // tetap 1 baris AUDIT_LOG per realisasi (lihat 13_realisasi.gs).
   'realisasi.ttd_massal': { handler: realisasiTtdMassal, roles: ['PEMBINA', 'SENAT'] },
+  // Kejar tenggat pencairan — isi realisasi kosong dari PESANAN (flag asumsi),
+  // HANYA aksi eksplisit PPK/KPA, gerbang akhir bulan + 3 hari kerja; ttd tetap
+  // Pembina/Senat (rumus rekap tidak berubah).
+  'realisasi.lengkapi_otomatis': { handler: realisasiLengkapiOtomatis, roles: ['PPK', 'KPA'] },
   // Ownership Taruna Fitur 1b/2b — baca kebijakan piket + standar gizi
   'realisasi.kebijakan_piket': { handler: realisasiKebijakanPiket, roles: [] },
   // Penerimaan Barang Senat — checklist per waktu makan × komponen, BUKAN Penyedia

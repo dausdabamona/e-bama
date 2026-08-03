@@ -110,7 +110,11 @@ function _skema_() {
       // {pagi:[{komponen,ada,jumlah}], siang:[...], malam:[...]}, diisi lewat
       // realisasi.penerimaan (tahap berikutnya). Kosong di realisasi.create,
       // TIDAK mengubah porsi_diterima/jml_taruna_makan/ttd/piket_* di atas.
-      ['penerimaan','s']
+      ['penerimaan','s'],
+      // Realisasi otomatis basis PESANAN (append-only, idempotent) — penanda
+      // audit permanen baris buatan realisasi.lengkapi_otomatis: nilai
+      // DIASUMSIKAN sama dgn pesanan, belum diverifikasi fisik saat dibuat.
+      ['auto_dari_pesanan','b'], ['auto_by','s'], ['auto_at','dt']
     ]],
     [SHEETS.PEMBAYARAN, [
       ['bayar_id','s'], ['bulan','s'], ['kontrak_id','s'], ['nilai_total','i'],

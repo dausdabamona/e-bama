@@ -440,3 +440,95 @@ function realisasiTtdMassal(payload, session) {
     };
   });
 }
+
+/**
+ * realisasi.lengkapi_otomatis {bulan} — PPK/KPA (aksi EKSPLISIT, bukan trigger).
+ *
+ * Kejar tenggat pencairan (dikonfirmasi Firdaus): untuk tanggal yang PESANAN-nya
+ * TERKIRIM tapi realisasinya BELUM diisi, buat baris REALISASI dengan nilai
+ * DIASUMSIKAN sama dengan pesanan (porsi_diterima = jml_taruna_makan =
+ * PESANAN.jml_taruna). Baris ditandai permanen `auto_dari_pesanan=true` +
+ * auto_by/auto_at supaya rekap/laporan bisa membedakan hari "asumsi" vs
+ * "terverifikasi fisik" (jejak audit — BUKAN disembunyikan).
+ *
+ * YANG TIDAK DILAKUKAN (disengaja):
+ *  - TIDAK menandatangani — ttd tetap HANYA Pembina & Senat (realisasi.ttd/
+ *    ttd_massal), jadi rumus rekap "hanya hari SAH" TIDAK berubah sedikit pun.
+ *  - TIDAK mengubah realisasi yang sudah ada (walau belum ber-ttd).
+ *  - Foto/bukti/piket/penerimaan tetap bisa diisi MENYUSUL lewat mekanisme
+ *    yang sudah ada; nilai final yang sudah dibayar TIDAK berubah (aturan
+ *    snapshot §5 CLAUDE.md — bukti menyusul = pelengkap dokumen).
+ *
+ * GERBANG WAKTU (dikonfirmasi Firdaus): baru boleh dijalankan mulai hari
+ * kerja ke-3 (Sen-Jum, libur nasional tidak dilacak) SETELAH bulan tsb
+ * berakhir — mencegah bulan berjalan "ditutup" memakai asumsi.
+ */
+function realisasiLengkapiOtomatis(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+
+  var bg = bulan.split('-');
+  var akhirBulan = new Date(Number(bg[0]), Number(bg[1]), 0);
+  // Cari hari kerja ke-3 setelah akhir bulan (Sen-Jum).
+  var d = new Date(akhirBulan.getTime());
+  var hariKerja = 0;
+  while (hariKerja < 3) {
+    d.setDate(d.getDate() + 1);
+    if (d.getDay() !== 0 && d.getDay() !== 6) hariKerja++;
+  }
+  var tglBoleh = _tglStr_(d);
+  if (_todayStr_() < tglBoleh) {
+    throw _fail_('Belum bisa: pengisian otomatis bulan ' + bulan +
+      ' baru dibuka mulai ' + tglBoleh + ' (akhir bulan + 3 hari kerja).');
+  }
+
+  var pesananRows = sheetRead(SHEETS.PESANAN, function (r) {
+    return _bulanStr_(r.tgl_makan) === bulan && r.status === 'TERKIRIM';
+  });
+  var adaRealisasi = {};
+  sheetRead(SHEETS.REALISASI, function (r) { return _bulanStr_(r.tanggal) === bulan; })
+    .forEach(function (r) { adaRealisasi[String(r.pesanan_id)] = true; });
+
+  var target = pesananRows.filter(function (p) { return !adaRealisasi[String(p.pesanan_id)]; });
+  if (!target.length) {
+    return { dibuat: 0, tanggal: [], pesan: 'Semua pesanan TERKIRIM bulan ' + bulan + ' sudah punya realisasi.' };
+  }
+
+  return withLock(function () {
+    var dibuat = [], kini = new Date();
+    target.forEach(function (p) {
+      // Baca ulang di dalam lock — hindari dobel bila dua PPK menjalankan bersamaan.
+      var sudahAda = sheetRead(SHEETS.REALISASI, function (r) {
+        return String(r.pesanan_id) === String(p.pesanan_id);
+      })[0];
+      if (sudahAda) return;
+
+      var jml = _int_(p.jml_taruna || 0, 'jml_taruna');
+      var obj = {
+        real_id: nextId('REL'),
+        pesanan_id: p.pesanan_id,
+        tanggal: _tglStr_(p.tgl_makan),
+        porsi_diterima: jml,
+        jml_taruna_makan: jml,
+        ketidaksesuaian: '', tindak_lanjut: '',
+        geotag_lat: 0, geotag_lng: 0,
+        ttd_pembina_at: '', ttd_senat_at: '',
+        auto_dari_pesanan: true,
+        auto_by: session.user_id,
+        auto_at: kini
+      };
+      // Kolom piket & penerimaan kosong APA PUN kebijakannya (bukan lewat
+      // _piketKolom_ yang bisa menolak saat kebijakan piket wajib) — baris
+      // asumsi memang belum diverifikasi siapa pun; diisi menyusul.
+      Object.assign(obj, {
+        piket_nit: '', piket_nama: '', piket_menu_sesuai: false, piket_porsi_cukup: false,
+        piket_kualitas: '', piket_gizi: '', piket_catatan: '', piket_at: '', penerimaan: ''
+      });
+      sheetAppend(SHEETS.REALISASI, obj);
+      auditLog(session, 'realisasi.lengkapi_otomatis', 'REALISASI', obj.real_id, null,
+        { pesanan_id: String(p.pesanan_id), tanggal: obj.tanggal, jml_taruna: jml, auto_dari_pesanan: true });
+      dibuat.push(obj.tanggal);
+    });
+    dibuat.sort();
+    return { dibuat: dibuat.length, tanggal: dibuat };
+  });
+}

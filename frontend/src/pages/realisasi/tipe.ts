@@ -19,6 +19,11 @@ export interface Realisasi {
   piket_catatan: string;
   piket_at: string;
   penerimaan: string;
+  // Realisasi otomatis basis pesanan (realisasi.lengkapi_otomatis) — penanda
+  // "asumsi, belum diverifikasi fisik saat dibuat"; opsional utk baris lama.
+  auto_dari_pesanan?: boolean;
+  auto_by?: string;
+  auto_at?: string;
 }
 
 export interface KebijakanPiket {

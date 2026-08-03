@@ -40,6 +40,14 @@ export function HalamanRealisasiDetail() {
       <button className="text-sm text-primary" onClick={() => nav('/realisasi')}>← Kembali</button>
       <h1 className="text-xl font-bold text-primary-dark">Realisasi {r.tanggal}</h1>
 
+      {r.auto_dari_pesanan && (
+        <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
+          ⚡ <strong>Auto dari Pesanan</strong> — baris ini dibuat otomatis oleh {r.auto_by || 'PPK'} (kejar
+          tenggat pencairan): nilainya diasumsikan sama dengan pesanan dan <strong>belum diverifikasi
+          fisik saat dibuat</strong>. Foto/bukti bisa dilengkapi menyusul; penanda ini permanen (jejak audit).
+        </p>
+      )}
+
       <Card className="flex flex-col gap-2">
         <Baris label="Porsi Diterima" nilai={`${r.porsi_diterima} porsi`} />
         <Baris label="Taruna Makan" nilai={`${r.jml_taruna_makan} orang`} />

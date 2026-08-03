@@ -231,6 +231,9 @@ Pendataan penyediaan makan harian (SOP no. 8–9).
 | piket_catatan | string | opsional |
 | piket_at | datetime | waktu verifikasi piket dicatat |
 | penerimaan | string (JSON) | Penerimaan Barang Senat — `{pagi:[{komponen,ada,jumlah}], siang:[...], malam:[...]}`. `komponen` ∈ `getKebijakanKomponenMenu()` (`00_config.gs`), `ada` boolean, `jumlah` integer ≥ 0. Kosong = belum diisi. Diisi lewat `realisasi.penerimaan` (tahap berikutnya), TERPISAH dari checklist piket (beda momen: serah-terima vs makan). Di-append di AKHIR (migrasi idempotent) |
+| auto_dari_pesanan | boolean | TRUE = baris dibuat `realisasi.lengkapi_otomatis` (nilai DIASUMSIKAN sama dengan PESANAN, belum diverifikasi fisik saat dibuat) — penanda audit permanen supaya rekap/laporan bisa membedakan hari "asumsi" vs "terverifikasi" (dikonfirmasi Firdaus). Foto/bukti/piket tetap bisa diisi menyusul lewat mekanisme yang sudah ada. Di-append di AKHIR (migrasi idempotent) |
+| auto_by | string | user_id PPK/KPA yang menjalankan `realisasi.lengkapi_otomatis` (kosong utk realisasi normal) |
+| auto_at | datetime | waktu pengisian otomatis (kosong utk realisasi normal) |
 
 Foto dokumentasi (terkompres ±200KB) → LAMPIRAN `ref_type=REALISASI`, `jenis=FOTO`.
 
