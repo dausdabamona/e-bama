@@ -459,26 +459,31 @@ function realisasiTtdMassal(payload, session) {
  *    yang sudah ada; nilai final yang sudah dibayar TIDAK berubah (aturan
  *    snapshot §5 CLAUDE.md — bukti menyusul = pelengkap dokumen).
  *
- * GERBANG WAKTU (dikonfirmasi Firdaus): baru boleh dijalankan mulai hari
- * kerja ke-3 (Sen-Jum, libur nasional tidak dilacak) SETELAH bulan tsb
- * berakhir — mencegah bulan berjalan "ditutup" memakai asumsi.
+ * GERBANG WAKTU: tetap tidak boleh untuk bulan yang BELUM berakhir (mencegah
+ * bulan berjalan "ditutup" memakai asumsi). Berapa hari kerja (Sen-Jum, libur
+ * nasional tidak dilacak) yang harus dilewati SETELAH akhir bulan diatur lewat
+ * getKebijakanRealisasiOtomatis().hariKerjaTunggu — KEBIJAKAN di 00_config.gs,
+ * bukan kode. Saat ini 0 (boleh sejak hari terakhir bulan itu, masa percobaan
+ * Firdaus); kembalikan ke 3 lewat setKebijakanRealisasiOtomatis di editor GAS.
  */
 function realisasiLengkapiOtomatis(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
 
   var bg = bulan.split('-');
   var akhirBulan = new Date(Number(bg[0]), Number(bg[1]), 0);
-  // Cari hari kerja ke-3 setelah akhir bulan (Sen-Jum).
+  var tunggu = getKebijakanRealisasiOtomatis().hariKerjaTunggu;
+  // tunggu=0 → tanggal terakhir bulan itu sendiri; >0 → hari kerja ke-N setelahnya.
   var d = new Date(akhirBulan.getTime());
   var hariKerja = 0;
-  while (hariKerja < 3) {
+  while (hariKerja < tunggu) {
     d.setDate(d.getDate() + 1);
     if (d.getDay() !== 0 && d.getDay() !== 6) hariKerja++;
   }
   var tglBoleh = _tglStr_(d);
   if (_todayStr_() < tglBoleh) {
     throw _fail_('Belum bisa: pengisian otomatis bulan ' + bulan +
-      ' baru dibuka mulai ' + tglBoleh + ' (akhir bulan + 3 hari kerja).');
+      ' baru dibuka mulai ' + tglBoleh +
+      (tunggu > 0 ? ' (akhir bulan + ' + tunggu + ' hari kerja).' : ' (akhir bulan).'));
   }
 
   var pesananRows = sheetRead(SHEETS.PESANAN, function (r) {

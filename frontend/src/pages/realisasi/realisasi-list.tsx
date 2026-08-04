@@ -181,7 +181,7 @@ export function HalamanRealisasiList() {
             {menunggu.length} tanggal bulan ini belum ada realisasinya. Isi otomatis memakai nilai{' '}
             <strong>sama dengan pesanan</strong> (ditandai "Auto dari Pesanan" — jejak audit), supaya Pembina &amp;
             Senat tinggal tanda tangan massal dan rekap bulanan bisa dibentuk. Foto/bukti tetap bisa diisi menyusul.
-            Baru dibuka mulai <strong>akhir bulan + 3 hari kerja</strong>.
+            Baru dibuka setelah <strong>bulan tersebut berakhir</strong> (masa tunggu diatur kebijakan di server).
           </p>
           <Button varian="garis" onClick={() => void lengkapiOtomatis()} disabled={prosesAuto}>
             {prosesAuto ? 'Memproses…' : `⚡ Isi Otomatis ${menunggu.length} Realisasi dari Pesanan`}

@@ -459,3 +459,33 @@ function setKebijakanRekap(obj) {
   PropertiesService.getScriptProperties().setProperty('KEBIJAKAN_REKAP', JSON.stringify(v));
   return v;
 }
+
+// ── Kebijakan Realisasi Otomatis (realisasi.lengkapi_otomatis, 13_realisasi.gs) ──
+// hariKerjaTunggu: berapa HARI KERJA (Sen–Jum) setelah akhir bulan sebelum PPK/KPA
+// boleh mengisi realisasi kosong dari pesanan. 0 = boleh sejak hari TERAKHIR bulan
+// itu (dipakai Firdaus untuk masa percobaan). Ini KEBIJAKAN, bukan kode — kembalikan
+// ke 3 lewat setKebijakanRealisasiOtomatis({hariKerjaTunggu:3}) di editor GAS,
+// TANPA mengubah/menyebarkan ulang kode.
+var _CONFIG_REALISASI_OTOMATIS_DEFAULT = { hariKerjaTunggu: 0 };
+
+/** getKebijakanRealisasiOtomatis() — SATU-SATUNYA pintu baca kebijakan ini. */
+function getKebijakanRealisasiOtomatis() {
+  var raw = PropertiesService.getScriptProperties().getProperty('KEBIJAKAN_REALISASI_OTOMATIS');
+  var v = { hariKerjaTunggu: _CONFIG_REALISASI_OTOMATIS_DEFAULT.hariKerjaTunggu };
+  if (raw) {
+    var o = JSON.parse(raw);
+    if (o && o.hariKerjaTunggu !== undefined) v.hariKerjaTunggu = Math.max(0, Number(o.hariKerjaTunggu) || 0);
+  }
+  return v;
+}
+
+/**
+ * setKebijakanRealisasiOtomatis({hariKerjaTunggu}) — ubah dari editor GAS.
+ * Contoh kembali ke aturan semula: setKebijakanRealisasiOtomatis({hariKerjaTunggu:3})
+ */
+function setKebijakanRealisasiOtomatis(obj) {
+  var v = getKebijakanRealisasiOtomatis();
+  if (obj && obj.hariKerjaTunggu !== undefined) v.hariKerjaTunggu = Math.max(0, Number(obj.hariKerjaTunggu) || 0);
+  PropertiesService.getScriptProperties().setProperty('KEBIJAKAN_REALISASI_OTOMATIS', JSON.stringify(v));
+  return v;
+}

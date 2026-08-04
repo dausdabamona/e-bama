@@ -470,6 +470,36 @@ function setKebijakanRekap(obj) {
   return v;
 }
 
+// ── Kebijakan Realisasi Otomatis (realisasi.lengkapi_otomatis, 13_realisasi.gs) ──
+// hariKerjaTunggu: berapa HARI KERJA (Sen–Jum) setelah akhir bulan sebelum PPK/KPA
+// boleh mengisi realisasi kosong dari pesanan. 0 = boleh sejak hari TERAKHIR bulan
+// itu (dipakai Firdaus untuk masa percobaan). Ini KEBIJAKAN, bukan kode — kembalikan
+// ke 3 lewat setKebijakanRealisasiOtomatis({hariKerjaTunggu:3}) di editor GAS,
+// TANPA mengubah/menyebarkan ulang kode.
+var _CONFIG_REALISASI_OTOMATIS_DEFAULT = { hariKerjaTunggu: 0 };
+
+/** getKebijakanRealisasiOtomatis() — SATU-SATUNYA pintu baca kebijakan ini. */
+function getKebijakanRealisasiOtomatis() {
+  var raw = PropertiesService.getScriptProperties().getProperty('KEBIJAKAN_REALISASI_OTOMATIS');
+  var v = { hariKerjaTunggu: _CONFIG_REALISASI_OTOMATIS_DEFAULT.hariKerjaTunggu };
+  if (raw) {
+    var o = JSON.parse(raw);
+    if (o && o.hariKerjaTunggu !== undefined) v.hariKerjaTunggu = Math.max(0, Number(o.hariKerjaTunggu) || 0);
+  }
+  return v;
+}
+
+/**
+ * setKebijakanRealisasiOtomatis({hariKerjaTunggu}) — ubah dari editor GAS.
+ * Contoh kembali ke aturan semula: setKebijakanRealisasiOtomatis({hariKerjaTunggu:3})
+ */
+function setKebijakanRealisasiOtomatis(obj) {
+  var v = getKebijakanRealisasiOtomatis();
+  if (obj && obj.hariKerjaTunggu !== undefined) v.hariKerjaTunggu = Math.max(0, Number(obj.hariKerjaTunggu) || 0);
+  PropertiesService.getScriptProperties().setProperty('KEBIJAKAN_REALISASI_OTOMATIS', JSON.stringify(v));
+  return v;
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // ▼▼▼ 01_router.gs ▼▼▼
 // ═════════════════════════════════════════════════════════════════════════════
@@ -3214,26 +3244,31 @@ function realisasiTtdMassal(payload, session) {
  *    yang sudah ada; nilai final yang sudah dibayar TIDAK berubah (aturan
  *    snapshot §5 CLAUDE.md — bukti menyusul = pelengkap dokumen).
  *
- * GERBANG WAKTU (dikonfirmasi Firdaus): baru boleh dijalankan mulai hari
- * kerja ke-3 (Sen-Jum, libur nasional tidak dilacak) SETELAH bulan tsb
- * berakhir — mencegah bulan berjalan "ditutup" memakai asumsi.
+ * GERBANG WAKTU: tetap tidak boleh untuk bulan yang BELUM berakhir (mencegah
+ * bulan berjalan "ditutup" memakai asumsi). Berapa hari kerja (Sen-Jum, libur
+ * nasional tidak dilacak) yang harus dilewati SETELAH akhir bulan diatur lewat
+ * getKebijakanRealisasiOtomatis().hariKerjaTunggu — KEBIJAKAN di 00_config.gs,
+ * bukan kode. Saat ini 0 (boleh sejak hari terakhir bulan itu, masa percobaan
+ * Firdaus); kembalikan ke 3 lewat setKebijakanRealisasiOtomatis di editor GAS.
  */
 function realisasiLengkapiOtomatis(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
 
   var bg = bulan.split('-');
   var akhirBulan = new Date(Number(bg[0]), Number(bg[1]), 0);
-  // Cari hari kerja ke-3 setelah akhir bulan (Sen-Jum).
+  var tunggu = getKebijakanRealisasiOtomatis().hariKerjaTunggu;
+  // tunggu=0 → tanggal terakhir bulan itu sendiri; >0 → hari kerja ke-N setelahnya.
   var d = new Date(akhirBulan.getTime());
   var hariKerja = 0;
-  while (hariKerja < 3) {
+  while (hariKerja < tunggu) {
     d.setDate(d.getDate() + 1);
     if (d.getDay() !== 0 && d.getDay() !== 6) hariKerja++;
   }
   var tglBoleh = _tglStr_(d);
   if (_todayStr_() < tglBoleh) {
     throw _fail_('Belum bisa: pengisian otomatis bulan ' + bulan +
-      ' baru dibuka mulai ' + tglBoleh + ' (akhir bulan + 3 hari kerja).');
+      ' baru dibuka mulai ' + tglBoleh +
+      (tunggu > 0 ? ' (akhir bulan + ' + tunggu + ' hari kerja).' : ' (akhir bulan).'));
   }
 
   var pesananRows = sheetRead(SHEETS.PESANAN, function (r) {
