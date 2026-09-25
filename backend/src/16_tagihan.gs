@@ -480,3 +480,73 @@ function tagihanWaive(payload, session) {
   _tagihanCacheClear_();
   return { tagihan_id: t.tagihan_id, status: 'DIHAPUSKAN' };
 }
+
+
+/**
+ * tagihan.impor_historis — catat tagihan gagal debet MASA LALU yang terjadi
+ * sebelum rekap bulannya FINAL di e-BAMA (mis. autodebet Juli 2026 yang
+ * direkonsiliasi di luar sistem). Pengecualian TERBATAS dari aturan snapshot
+ * (skema §10): `nominal` diambil dari lampiran autodebet bank (payload),
+ * BUKAN dari REKAP_BULANAN. Tidak menerbitkan SP otomatis. Tiap baris 1 AUDIT_LOG.
+ * Payload {bulan, sebab, sumber, dry_run?, baris:[{nit, nominal, sudah_setor?, tgl_setor?, ref?}]}.
+ *  - sudah_setor >= nominal → LUNAS (nilai_transfer = sudah_setor)
+ *  - 0 < sudah_setor < nominal → TERTAGIH, setoran sebagian dicatat di catatan
+ *  - tanpa setoran → TERTAGIH
+ * `catatan_hapus` dipakai sebagai catatan impor berawalan [IMPOR_HISTORIS].
+ */
+function tagihanImporHistoris(payload, session) {
+  var p = payload || {};
+  var bulan = _wajibBulan_(p.bulan, 'bulan');
+  var sebab = String(p.sebab || '');
+  if (ENUM.TAGIHAN_SEBAB.indexOf(sebab) < 0) throw _fail_('sebab harus salah satu: ' + ENUM.TAGIHAN_SEBAB.join(' / '));
+  var sumber = String(p.sumber || '').trim();
+  if (!sumber) throw _fail_('sumber wajib diisi (mis. nama berkas rekonsiliasi).');
+  var baris = p.baris || [];
+  if (!baris.length) throw _fail_('baris tidak boleh kosong.');
+
+  var tarunaAda = {};
+  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaAda[String(t.nit)] = true; });
+  var sudahAda = {};
+  sheetRead(SHEETS.TAGIHAN).forEach(function (t) { sudahAda[String(t.tagihan_id)] = true; });
+  var yyyymm = bulan.replace('-', '');
+
+  var rencana = [], dilewati = [];
+  baris.forEach(function (b) {
+    var nit = String((b && b.nit) || '').trim();
+    if (!tarunaAda[nit]) throw _fail_('Taruna tidak ditemukan: ' + nit);
+    var id = 'TGH-' + yyyymm + '-' + nit;
+    if (sudahAda[id]) { dilewati.push(id); return; }
+    var nominal = _int_(b.nominal, 'nominal');
+    if (nominal <= 0) throw _fail_('nominal harus > 0 (' + nit + ').');
+    var setor = b.sudah_setor ? _int_(b.sudah_setor, 'sudah_setor') : 0;
+    var tgl = b.tgl_setor ? _wajibTgl_(b.tgl_setor, 'tgl_setor') : '';
+    var ref = String(b.ref || '');
+    var lunas = setor >= nominal;
+    var cat = '[IMPOR_HISTORIS] ' + sumber + (ref ? ' | ref ' + ref : '') +
+      (setor > 0 && !lunas ? ' | setor sebagian Rp ' + setor + (tgl ? ' tgl ' + tgl : '') + ', sisa Rp ' + (nominal - setor) : '');
+    rencana.push({
+      tagihan_id: id, bulan: bulan, nit: nit, nominal: nominal, sebab: sebab,
+      status: lunas ? 'LUNAS' : 'TERTAGIH', tgl_setor: setor > 0 ? tgl : '',
+      diverifikasi_oleh: lunas ? session.user_id : '', catatan_hapus: cat,
+      verif_pembina_oleh: lunas ? 'IMPOR_HISTORIS' : '', verif_2_oleh: lunas ? session.user_id : '',
+      nilai_transfer: lunas ? setor : '', tgl_diteruskan_penyedia: ''
+    });
+  });
+  var ringkas = { lunas: 0, sebagian: 0, belum: 0 };
+  rencana.forEach(function (r) {
+    if (r.status === 'LUNAS') ringkas.lunas++;
+    else if (r.tgl_setor) ringkas.sebagian++;
+    else ringkas.belum++;
+  });
+  if (p.dry_run) return { akan_ditambah: rencana.length, dilewati: dilewati, ringkas: ringkas, dry_run: true };
+
+  return withLock(function () {
+    _appendBanyak_(SHEETS.TAGIHAN, rencana);
+    rencana.forEach(function (r) {
+      auditLog(session, 'tagihan.impor_historis', 'TAGIHAN', r.tagihan_id, null,
+        { bulan: r.bulan, nit: r.nit, nominal: r.nominal, status: r.status, nilai_transfer: r.nilai_transfer, tgl_setor: r.tgl_setor, sumber: sumber });
+    });
+    _tagihanCacheClear_();
+    return { ditambah: rencana.length, dilewati: dilewati, ringkas: ringkas, dry_run: false };
+  });
+}

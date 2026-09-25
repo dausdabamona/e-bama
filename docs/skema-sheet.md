@@ -321,6 +321,14 @@ Status: `TERTAGIH → LUNAS | DIHAPUSKAN | ESKALASI_MANUAL`.
 | nilai_transfer | integer | nominal yang dimasukkan verifikator (harus > 0) — TIDAK WAJIB sama dengan `nominal` tagihan (dikonfirmasi Firdaus, direvisi dari validasi ketat: dunia nyata sering beda karena potongan biaya transfer antarbank atau kurang bayar). Inilah bentuk konkret "tanda sudah diverifikasi"; selisih dari `nominal` tetap terlihat di data untuk rekonsiliasi, TIDAK memblokir `LUNAS`. Di-append di AKHIR |
 | tgl_diteruskan_penyedia | date | tanggal dana hasil tagih-ulang (yang sudah `LUNAS` disetor taruna ke rekening Senat) DITERUSKAN ke rekening penyedia — jalur ini TERPISAH dari SP2D/SPM (pembayaran LS utama). Kosong = belum diteruskan; inilah "utang Poltek ke penyedia" dari sisi tagih-ulang. Diisi via `tagihan.teruskan_penyedia` (batch, role Senat/Pembina/Admin/PPK), bukti transfer WAJIB (LAMPIRAN `jenis=BUKTI_TERUSKAN_PENYEDIA`, satu bukti per batch ditautkan ke tagihan pertama). Di-append di AKHIR |
 
+**Impor historis (pengecualian terbatas):** tagihan gagal debet yang terjadi
+sebelum rekap bulannya FINAL di e-BAMA dicatat lewat `tagihan.impor_historis`.
+`nominal` diambil dari lampiran autodebet bank (bukan snapshot REKAP_BULANAN),
+SP tidak diterbitkan otomatis, dan `catatan_hapus` berisi catatan impor
+berawalan `[IMPOR_HISTORIS]` (sumber berkas, ref transfer, setoran sebagian).
+Baris LUNAS hasil impor: `verif_pembina_oleh = IMPOR_HISTORIS`,
+`verif_2_oleh`/`diverifikasi_oleh` = pengimpor.
+
 Bukti setor (screenshot/foto transfer) → LAMPIRAN `ref_type=TAGIHAN`, `jenis=BUKTI_SETOR` — WAJIB
 ada sebelum verifikasi manapun (pertama atau kedua) boleh dilakukan.
 Level SP aktif TIDAK disimpan di sini — dibaca `MAX(level)` dari SURAT_PERINGATAN.

@@ -158,6 +158,8 @@ var ACTION_MAP = {
   // boleh jadi verifikator 1 ATAU 2, ASAL dua orang (user_id) berbeda.
   'tagihan.verifikasi': { handler: tagihanVerifikasi, roles: ['SENAT', 'PEMBINA', 'ADMIN', 'PPK', 'STAF_PPK'] },
   'tagihan.waive':    { handler: tagihanWaive,   roles: ['PPK', 'STAF_PPK'] },
+  // Impor tagihan gagal debet MASA LALU (sebelum rekap FINAL) — nominal dari lampiran bank, tanpa SP otomatis
+  'tagihan.impor_historis': { handler: tagihanImporHistoris, roles: ['PPK', 'STAF_PPK', 'ADMIN'] },
   'tagihan.regenerate_sp': { handler: tagihanRegenerateSp, roles: ['PPK', 'STAF_PPK'] },
   // Tandai batch tagihan LUNAS yang dananya sudah diteruskan ke penyedia —
   // TERPISAH dari jalur SP2D/SPM. Akses sama seperti tagihan.setor/verifikasi.

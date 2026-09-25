@@ -408,3 +408,11 @@ Placeholder template Doc: `{{NO_SURAT}} {{TGL_SURAT}} {{NAMA}} {{NIT}}
 - SP2D dengan `tgl_sp2d` > cut-off (atau belum terbit) tidak dihitung sebagai
   realisasi; dikembalikan terpisah di `sp2d_setelah_cutoff`.
 - Balasan tambahan `{cutoff, sp2d_setelah_cutoff: [...], sp2d_setelah_cutoff_total}`.
+
+
+### tagihan.impor_historis — role PPK, STAF_PPK, ADMIN
+- Payload `{bulan, sebab, sumber, dry_run?, baris: [{nit, nominal, sudah_setor?, tgl_setor?, ref?}]}`.
+- Untuk gagal debet masa lalu yang direkonsiliasi di luar sistem (rekap bulan belum FINAL).
+- `sudah_setor >= nominal` → LUNAS; setoran sebagian / tanpa setoran → TERTAGIH (catatan di `catatan_hapus`).
+- Tidak menerbitkan SP. Tagihan yang sudah ada (bulan+nit) dilewati.
+- Balasan `{ditambah, dilewati: [tagihan_id], ringkas: {lunas, sebagian, belum}, dry_run}`.
