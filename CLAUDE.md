@@ -108,6 +108,25 @@ e-bama/
 - Token kedaluwarsa 24 jam; rate limit login 5x gagal → blokir 15 menit.
 - Error tak terduga TIDAK membocorkan stack trace ke klien.
 
+### Mode Prototipe (bypass login — SEMENTARA sampai peluncuran)
+
+- Aktif bila Script Property `MODE_PROTOTIPE` kosong/`ON` (bawaan kode
+  `MODE_PROTOTIPE_BAWAAN = true` di `00_config.gs`). Matikan dengan
+  `MODE_PROTOTIPE = OFF` — tanpa ubah kode/deploy.
+- Frontend memanggil action publik `sistem.info`; bila `prototipe:true`,
+  halaman login langsung masuk sebagai **PPK** tanpa kata sandi dan
+  menampilkan pemilih peran. Banner kuning "MODE PROTOTIPE" + pilihan peran
+  tampil di atas setiap halaman.
+- Token sesi `PROTOTIPE:<ROLE>` (role internal saja: PPK, STAF_PPK, KPA, WADIR3,
+  SENAT, PEMBINA, ADMIN, BAAK). Sesi ini **melewati semua pemeriksaan role**
+  router & guard rute frontend; konfirmasi kata sandi tanda tangan realisasi
+  dilewati. `session.role` tetap menentukan kolom TTD (Pembina/Senat).
+- **Tetap wajib login akun asli** (`AKSI_TETAP_WAJIB_LOGIN`): `rekening.*`,
+  `pengguna.*`, `cetak.form07/08/10`, `cetak.kuasa_debet_keluar`,
+  `cetak.blokir_gagal_debet` — semuanya memuat rekening lengkap/master akun.
+- Semua aksi prototipe tercatat di `AUDIT_LOG` dengan `user_id` `PROTO-<ROLE>`.
+- Wajib dimatikan (OFF) sebelum go-live / TAHAP 8.
+
 ---
 
 ## 5. Aturan Snapshot

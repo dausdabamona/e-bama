@@ -72,3 +72,13 @@ export async function api<T = unknown>(action: string, payload?: unknown): Promi
     throw e;
   }
 }
+
+/** Info sistem (publik, tanpa token) — dipakai halaman login untuk tahu Mode Prototipe. */
+export interface InfoSistem {
+  app: string;
+  versi: string;
+  prototipe: boolean;
+}
+export async function infoSistem(): Promise<InfoSistem> {
+  return api<InfoSistem>('sistem.info', {});
+}

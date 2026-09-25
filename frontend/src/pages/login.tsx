@@ -1,13 +1,40 @@
 // Halaman login: user_id + kata sandi (min 6 karakter, boleh huruf/angka/simbol).
-import { useState } from 'react';
+// Mode Prototipe: bila backend melaporkan prototipe aktif, pengguna langsung
+// masuk sebagai PPK tanpa kata sandi (kecuali baru saja keluar manual), dan
+// bisa memilih peran lain lewat tombol.
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../auth/auth-context';
+import { ROLE_PROTOTIPE, useAuth, type Role } from '../auth/auth-context';
+import { infoSistem } from '../lib/api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 
 export function HalamanLogin() {
-  const { login } = useAuth();
+  const { login, masukPrototipe } = useAuth();
   const nav = useNavigate();
+  const [prototipe, setPrototipe] = useState(false);
+
+  useEffect(() => {
+    let batal = false;
+    infoSistem()
+      .then((info) => {
+        if (batal || !info.prototipe) return;
+        setPrototipe(true);
+        let keluarManual = false;
+        try { keluarManual = sessionStorage.getItem('ebama_keluar') === '1'; } catch { /* abaikan */ }
+        if (!keluarManual) {
+          masukPrototipe('PPK');
+          nav('/', { replace: true });
+        }
+      })
+      .catch(() => { /* offline/gagal: tampilkan form login biasa */ });
+    return () => { batal = true; };
+  }, [masukPrototipe, nav]);
+
+  function pilihPeran(role: Role) {
+    masukPrototipe(role);
+    nav('/', { replace: true });
+  }
   const [userId, setUserId] = useState('');
   const [kataSandi, setKataSandi] = useState('');
   const [galat, setGalat] = useState('');
@@ -38,6 +65,20 @@ export function HalamanLogin() {
         <h1 className="text-2xl font-bold text-primary-dark">e-BAMA</h1>
         <p className="text-sm text-gray-500">Bantuan Uang Makan Taruna — Poltek KP Sorong</p>
       </div>
+
+      {prototipe && (
+        <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4">
+          <p className="text-sm font-bold text-amber-800">Mode Prototipe — masuk tanpa kata sandi</p>
+          <p className="mb-3 text-xs text-amber-700">Pilih peran. Data rekening lengkap & master pengguna tetap wajib login akun asli.</p>
+          <div className="grid grid-cols-2 gap-2">
+            {ROLE_PROTOTIPE.map((r) => (
+              <Button key={r} type="button" onClick={() => pilihPeran(r)} className="min-h-[44px]">
+                {r.replace('_', ' ')}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <form
         className="flex flex-col gap-4"

@@ -336,6 +336,7 @@ function _kolomTtdRole_(session) {
  * sama dengan login). Dipakai realisasi.ttd DAN realisasi.ttd_massal.
  */
 function _konfirmasiKataSandi_(session, pin) {
+  if (session && session.prototipe) return; // Mode Prototipe: tanpa kata sandi (lihat 00_config.gs)
   var sandi = (pin != null) ? String(pin) : '';
   var u = sheetRead(SHEETS.PENGGUNA, function (x) { return String(x.user_id) === String(session.user_id); })[0];
   if (!u || String(u.pin_hash) !== _sha256Hex_(sandi + _getSalt_())) {

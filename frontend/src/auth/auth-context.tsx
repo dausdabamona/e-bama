@@ -20,15 +20,28 @@ export interface Session {
   prodi?: string; // hanya terisi untuk role KETUA_JURUSAN
 }
 
+// ── Mode Prototipe (bypass login) ─────────────────────────────────────────
+// Selama e-BAMA masih prototipe, backend menerima token 'PROTOTIPE:<ROLE>'
+// tanpa kata sandi (lihat backend/src/00_config.gs). Frontend hanya
+// menyediakan pemilih peran; otorisasi tetap diputuskan backend.
+export const PREFIX_TOKEN_PROTOTIPE = 'PROTOTIPE:';
+export const ROLE_PROTOTIPE: Role[] = ['PPK', 'STAF_PPK', 'KPA', 'WADIR3', 'SENAT', 'PEMBINA', 'ADMIN', 'BAAK'];
+
+export function sesiPrototipe(session?: Session | null): boolean {
+  return !!session && session.token.indexOf(PREFIX_TOKEN_PROTOTIPE) === 0;
+}
+
 interface AuthNilai {
   session: Session | null;
   login: (userId: string, kataSandi: string) => Promise<void>;
+  masukPrototipe: (role: Role) => void;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthNilai>({
   session: null,
   login: async () => {},
+  masukPrototipe: () => {},
   logout: async () => {}
 });
 
@@ -64,13 +77,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(s);
   }, []);
 
+  // Masuk tanpa kata sandi dengan memilih peran (Mode Prototipe).
+  const masukPrototipe = useCallback((role: Role) => {
+    const s: Session = {
+      token: PREFIX_TOKEN_PROTOTIPE + role, role, nama: 'Mode Prototipe', user_id: 'PROTO-' + role
+    };
+    localStorage.setItem(KUNCI, JSON.stringify(s));
+    try { sessionStorage.removeItem('ebama_keluar'); } catch { /* abaikan */ }
+    setSession(s);
+  }, []);
+
   const logout = useCallback(async () => {
-    try { await api('auth.logout', {}); } catch { /* offline pun tetap keluar */ }
+    if (!sesiPrototipe(bacaSession())) {
+      try { await api('auth.logout', {}); } catch { /* offline pun tetap keluar */ }
+    }
+    // Tandai keluar manual supaya halaman login tidak langsung masuk otomatis lagi.
+    try { sessionStorage.setItem('ebama_keluar', '1'); } catch { /* abaikan */ }
     localStorage.removeItem(KUNCI);
     setSession(null);
   }, []);
 
-  return <AuthContext.Provider value={{ session, login, logout }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ session, login, masukPrototipe, logout }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthNilai {
@@ -82,7 +109,8 @@ export function WajibLogin({ roles, children }: { roles?: Role[]; children: Reac
   const { session } = useAuth();
   const lokasi = useLocation();
   if (!session) return <Navigate to="/login" state={{ dari: lokasi }} replace />;
-  if (roles && roles.length > 0 && !roles.includes(session.role)) {
+  // Mode Prototipe: semua halaman terbuka (backend yang tetap memutuskan).
+  if (roles && roles.length > 0 && !sesiPrototipe(session) && !roles.includes(session.role)) {
     return <Navigate to="/" replace />;
   }
   return <>{children}</>;

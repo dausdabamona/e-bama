@@ -1,7 +1,7 @@
 // Kerangka halaman: header (nama app, indikator online/offline, badge antrian)
 // + bottom-nav 4–5 item BERBEDA per role.
 import { NavLink, Outlet } from 'react-router-dom';
-import { sepertiPpk, useAuth, type Role } from '../auth/auth-context';
+import { ROLE_PROTOTIPE, sepertiPpk, sesiPrototipe, useAuth, type Role } from '../auth/auth-context';
 import { SidebarPpkDesktop } from './sidebar-ppk-desktop';
 import { TopbarPpkDesktop } from './topbar-ppk-desktop';
 import { BadgeAntrianSinkron, TitikStatusOnline, useSyncStatus } from './ui/sync-badge';
@@ -105,8 +105,9 @@ export const NAV_PER_ROLE: Record<Role, ItemNav[]> = {
 };
 
 export function Layout() {
-  const { session } = useAuth();
+  const { session, masukPrototipe } = useAuth();
   const { online, nAntrian } = useSyncStatus();
+  const proto = sesiPrototipe(session);
 
   // Jaga-jaga: kalau session.role tak dikenal di build ini (mis. role baru
   // ditambah backend tapi frontend belum di-deploy ulang), NAV_PER_ROLE[role]
@@ -183,6 +184,20 @@ export function Layout() {
 
         {/* Isi halaman */}
         <main className="flex-1 px-4 pb-24 pt-4 lg:mx-auto lg:w-full lg:max-w-6xl lg:px-8 lg:py-6">
+          {proto && session && (
+            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 print:hidden">
+              <span className="font-bold">MODE PROTOTIPE</span>
+              <span>— tanpa login, semua menu terbuka. Peran aktif:</span>
+              <select
+                className="min-h-[36px] rounded-lg border border-amber-300 bg-white px-2"
+                value={session.role}
+                onChange={(e) => masukPrototipe(e.target.value as Role)}
+                aria-label="Ganti peran prototipe"
+              >
+                {ROLE_PROTOTIPE.map((r) => <option key={r} value={r}>{LABEL_ROLE[r]}</option>)}
+              </select>
+            </div>
+          )}
           <Outlet />
         </main>
 

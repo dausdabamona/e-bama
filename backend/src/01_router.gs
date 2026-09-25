@@ -17,6 +17,7 @@
 var ACTION_MAP = {
   // Auth (TAHAP 2)
   'auth.login':       { handler: authLogin,      public: true },
+  'sistem.info':      { handler: sistemInfo,     public: true },
   'auth.logout':      { handler: authLogout,     roles: [] },
   'auth.change_pin':  { handler: authChangePin,  roles: [] },
 
@@ -296,7 +297,16 @@ function doPost(e) {
     var session = null;
     if (!def.public) {
       session = validateToken(token);
+      // Mode Prototipe: token 'PROTOTIPE:<ROLE>' diterima tanpa login (lihat 00_config.gs).
+      if (!session && modePrototipe() && String(token).indexOf(PREFIX_TOKEN_PROTOTIPE) === 0) {
+        if (AKSI_TETAP_WAJIB_LOGIN[action]) {
+          return _json_({ ok: false, error: 'Aksi ini tetap wajib login dengan akun asli (data rekening/pengguna).' });
+        }
+        session = sesiPrototipe(token);
+      }
       if (!session) return _json_({ ok: false, error: 'Sesi tidak valid atau kedaluwarsa. Silakan login ulang.' });
+    }
+    if (session && !session.prototipe) {
       // Pagar khusus PENYEDIA: HANYA action di allowlist — TIDAK ikut semantik
       // roles:[] ("semua login") yang mengekspos data seluruh sistem.
       if (session.role === ROLES.PENYEDIA && !PENYEDIA_ACTIONS[action]) {

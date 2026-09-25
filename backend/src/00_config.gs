@@ -17,6 +17,49 @@
 // ── Identitas aplikasi (dipakai doGet health check) ─────────────────────────
 var APP_INFO = { nama: 'e-BAMA', versi: '1.0.0' };
 
+// ── Mode Prototipe (bypass login) ───────────────────────────────────────────
+// Selama e-BAMA belum diluncurkan (prototipe), pengguna boleh masuk TANPA kata
+// sandi dengan memilih peran. Token sesi prototipe berbentuk 'PROTOTIPE:<ROLE>'.
+// Sesi prototipe melewati SEMUA pemeriksaan role di router (ACTION_MAP.roles
+// & allowlist), KECUALI aksi di AKSI_TETAP_WAJIB_LOGIN (rekening lengkap &
+// master pengguna) yang tetap menuntut login akun asli.
+// Setiap aksi tercatat di AUDIT_LOG dengan user_id 'PROTO-<ROLE>'.
+// Matikan tanpa ubah kode: Script Properties MODE_PROTOTIPE = OFF.
+var MODE_PROTOTIPE_BAWAAN = true;
+var PREFIX_TOKEN_PROTOTIPE = 'PROTOTIPE:';
+var ROLE_PROTOTIPE = ['PPK', 'STAF_PPK', 'KPA', 'WADIR3', 'SENAT', 'PEMBINA', 'ADMIN', 'BAAK'];
+var AKSI_TETAP_WAJIB_LOGIN = {
+  'rekening.lihat_lengkap': true, 'rekening.cocokkan': true,
+  'rekening.simpan': true, 'rekening.simpan_batch': true,
+  'pengguna.list': true, 'pengguna.upsert': true, 'pengguna.reset_pin': true,
+  'cetak.form07': true, 'cetak.form08': true, 'cetak.form10': true,
+  'cetak.kuasa_debet_keluar': true, 'cetak.blokir_gagal_debet': true
+};
+
+/** Mode prototipe aktif? Script Property MODE_PROTOTIPE (ON/OFF) menimpa bawaan. */
+function modePrototipe() {
+  var v = PropertiesService.getScriptProperties().getProperty('MODE_PROTOTIPE');
+  if (v === null || v === '') return MODE_PROTOTIPE_BAWAAN;
+  return String(v).toUpperCase() === 'ON';
+}
+
+/** Token 'PROTOTIPE:<ROLE>' → sesi prototipe, atau null bila tidak sah. */
+function sesiPrototipe(token) {
+  var t = String(token || '');
+  if (t.indexOf(PREFIX_TOKEN_PROTOTIPE) !== 0) return null;
+  var role = t.substring(PREFIX_TOKEN_PROTOTIPE.length).toUpperCase();
+  if (ROLE_PROTOTIPE.indexOf(role) < 0) return null;
+  return {
+    user_id: 'PROTO-' + role, nama: 'Mode Prototipe (' + role + ')', role: role,
+    penyedia_id: '', prodi: '', prototipe: true
+  };
+}
+
+/** sistem.info (publik) — dipakai frontend untuk tahu mode prototipe aktif. */
+function sistemInfo() {
+  return { app: APP_INFO.nama, versi: APP_INFO.versi, prototipe: modePrototipe(), role_prototipe: ROLE_PROTOTIPE };
+}
+
 // ── Nama sheet (kunci; tidak ada string literal nama sheet di file lain) ────
 var SHEETS = {
   PENGGUNA:         'PENGGUNA',

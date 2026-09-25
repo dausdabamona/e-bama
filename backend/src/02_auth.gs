@@ -97,6 +97,7 @@ function _hanyaAdminPPK_(session) {
 
 /** Logout → hapus token. */
 function authLogout(payload, session) {
+  if (session && session.prototipe) return { ok: true }; // sesi prototipe tak punya token tersimpan
   sheetUpdate(SHEETS.PENGGUNA, 'user_id', session.user_id, { token: '', token_exp: '' });
   auditLog(session, 'auth.logout', 'PENGGUNA', session.user_id, null, null);
   return { ok: true };

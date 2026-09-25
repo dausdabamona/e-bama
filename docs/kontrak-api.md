@@ -372,3 +372,11 @@ Counter `{urut}` per level di Script Properties, tidak pernah mundur.
 Placeholder template Doc: `{{NO_SURAT}} {{TGL_SURAT}} {{NAMA}} {{NIT}}
 {{PRODI_TINGKAT}} {{BULAN}} {{NOMINAL}} {{NOMINAL_TERBILANG}} {{REK_SENAT}}
 {{TENGGAT}} {{PENANDATANGAN_NAMA}} {{PENANDATANGAN_NIP}}`.
+
+
+## sistem.info (publik — Mode Prototipe)
+
+- Tanpa token. Balasan: `{app, versi, prototipe: boolean, role_prototipe: string[]}`.
+- Bila `prototipe:true`, backend menerima token `PROTOTIPE:<ROLE>` tanpa login
+  (lihat CLAUDE.md § Mode Prototipe). Aksi di `AKSI_TETAP_WAJIB_LOGIN` tetap
+  menolak token prototipe.
