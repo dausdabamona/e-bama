@@ -579,6 +579,7 @@ var ACTION_MAP = {
   // Label tingkat per bulan (TINGKAT_BULANAN §19) — naik tingkat tanpa merusak laporan lama
   'tingkat.snapshot':     { handler: tingkatSnapshot,    roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'tingkat.naik':         { handler: tingkatNaik,        roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
+  'tingkat.set':          { handler: tingkatSet,         roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'penyedia.list':    { handler: penyediaList,   roles: [] },
   'penyedia.upsert':  { handler: penyediaUpsert, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'kontrak.list':     { handler: kontrakList,    roles: [] },
@@ -1979,6 +1980,49 @@ function tingkatSnapshot(payload, session) {
     var r = _snapshotTingkat_(bulan, ta, 'SNAPSHOT');
     auditLog(session, 'tingkat.snapshot', 'TINGKAT_BULANAN', bulan, null, { ta: ta, ditambah: r.ditambah, dilewati: r.dilewati });
     return { bulan: bulan, ditambah: r.ditambah, dilewati: r.dilewati };
+  });
+}
+
+/**
+ * tingkat.set {bulan, nit, tingkat, prodi?, ta?, alasan?} — koreksi label SATU
+ * taruna yang berlaku mulai `bulan` (sumber MANUAL). Baris bulan+nit yang sudah
+ * ada ditimpa; bila belum ada, ditambahkan. TARUNA.tingkat TIDAK disentuh
+ * (label terkini diubah lewat taruna.upsert). Jejak lama → AUDIT_LOG.
+ */
+function tingkatSet(payload, session) {
+  var p = payload || {};
+  var bulan = _wajibBulan_(p.bulan, 'bulan');
+  var nit = String(p.nit || '').trim();
+  if (!nit) throw _fail_('nit wajib diisi.');
+  var tingkat = String(p.tingkat || '').trim().toUpperCase();
+  if (['I', 'II', 'III'].indexOf(tingkat) < 0) throw _fail_('tingkat harus I / II / III.');
+  var t = sheetRead(SHEETS.TARUNA, function (r) { return String(r.nit) === nit; })[0];
+  if (!t) throw _fail_('Taruna tidak ditemukan: ' + nit);
+  var prodi = String(p.prodi || t.prodi || '').trim();
+  return withLock(function () {
+    _pastikanSheetTingkat_();
+    var sh = _sheet_(SHEETS.TINGKAT_BULANAN);
+    var lastCol = sh.getLastColumn();
+    var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    var last = sh.getLastRow();
+    var data = last >= 2 ? sh.getRange(2, 1, last - 1, lastCol).getValues() : [];
+    var iB = headers.indexOf('bulan'), iN = headers.indexOf('nit');
+    var nilai = { bulan: bulan, nit: nit, prodi: prodi, tingkat: tingkat,
+      ta: String(p.ta || ''), sumber: 'MANUAL', timestamp: new Date() };
+    var row = headers.map(function (h) { return nilai[h] !== undefined ? nilai[h] : ''; });
+    var lama = null;
+    for (var i = 0; i < data.length; i++) {
+      if (_bulanStr_(data[i][iB]) === bulan && String(data[i][iN]) === nit) {
+        lama = {}; headers.forEach(function (h, k) { lama[h] = data[i][k]; });
+        if (!nilai.ta) row[headers.indexOf('ta')] = data[i][headers.indexOf('ta')];
+        sh.getRange(i + 2, 1, 1, lastCol).setValues([row]);
+        break;
+      }
+    }
+    if (!lama) sh.getRange(last + 1, 1, 1, lastCol).setValues([row]);
+    auditLog(session, 'tingkat.set', 'TINGKAT_BULANAN', bulan + '|' + nit, lama,
+      { prodi: prodi, tingkat: tingkat, alasan: String(p.alasan || '') });
+    return { bulan: bulan, nit: nit, prodi: prodi, tingkat: tingkat, ditimpa: !!lama };
   });
 }
 

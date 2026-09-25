@@ -29,6 +29,7 @@ var ACTION_MAP = {
   // Label tingkat per bulan (TINGKAT_BULANAN §19) — naik tingkat tanpa merusak laporan lama
   'tingkat.snapshot':     { handler: tingkatSnapshot,    roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'tingkat.naik':         { handler: tingkatNaik,        roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
+  'tingkat.set':          { handler: tingkatSet,         roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'penyedia.list':    { handler: penyediaList,   roles: [] },
   'penyedia.upsert':  { handler: penyediaUpsert, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'kontrak.list':     { handler: kontrakList,    roles: [] },

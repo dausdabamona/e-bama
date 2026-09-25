@@ -401,6 +401,13 @@ Placeholder template Doc: `{{NO_SURAT}} {{TGL_SURAT}} {{NAMA}} {{NIT}}
 - `dry_run: true` → hanya menghitung, tidak menulis.
 - Balasan `{naik: {...per tingkat}, lulus, dilewati, dry_run}`.
 
+### tingkat.set — role ADMIN, PPK, STAF_PPK
+- Payload `{bulan: 'YYYY-MM', nit, tingkat: 'I'|'II'|'III', prodi?, ta?, alasan?}`.
+- Koreksi label satu taruna yang berlaku mulai `bulan` (sumber `MANUAL`).
+  Baris bulan+nit yang sudah ada ditimpa (nilai lama ke AUDIT_LOG); bila belum
+  ada, ditambahkan. `TARUNA.tingkat` tidak diubah — pakai `taruna.upsert`.
+- Balasan `{bulan, nit, prodi, tingkat, ditimpa}`.
+
 ### laporan.resmi — cut-off
 - Payload tambahan opsional `cutoff: 'YYYY-MM-DD'`. Bawaan: tanggal 10 bulan
   berikutnya untuk bulan ≥ `2026-08` (keputusan PPK 26-09-2026); bulan
