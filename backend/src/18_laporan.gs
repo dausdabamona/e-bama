@@ -55,16 +55,27 @@ function laporanBulanan(payload, session) {
  * bagian Luar Kampus/Pengusulan/DIPA-SK tidak ada di sini, diisi manual
  * di halaman cetak (lihat frontend pages/laporan/laporan-resmi.tsx).
  */
+var _BULAN_MULAI_CUTOFF_ = '2026-08'; // lihat kontrak-api § laporan.resmi — cut-off
 function laporanResmi(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
   var awal = bulan + '-01', akhir = bulan + '-31';
 
   var tarunaByNit = {};
   var jmlAktif = 0;
-  sheetRead(SHEETS.TARUNA).forEach(function (t) {
+  tarunaBulan(bulan).forEach(function (t) {
     tarunaByNit[String(t.nit)] = t;
-    if (t.status === 'AKTIF') jmlAktif++;
+    if (_tarunaAktifBulan_(t, bulan)) jmlAktif++; // lulus/keluar sebelum bulan ini tak dihitung
   });
+
+  // Cut-off realisasi (keputusan PPK 26-09-2026): mulai bulan 2026-08, SP2D
+  // dihitung bila terbit s.d. tanggal 10 bulan berikutnya. Bulan sebelumnya
+  // tetap basis bulan konsumsi (tanpa cut-off). Bisa ditimpa payload.cutoff.
+  var cutoff = (payload && payload.cutoff) ? _wajibTgl_(payload.cutoff, 'cutoff') : '';
+  if (!cutoff && bulan >= _BULAN_MULAI_CUTOFF_) {
+    var th = parseInt(bulan.slice(0, 4), 10), bl = parseInt(bulan.slice(5, 7), 10) + 1;
+    if (bl > 12) { bl = 1; th++; }
+    cutoff = th + '-' + (bl < 10 ? '0' : '') + bl + '-10';
+  }
 
   var kontrakBulan = sheetRead(SHEETS.KONTRAK, function (r) {
     return r.status === 'DISETUJUI_PPK' && _tglStr_(r.tgl_mulai) <= akhir && _tglStr_(r.tgl_akhir) >= awal;
@@ -127,8 +138,18 @@ function laporanResmi(payload, session) {
              String(a.kegiatan).localeCompare(String(b.kegiatan));
     });
   }
-  var sp2dDalam = _sp2dAgregat_('DALAM_KAMPUS');
-  var sp2dLuar = _sp2dAgregat_('LUAR_KAMPUS');
+  // Pisahkan SP2D yang terbit setelah cut-off (atau belum terbit) — diungkapkan,
+  // tidak dihitung sebagai realisasi bulan ini.
+  var sp2dSetelahCutoff = [];
+  function _dalamCutoff_(r) {
+    if (!cutoff) return true;
+    if (r.tgl_sp2d && r.tgl_sp2d <= cutoff) return true;
+    sp2dSetelahCutoff.push(r);
+    return false;
+  }
+  var sp2dDalam = _sp2dAgregat_('DALAM_KAMPUS').filter(_dalamCutoff_);
+  var sp2dLuar = _sp2dAgregat_('LUAR_KAMPUS').filter(_dalamCutoff_);
+  var sp2dSetelahCutoffTotal = 0; sp2dSetelahCutoff.forEach(function (r) { sp2dSetelahCutoffTotal += r.nominal; });
   var sp2dDalamTotal = 0; sp2dDalam.forEach(function (r) { sp2dDalamTotal += r.nominal; });
   var sp2dLuarTotal = 0; sp2dLuar.forEach(function (r) { sp2dLuarTotal += r.nominal; });
 
@@ -175,6 +196,7 @@ function laporanResmi(payload, session) {
     sp2d_dalam_total: sp2dDalamTotal,
     sp2d_luar_kampus: sp2dLuar,
     sp2d_luar_total: sp2dLuarTotal,
+    cutoff: cutoff, sp2d_setelah_cutoff: sp2dSetelahCutoff, sp2d_setelah_cutoff_total: sp2dSetelahCutoffTotal,
     luar_kampus: luarKampus,
     luar_kampus_total: luarKampusTotal,
     luar_kampus_orang: luarKampusOrang,

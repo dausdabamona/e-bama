@@ -182,6 +182,11 @@ function _skema_() {
       // nit_anggota/induk_spm_id (spm.split/spm.gabung) — default kosong,
       // TIDAK memengaruhi grup yang belum pernah displit (lihat skema-sheet.md §18).
       ['nit_anggota','s'], ['induk_spm_id','s']
+    ]],
+    // TINGKAT_BULANAN (§19 skema-sheet.md) — label berlaku mulai `bulan` (carry-forward)
+    [SHEETS.TINGKAT_BULANAN, [
+      ['bulan','s'], ['nit','s'], ['prodi','s'], ['tingkat','s'], ['ta','s'],
+      ['sumber','s'], ['timestamp','dt']
     ]]
   ];
 }

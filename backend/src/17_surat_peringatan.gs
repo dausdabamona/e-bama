@@ -191,7 +191,7 @@ function spCetakMassal(payload, session) {
     });
 
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulanFilter).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
   var daftar = [];
   _tagihanJoin_().forEach(function (t) {

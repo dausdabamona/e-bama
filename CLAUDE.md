@@ -127,6 +127,17 @@ e-bama/
 - Semua aksi prototipe tercatat di `AUDIT_LOG` dengan `user_id` `PROTO-<ROLE>`.
 - Wajib dimatikan (OFF) sebelum go-live / TAHAP 8.
 
+### Label tingkat per bulan (TINGKAT_BULANAN — skema §19)
+
+- Fungsi ber-konteks bulan membaca taruna lewat `tarunaBulan(bulan)`
+  (`10_taruna.gs`), BUKAN `sheetRead(SHEETS.TARUNA)` — supaya laporan/rekap
+  bulan lalu tetap memakai label tingkat yang berlaku saat itu.
+- Naik tingkat awal T.A. lewat `tingkat.naik` (snapshot label lama → ubah
+  `TARUNA.tingkat` → catat label baru; tingkat → `LULUS` = keluar permanen).
+- `laporan.resmi` memakai cut-off SP2D tanggal 10 bulan berikutnya mulai
+  bulan 2026-08 (`_BULAN_MULAI_CUTOFF_`); SP2D setelah cut-off diungkapkan
+  terpisah (`sp2d_setelah_cutoff`).
+
 ---
 
 ## 5. Aturan Snapshot

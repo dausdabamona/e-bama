@@ -105,7 +105,7 @@ function cetakForm03(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
 
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
   var rows = sheetRead(SHEETS.STATUS_HARIAN, function (r) { return _bulanStr_(r.tanggal) === bulan; });
 
@@ -260,7 +260,7 @@ function cetakForm06(payload, session) {
   }
 
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
   var totalHariMakan = 0, totalNominal = 0;
   var baris = rows.map(function (r) {
@@ -323,7 +323,7 @@ function _daftarKuasaDebet_(bulan, nitFilter, basis, sampaiTanggal) {
   }
 
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
   var nitList = rekapRows.map(function (r) { return String(r.nit); });
   var rekeningByNit = {};
@@ -526,7 +526,7 @@ function cetakBlokirGagalDebet(payload, session) {
     }
 
     var tarunaByNit = {};
-    sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+    tarunaBulan(bulanFilter).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
     var nitList = rows.map(function (t) { return String(t.nit); });
     var rekeningByNit = {};
@@ -584,7 +584,7 @@ function cetakBlokirGagalDebet(payload, session) {
 function cetakPendebetanPenyedia(payload, session) {
   var bulanFilter = payload && payload.bulan ? _bulanStr_(payload.bulan) : '';
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulanFilter).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
   var baris = _tagihanJoin_().filter(function (t) {
     return t.status === 'LUNAS' && !t.tgl_diteruskan_penyedia && (!bulanFilter || t.bulan === bulanFilter);
@@ -673,7 +673,7 @@ function cetakLaporanPenyaluranPenyedia(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
 
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
   var baris = _tagihanJoin_().filter(function (t) {
     return t.status === 'LUNAS' && !t.tgl_diteruskan_penyedia && t.bulan === bulan;
@@ -742,7 +742,7 @@ function cetakForm08(payload, session) {
     Object.keys(hariMap).forEach(function (nit) { hariStatusHarianByNit[nit] = hariMap[nit].hari; });
 
     var tarunaByNit = {};
-    sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+    tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
     var nitList = blkRows.map(function (r) { return String(r.nit); });
     var rekeningByNit = {};
@@ -946,7 +946,7 @@ function cetakForm10(payload, session) {
     rekapRows = rekapRows.filter(function (r) { return _int_(r.nominal || 0, 'nominal') > 0; });
 
     var tarunaByNit = {};
-    sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+    tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
     var penyediaById = {};
     sheetRead(SHEETS.PENYEDIA).forEach(function (p) { penyediaById[String(p.penyedia_id)] = p; });
 

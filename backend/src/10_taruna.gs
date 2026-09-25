@@ -175,3 +175,152 @@ function tarunaBatalKeluar(payload, session) {
     return { dibatalkan: n };
   });
 }
+
+
+// ── Label tingkat per bulan (TINGKAT_BULANAN, skema §19) ───────────────────
+
+/** Baca sheet TINGKAT_BULANAN dengan aman (sheet belum dibuat → []). */
+function _barisTingkatBulanan_() {
+  try { return sheetRead(SHEETS.TINGKAT_BULANAN); } catch (e) { return []; }
+}
+
+/**
+ * tarunaBulan(bulan) — daftar TARUNA dengan prodi/tingkat DIGANTI label yang
+ * berlaku pada `bulan` (carry-forward: baris TINGKAT_BULANAN dengan bulan
+ * terbesar yang <= bulan). Tanpa bulan / tanpa label → data TARUNA apa adanya.
+ * Mengembalikan salinan objek (TIDAK mengubah sheet).
+ */
+function tarunaBulan(bulan) {
+  var rows = sheetRead(SHEETS.TARUNA);
+  var bln = bulan ? _bulanStr_(bulan) : '';
+  if (!bln) return rows;
+  var label = {};
+  _barisTingkatBulanan_().forEach(function (r) {
+    var b = _bulanStr_(r.bulan);
+    if (!b || b > bln) return;
+    var nit = String(r.nit);
+    if (!label[nit] || b > label[nit].b) label[nit] = { b: b, prodi: r.prodi, tingkat: r.tingkat };
+  });
+  return rows.map(function (t) {
+    var l = label[String(t.nit)];
+    if (!l) return t;
+    var c = {};
+    Object.keys(t).forEach(function (k) { c[k] = t[k]; });
+    if (l.prodi) c.prodi = String(l.prodi);
+    if (l.tingkat) c.tingkat = String(l.tingkat);
+    return c;
+  });
+}
+
+/** Tambah banyak baris sekaligus (satu setValues) — dipanggil di dalam withLock. */
+function _appendBanyak_(name, objs) {
+  if (!objs.length) return 0;
+  var sh = _sheet_(name);
+  var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var rows = objs.map(function (o) { return headers.map(function (h) { return o[h] !== undefined ? o[h] : ''; }); });
+  sh.getRange(sh.getLastRow() + 1, 1, rows.length, headers.length).setValues(rows);
+  return rows.length;
+}
+
+/** Buat sheet TINGKAT_BULANAN (header sesuai skema §19) bila belum ada — migrasi ringan idempotent. */
+function _pastikanSheetTingkat_() {
+  var ss = _getSpreadsheet_();
+  if (ss.getSheetByName(SHEETS.TINGKAT_BULANAN)) return;
+  var sh = ss.insertSheet(SHEETS.TINGKAT_BULANAN);
+  sh.getRange(1, 1, 1, 7).setValues([['bulan', 'nit', 'prodi', 'tingkat', 'ta', 'sumber', 'timestamp']]).setFontWeight('bold');
+  sh.setFrozenRows(1);
+  sh.getRange('A:A').setNumberFormat('@'); // bulan 'YYYY-MM' tetap teks, bukan tanggal
+}
+
+/** Snapshot label TARUNA terkini untuk `bulan` (tanpa lock — dipanggil di dalam withLock). */
+function _snapshotTingkat_(bulan, ta, sumber) {
+  _pastikanSheetTingkat_();
+  var ada = {};
+  _barisTingkatBulanan_().forEach(function (r) {
+    if (_bulanStr_(r.bulan) === bulan) ada[String(r.nit)] = true;
+  });
+  var now = new Date(), baru = [], dilewati = 0;
+  sheetRead(SHEETS.TARUNA).forEach(function (t) {
+    var nit = String(t.nit);
+    if (ada[nit]) { dilewati++; return; }
+    baru.push({ bulan: bulan, nit: nit, prodi: String(t.prodi || ''), tingkat: String(t.tingkat || ''),
+      ta: ta, sumber: sumber, timestamp: now });
+  });
+  return { ditambah: _appendBanyak_(SHEETS.TINGKAT_BULANAN, baru), dilewati: dilewati };
+}
+
+/** tingkat.snapshot {bulan, ta} — bekukan label terkini sebagai label mulai `bulan`. */
+function tingkatSnapshot(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  var ta = String((payload && payload.ta) || '').trim();
+  return withLock(function () {
+    var r = _snapshotTingkat_(bulan, ta, 'SNAPSHOT');
+    auditLog(session, 'tingkat.snapshot', 'TINGKAT_BULANAN', bulan, null, { ta: ta, ditambah: r.ditambah, dilewati: r.dilewati });
+    return { bulan: bulan, ditambah: r.ditambah, dilewati: r.dilewati };
+  });
+}
+
+/**
+ * tingkat.naik — naik tingkat massal awal tahun akademik (lihat kontrak-api).
+ * Label lama dibekukan dulu di bulan_lama supaya laporan bulan-bulan lalu tetap
+ * memakai tingkat lama; lalu TARUNA.tingkat diubah & label baru dicatat di
+ * bulan_baru. Tingkat yang dipetakan ke 'LULUS' ditandai keluar permanen.
+ */
+function tingkatNaik(payload, session) {
+  var p = payload || {};
+  var bulanLama = _wajibBulan_(p.bulan_lama, 'bulan_lama');
+  var bulanBaru = _wajibBulan_(p.bulan_baru, 'bulan_baru');
+  if (bulanBaru <= bulanLama) throw _fail_('bulan_baru harus setelah bulan_lama.');
+  var peta = p.peta || {};
+  if (!Object.keys(peta).length) throw _fail_('peta tingkat wajib diisi, mis. {"III":"LULUS","II":"III","I":"II"}.');
+  var adaLulus = Object.keys(peta).some(function (k) { return String(peta[k]).toUpperCase() === 'LULUS'; });
+  var tglLulus = adaLulus ? _wajibTgl_(p.tgl_lulus, 'tgl_lulus') : '';
+  var kecuali = {};
+  (p.kecuali || []).forEach(function (n) { kecuali[String(n)] = true; });
+  var taLama = String(p.ta_lama || ''), taBaru = String(p.ta_baru || '');
+  var dry = !!p.dry_run;
+
+  var taruna = sheetRead(SHEETS.TARUNA);
+  var rencana = [], lulus = [], dilewati = 0, naik = {};
+  taruna.forEach(function (t) {
+    var nit = String(t.nit);
+    if (kecuali[nit] || String(t.status) !== 'AKTIF' || _tglKeluarStr_(t)) { dilewati++; return; }
+    var tujuan = peta[String(t.tingkat)];
+    if (!tujuan) { dilewati++; return; }
+    tujuan = String(tujuan).toUpperCase();
+    if (tujuan === 'LULUS') { lulus.push(nit); return; }
+    rencana.push({ nit: nit, prodi: String(t.prodi || ''), lama: String(t.tingkat), baru: tujuan });
+    var k = String(t.tingkat) + '→' + tujuan; naik[k] = (naik[k] || 0) + 1;
+  });
+  if (dry) return { naik: naik, lulus: lulus.length, dilewati: dilewati, dry_run: true };
+
+  return withLock(function () {
+    var snap = _snapshotTingkat_(bulanLama, taLama, 'SNAPSHOT');
+    var now = new Date();
+    var adaBaru = {};
+    _barisTingkatBulanan_().forEach(function (r) { if (_bulanStr_(r.bulan) === bulanBaru) adaBaru[String(r.nit)] = true; });
+    // Ubah TARUNA dalam SATU baca + SATU tulis per kolom (hindari ratusan sheetUpdate).
+    var sh = _sheet_(SHEETS.TARUNA);
+    var last = sh.getLastRow(), lastCol = sh.getLastColumn();
+    var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    var data = sh.getRange(2, 1, last - 1, lastCol).getValues();
+    var iNit = headers.indexOf('nit'), iTk = headers.indexOf('tingkat'),
+        iKel = headers.indexOf('tgl_keluar'), iAls = headers.indexOf('alasan_keluar');
+    var petaBaru = {}; rencana.forEach(function (x) { petaBaru[x.nit] = x.baru; });
+    var setLulus = {}; lulus.forEach(function (n) { setLulus[n] = true; });
+    data.forEach(function (r) {
+      var nit = String(r[iNit]);
+      if (petaBaru[nit]) r[iTk] = petaBaru[nit];
+      if (setLulus[nit]) { r[iKel] = tglLulus; r[iAls] = 'LULUS'; }
+    });
+    [iTk, iKel, iAls].forEach(function (ci) {
+      sh.getRange(2, ci + 1, data.length, 1).setValues(data.map(function (r) { return [r[ci]]; }));
+    });
+    _appendBanyak_(SHEETS.TINGKAT_BULANAN, rencana.filter(function (x) { return !adaBaru[x.nit]; }).map(function (x) {
+      return { bulan: bulanBaru, nit: x.nit, prodi: x.prodi, tingkat: x.baru, ta: taBaru, sumber: 'NAIK_TINGKAT', timestamp: now };
+    }));
+    auditLog(session, 'tingkat.naik', 'TARUNA', bulanBaru, { bulan_lama: bulanLama, snapshot: snap },
+      { naik: naik, lulus: lulus.length, tgl_lulus: tglLulus, dilewati: dilewati, ta_baru: taBaru });
+    return { naik: naik, lulus: lulus.length, dilewati: dilewati, snapshot_lama: snap, dry_run: false };
+  });
+}

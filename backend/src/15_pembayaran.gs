@@ -263,7 +263,7 @@ function _generateSpmDalamKampus_(bulan, bayarId, session) {
   });
 
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
   var nitList = rekapRows.map(function (r) { return String(r.nit); });
   var rekeningByNit = {};
   sheetRead(SHEETS.TARUNA_REKENING, function (r) { return nitList.indexOf(String(r.nit)) >= 0; })
@@ -525,7 +525,7 @@ function spmAnggota(payload, session) {
   }
 
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(s.bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
   // Normalkan bulan SPM → 'YYYY-MM'. Kolom bulan bisa terbaca sebagai Date
   // (sel diformat tanggal) — kalau dibandingkan mentah, filter REKAP tak pernah
@@ -571,7 +571,7 @@ function _nitAlamiDalamKampus_(bulan, prodi, tingkat, penyediaId, rekapRows, tar
   }
   if (!tarunaByNit) {
     tarunaByNit = {};
-    sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+    tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
   }
   var rekeningByNit = {};
   sheetRead(SHEETS.TARUNA_REKENING, function (r) { return String(r.penyedia_id) === String(penyediaId); })

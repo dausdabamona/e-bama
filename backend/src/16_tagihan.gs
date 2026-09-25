@@ -436,7 +436,7 @@ function tagihanStatusDebet(payload, session) {
   if (!rekap.length) throw _fail_('Belum ada rekap bernominal untuk bulan ' + bulan + '.');
 
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
   var tagihanByNit = {};
   _tagihanJoin_().filter(function (t) { return t.bulan === bulan; })

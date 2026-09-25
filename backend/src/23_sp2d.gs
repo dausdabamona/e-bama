@@ -327,7 +327,7 @@ function sp2dRekonsiliasi(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
 
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
   // _bulanStr_ (BUKAN String() polos) — cermin cara REKAP_BULANAN/BANTUAN_LUAR_KAMPUS
   // difilter di bawah. Kolom `bulan` bertipe teks ('2026-04'), tapi kalau Google
@@ -602,7 +602,7 @@ function sp2dKoreksi(payload, session) {
  */
 function _kelompokDobelSp2d_(bulan) {
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
   var rows = sheetRead(SHEETS.SP2D_MONITORING, function (r) {
     return _bulanStr_(r.bulan) === bulan && r.nit && r.no_sp2d;
   });
@@ -703,7 +703,7 @@ function sp2dHapusDobel(payload, session) {
  */
 function _rincianSp2dDalamKampus_(bulan) {
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
   var rekeningByNit = {};
   sheetRead(SHEETS.TARUNA_REKENING).forEach(function (r) { rekeningByNit[String(r.nit)] = r; });
   var penyediaById = {};

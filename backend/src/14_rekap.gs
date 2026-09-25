@@ -64,7 +64,7 @@ function rekapUpdate(tanggal, session) {
 
   // Taruna yang termasuk bulan ini: AKTIF & belum keluar permanen sebelum bulan
   // ini (bulan keluar tetap terhitung; bulan berikutnya otomatis tereksklusi).
-  var tarunaAktif = sheetRead(SHEETS.TARUNA, function (r) { return _tarunaAktifBulan_(r, bulan); });
+  var tarunaAktif = tarunaBulan(bulan).filter(function (r) { return _tarunaAktifBulan_(r, bulan); });
 
   // Taruna keluar PERMANEN di TENGAH bulan ini: hari SETELAH tgl_keluar bukan
   // hari makan kampus (cegah overcount di bulan keluar).
@@ -241,7 +241,7 @@ function _rekapProyeksiPesanan_(bulan, sampaiTanggal) {
     return true;
   });
   var tarifPerKontrak = {};
-  var taruna = sheetRead(SHEETS.TARUNA);
+  var taruna = tarunaBulan(bulan);
 
   var tidakMakanPerTgl = {}; // tgl -> {nit: true}
   sheetRead(SHEETS.STATUS_HARIAN).forEach(function (r) {

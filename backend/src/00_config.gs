@@ -83,7 +83,9 @@ var SHEETS = {
   BANTUAN_LUAR_KAMPUS: 'BANTUAN_LUAR_KAMPUS',
   TARUNA_REKENING:  'TARUNA_REKENING',
   SP2D_MONITORING:  'SP2D_MONITORING',
-  SPM:              'SPM'
+  SPM:              'SPM',
+  // Label prodi/tingkat yang berlaku per bulan (skema §19) — riwayat naik tingkat
+  TINGKAT_BULANAN:  'TINGKAT_BULANAN'
 };
 
 // ── Role pengguna ───────────────────────────────────────────────────────────

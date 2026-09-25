@@ -26,6 +26,9 @@ var ACTION_MAP = {
   'taruna.upsert':        { handler: tarunaUpsert,      roles: ['ADMIN', 'BAAK'] },
   'taruna.tandai_keluar': { handler: tarunaTandaiKeluar, roles: ['ADMIN', 'PPK'] },
   'taruna.batal_keluar':  { handler: tarunaBatalKeluar,  roles: ['ADMIN', 'PPK'] },
+  // Label tingkat per bulan (TINGKAT_BULANAN §19) — naik tingkat tanpa merusak laporan lama
+  'tingkat.snapshot':     { handler: tingkatSnapshot,    roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
+  'tingkat.naik':         { handler: tingkatNaik,        roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'penyedia.list':    { handler: penyediaList,   roles: [] },
   'penyedia.upsert':  { handler: penyediaUpsert, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'kontrak.list':     { handler: kontrakList,    roles: [] },

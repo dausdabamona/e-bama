@@ -1,4 +1,4 @@
-# Skema Database e-BAMA — Google Spreadsheet (17 Sheet)
+# Skema Database e-BAMA — Google Spreadsheet (17 Sheet + TINGKAT_BULANAN)
 
 > **Satu sumber kebenaran skema.** Perubahan skema hanya lewat revisi file ini,
 > bukan langsung di kode. Nama sheet dan kolom: `snake_case`, dikunci di
@@ -803,6 +803,36 @@ pembayaran bulan-bulan itu memakai desain lama (satu "wakil" no_spm/no_sp2d
 per bulan di sheet PEMBAYARAN) dan TIDAK dimigrasi/di-generate-kan SPM
 secara retroaktif (rincian per kelompok bulan-bulan itu memang tidak pernah
 tercatat).
+
+---
+
+### 19. TINGKAT_BULANAN — label prodi/tingkat taruna yang berlaku per bulan
+
+Label **tingkat** taruna berubah tiap tahun akademik (naik tingkat, lulus),
+padahal laporan/rekap bulan-bulan lalu harus tetap memakai label yang berlaku
+**pada bulan itu**. `TARUNA.tingkat` hanya menyimpan label TERKINI; sheet ini
+menyimpan riwayatnya.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| bulan | string `YYYY-MM` | bulan MULAI berlakunya label |
+| nit | FK → TARUNA | |
+| prodi | string | label prodi yang berlaku |
+| tingkat | string | `I` / `II` / `III` |
+| ta | string | tahun akademik, mis. `2025/2026` |
+| sumber | string | `SNAPSHOT` (pembekuan label lama) / `NAIK_TINGKAT` / `MANUAL` |
+| timestamp | datetime | |
+
+**Aturan baca (carry-forward):** label untuk bulan X = baris dengan `bulan`
+TERBESAR yang ≤ X untuk NIT itu. Bila tidak ada baris sama sekali → fallback
+`TARUNA.prodi/tingkat` (perilaku lama). Semua fungsi yang punya konteks bulan
+(rekap, pembayaran/SPM, laporan, cetak form, rekonsiliasi SP2D) membaca taruna
+lewat helper `tarunaBulan(bulan)` di `10_taruna.gs`, bukan `sheetRead(TARUNA)`.
+
+**Pengisian:** hanya lewat action `tingkat.snapshot` (bekukan label terkini
+untuk bulan tertentu) dan `tingkat.naik` (naik tingkat massal: bekukan label
+lama → ubah `TARUNA.tingkat` → catat label baru; tingkat yang dipetakan ke
+`LULUS` ditandai keluar permanen). Tidak diedit manual.
 
 ---
 

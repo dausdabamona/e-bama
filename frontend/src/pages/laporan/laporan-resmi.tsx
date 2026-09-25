@@ -52,6 +52,9 @@ interface LaporanResmi {
   luar_kampus_total: number;
   luar_kampus_orang: number;
   jml_gagal_transfer: number;
+  cutoff?: string;
+  sp2d_setelah_cutoff?: Sp2dRow[];
+  sp2d_setelah_cutoff_total?: number;
   konstanta: { dipa_no: string; pagu_tahun: string; sbm: string; sk_kaban: string; sk_kpa: string; sk_ppk: string };
   pejabat: { PPK: Pejabat; KPA: Pejabat };
 }
@@ -314,6 +317,15 @@ export function HalamanLaporanResmi() {
               </tfoot>
             </table>
 
+            {data.cutoff && (
+              <p className="mt-3 text-xs text-gray-600 print:text-black">
+                Posisi realisasi: SP2D terbit s.d. {data.cutoff} (cut-off).
+                {(data.sp2d_setelah_cutoff?.length ?? 0) > 0 && (
+                  <> {data.sp2d_setelah_cutoff!.length} SPM senilai {formatRupiah(data.sp2d_setelah_cutoff_total ?? 0)} terbit setelah cut-off / belum terbit
+                  ({data.sp2d_setelah_cutoff!.map((r) => r.no_spm).join(', ')}) — dilaporkan pada bulan berikutnya.</>
+                )}
+              </p>
+            )}
             <p className="mb-1 mt-3 text-xs font-semibold text-gray-500 print:text-black">B.1 Realisasi Penyaluran Bulan Ini</p>
             <table className="w-full text-xs">
               <thead>

@@ -380,3 +380,31 @@ Placeholder template Doc: `{{NO_SURAT}} {{TGL_SURAT}} {{NAMA}} {{NIT}}
 - Bila `prototipe:true`, backend menerima token `PROTOTIPE:<ROLE>` tanpa login
   (lihat CLAUDE.md § Mode Prototipe). Aksi di `AKSI_TETAP_WAJIB_LOGIN` tetap
   menolak token prototipe.
+
+
+## Label tingkat per bulan (TINGKAT_BULANAN — skema §19)
+
+### tingkat.snapshot — role ADMIN, PPK, STAF_PPK
+- Payload `{bulan: 'YYYY-MM', ta: '2025/2026'}`.
+- Membekukan label `TARUNA.prodi/tingkat` terkini sebagai label yang berlaku
+  mulai `bulan`. NIT yang sudah punya baris untuk `bulan` itu dilewati.
+- Balasan `{bulan, ditambah, dilewati}`.
+
+### tingkat.naik — role ADMIN, PPK, STAF_PPK
+- Payload `{bulan_lama: '2026-01', ta_lama: '2025/2026', bulan_baru: '2026-08',
+  ta_baru: '2026/2027', peta: {'III':'LULUS','II':'III','I':'II'},
+  tgl_lulus: '2026-07-31', kecuali: [nit...]}`.
+- Urutan: (1) snapshot label lama di `bulan_lama` (bila belum ada);
+  (2) tiap taruna AKTIF di luar `kecuali`: bila peta → `LULUS`, tandai keluar
+  permanen (`tgl_keluar = tgl_lulus`, `alasan_keluar = LULUS`), tingkat tidak
+  diubah; selain itu ubah `TARUNA.tingkat` dan catat baris `bulan_baru`.
+- `dry_run: true` → hanya menghitung, tidak menulis.
+- Balasan `{naik: {...per tingkat}, lulus, dilewati, dry_run}`.
+
+### laporan.resmi — cut-off
+- Payload tambahan opsional `cutoff: 'YYYY-MM-DD'`. Bawaan: tanggal 10 bulan
+  berikutnya untuk bulan ≥ `2026-08` (keputusan PPK 26-09-2026); bulan
+  sebelumnya tanpa cut-off (basis bulan konsumsi).
+- SP2D dengan `tgl_sp2d` > cut-off (atau belum terbit) tidak dihitung sebagai
+  realisasi; dikembalikan terpisah di `sp2d_setelah_cutoff`.
+- Balasan tambahan `{cutoff, sp2d_setelah_cutoff: [...], sp2d_setelah_cutoff_total}`.

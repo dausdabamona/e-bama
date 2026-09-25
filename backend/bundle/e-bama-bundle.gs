@@ -93,7 +93,9 @@ var SHEETS = {
   BANTUAN_LUAR_KAMPUS: 'BANTUAN_LUAR_KAMPUS',
   TARUNA_REKENING:  'TARUNA_REKENING',
   SP2D_MONITORING:  'SP2D_MONITORING',
-  SPM:              'SPM'
+  SPM:              'SPM',
+  // Label prodi/tingkat yang berlaku per bulan (skema §19) — riwayat naik tingkat
+  TINGKAT_BULANAN:  'TINGKAT_BULANAN'
 };
 
 // ── Role pengguna ───────────────────────────────────────────────────────────
@@ -574,6 +576,9 @@ var ACTION_MAP = {
   'taruna.upsert':        { handler: tarunaUpsert,      roles: ['ADMIN', 'BAAK'] },
   'taruna.tandai_keluar': { handler: tarunaTandaiKeluar, roles: ['ADMIN', 'PPK'] },
   'taruna.batal_keluar':  { handler: tarunaBatalKeluar,  roles: ['ADMIN', 'PPK'] },
+  // Label tingkat per bulan (TINGKAT_BULANAN §19) — naik tingkat tanpa merusak laporan lama
+  'tingkat.snapshot':     { handler: tingkatSnapshot,    roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
+  'tingkat.naik':         { handler: tingkatNaik,        roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'penyedia.list':    { handler: penyediaList,   roles: [] },
   'penyedia.upsert':  { handler: penyediaUpsert, roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
   'kontrak.list':     { handler: kontrakList,    roles: [] },
@@ -1888,6 +1893,155 @@ function tarunaBatalKeluar(payload, session) {
       n++;
     });
     return { dibatalkan: n };
+  });
+}
+
+
+// ── Label tingkat per bulan (TINGKAT_BULANAN, skema §19) ───────────────────
+
+/** Baca sheet TINGKAT_BULANAN dengan aman (sheet belum dibuat → []). */
+function _barisTingkatBulanan_() {
+  try { return sheetRead(SHEETS.TINGKAT_BULANAN); } catch (e) { return []; }
+}
+
+/**
+ * tarunaBulan(bulan) — daftar TARUNA dengan prodi/tingkat DIGANTI label yang
+ * berlaku pada `bulan` (carry-forward: baris TINGKAT_BULANAN dengan bulan
+ * terbesar yang <= bulan). Tanpa bulan / tanpa label → data TARUNA apa adanya.
+ * Mengembalikan salinan objek (TIDAK mengubah sheet).
+ */
+function tarunaBulan(bulan) {
+  var rows = sheetRead(SHEETS.TARUNA);
+  var bln = bulan ? _bulanStr_(bulan) : '';
+  if (!bln) return rows;
+  var label = {};
+  _barisTingkatBulanan_().forEach(function (r) {
+    var b = _bulanStr_(r.bulan);
+    if (!b || b > bln) return;
+    var nit = String(r.nit);
+    if (!label[nit] || b > label[nit].b) label[nit] = { b: b, prodi: r.prodi, tingkat: r.tingkat };
+  });
+  return rows.map(function (t) {
+    var l = label[String(t.nit)];
+    if (!l) return t;
+    var c = {};
+    Object.keys(t).forEach(function (k) { c[k] = t[k]; });
+    if (l.prodi) c.prodi = String(l.prodi);
+    if (l.tingkat) c.tingkat = String(l.tingkat);
+    return c;
+  });
+}
+
+/** Tambah banyak baris sekaligus (satu setValues) — dipanggil di dalam withLock. */
+function _appendBanyak_(name, objs) {
+  if (!objs.length) return 0;
+  var sh = _sheet_(name);
+  var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var rows = objs.map(function (o) { return headers.map(function (h) { return o[h] !== undefined ? o[h] : ''; }); });
+  sh.getRange(sh.getLastRow() + 1, 1, rows.length, headers.length).setValues(rows);
+  return rows.length;
+}
+
+/** Buat sheet TINGKAT_BULANAN (header sesuai skema §19) bila belum ada — migrasi ringan idempotent. */
+function _pastikanSheetTingkat_() {
+  var ss = _getSpreadsheet_();
+  if (ss.getSheetByName(SHEETS.TINGKAT_BULANAN)) return;
+  var sh = ss.insertSheet(SHEETS.TINGKAT_BULANAN);
+  sh.getRange(1, 1, 1, 7).setValues([['bulan', 'nit', 'prodi', 'tingkat', 'ta', 'sumber', 'timestamp']]).setFontWeight('bold');
+  sh.setFrozenRows(1);
+  sh.getRange('A:A').setNumberFormat('@'); // bulan 'YYYY-MM' tetap teks, bukan tanggal
+}
+
+/** Snapshot label TARUNA terkini untuk `bulan` (tanpa lock — dipanggil di dalam withLock). */
+function _snapshotTingkat_(bulan, ta, sumber) {
+  _pastikanSheetTingkat_();
+  var ada = {};
+  _barisTingkatBulanan_().forEach(function (r) {
+    if (_bulanStr_(r.bulan) === bulan) ada[String(r.nit)] = true;
+  });
+  var now = new Date(), baru = [], dilewati = 0;
+  sheetRead(SHEETS.TARUNA).forEach(function (t) {
+    var nit = String(t.nit);
+    if (ada[nit]) { dilewati++; return; }
+    baru.push({ bulan: bulan, nit: nit, prodi: String(t.prodi || ''), tingkat: String(t.tingkat || ''),
+      ta: ta, sumber: sumber, timestamp: now });
+  });
+  return { ditambah: _appendBanyak_(SHEETS.TINGKAT_BULANAN, baru), dilewati: dilewati };
+}
+
+/** tingkat.snapshot {bulan, ta} — bekukan label terkini sebagai label mulai `bulan`. */
+function tingkatSnapshot(payload, session) {
+  var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
+  var ta = String((payload && payload.ta) || '').trim();
+  return withLock(function () {
+    var r = _snapshotTingkat_(bulan, ta, 'SNAPSHOT');
+    auditLog(session, 'tingkat.snapshot', 'TINGKAT_BULANAN', bulan, null, { ta: ta, ditambah: r.ditambah, dilewati: r.dilewati });
+    return { bulan: bulan, ditambah: r.ditambah, dilewati: r.dilewati };
+  });
+}
+
+/**
+ * tingkat.naik — naik tingkat massal awal tahun akademik (lihat kontrak-api).
+ * Label lama dibekukan dulu di bulan_lama supaya laporan bulan-bulan lalu tetap
+ * memakai tingkat lama; lalu TARUNA.tingkat diubah & label baru dicatat di
+ * bulan_baru. Tingkat yang dipetakan ke 'LULUS' ditandai keluar permanen.
+ */
+function tingkatNaik(payload, session) {
+  var p = payload || {};
+  var bulanLama = _wajibBulan_(p.bulan_lama, 'bulan_lama');
+  var bulanBaru = _wajibBulan_(p.bulan_baru, 'bulan_baru');
+  if (bulanBaru <= bulanLama) throw _fail_('bulan_baru harus setelah bulan_lama.');
+  var peta = p.peta || {};
+  if (!Object.keys(peta).length) throw _fail_('peta tingkat wajib diisi, mis. {"III":"LULUS","II":"III","I":"II"}.');
+  var adaLulus = Object.keys(peta).some(function (k) { return String(peta[k]).toUpperCase() === 'LULUS'; });
+  var tglLulus = adaLulus ? _wajibTgl_(p.tgl_lulus, 'tgl_lulus') : '';
+  var kecuali = {};
+  (p.kecuali || []).forEach(function (n) { kecuali[String(n)] = true; });
+  var taLama = String(p.ta_lama || ''), taBaru = String(p.ta_baru || '');
+  var dry = !!p.dry_run;
+
+  var taruna = sheetRead(SHEETS.TARUNA);
+  var rencana = [], lulus = [], dilewati = 0, naik = {};
+  taruna.forEach(function (t) {
+    var nit = String(t.nit);
+    if (kecuali[nit] || String(t.status) !== 'AKTIF' || _tglKeluarStr_(t)) { dilewati++; return; }
+    var tujuan = peta[String(t.tingkat)];
+    if (!tujuan) { dilewati++; return; }
+    tujuan = String(tujuan).toUpperCase();
+    if (tujuan === 'LULUS') { lulus.push(nit); return; }
+    rencana.push({ nit: nit, prodi: String(t.prodi || ''), lama: String(t.tingkat), baru: tujuan });
+    var k = String(t.tingkat) + '→' + tujuan; naik[k] = (naik[k] || 0) + 1;
+  });
+  if (dry) return { naik: naik, lulus: lulus.length, dilewati: dilewati, dry_run: true };
+
+  return withLock(function () {
+    var snap = _snapshotTingkat_(bulanLama, taLama, 'SNAPSHOT');
+    var now = new Date();
+    var adaBaru = {};
+    _barisTingkatBulanan_().forEach(function (r) { if (_bulanStr_(r.bulan) === bulanBaru) adaBaru[String(r.nit)] = true; });
+    // Ubah TARUNA dalam SATU baca + SATU tulis per kolom (hindari ratusan sheetUpdate).
+    var sh = _sheet_(SHEETS.TARUNA);
+    var last = sh.getLastRow(), lastCol = sh.getLastColumn();
+    var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    var data = sh.getRange(2, 1, last - 1, lastCol).getValues();
+    var iNit = headers.indexOf('nit'), iTk = headers.indexOf('tingkat'),
+        iKel = headers.indexOf('tgl_keluar'), iAls = headers.indexOf('alasan_keluar');
+    var petaBaru = {}; rencana.forEach(function (x) { petaBaru[x.nit] = x.baru; });
+    var setLulus = {}; lulus.forEach(function (n) { setLulus[n] = true; });
+    data.forEach(function (r) {
+      var nit = String(r[iNit]);
+      if (petaBaru[nit]) r[iTk] = petaBaru[nit];
+      if (setLulus[nit]) { r[iKel] = tglLulus; r[iAls] = 'LULUS'; }
+    });
+    [iTk, iKel, iAls].forEach(function (ci) {
+      sh.getRange(2, ci + 1, data.length, 1).setValues(data.map(function (r) { return [r[ci]]; }));
+    });
+    _appendBanyak_(SHEETS.TINGKAT_BULANAN, rencana.filter(function (x) { return !adaBaru[x.nit]; }).map(function (x) {
+      return { bulan: bulanBaru, nit: x.nit, prodi: x.prodi, tingkat: x.baru, ta: taBaru, sumber: 'NAIK_TINGKAT', timestamp: now };
+    }));
+    auditLog(session, 'tingkat.naik', 'TARUNA', bulanBaru, { bulan_lama: bulanLama, snapshot: snap },
+      { naik: naik, lulus: lulus.length, tgl_lulus: tglLulus, dilewati: dilewati, ta_baru: taBaru });
+    return { naik: naik, lulus: lulus.length, dilewati: dilewati, snapshot_lama: snap, dry_run: false };
   });
 }
 
@@ -3447,7 +3601,7 @@ function rekapUpdate(tanggal, session) {
 
   // Taruna yang termasuk bulan ini: AKTIF & belum keluar permanen sebelum bulan
   // ini (bulan keluar tetap terhitung; bulan berikutnya otomatis tereksklusi).
-  var tarunaAktif = sheetRead(SHEETS.TARUNA, function (r) { return _tarunaAktifBulan_(r, bulan); });
+  var tarunaAktif = tarunaBulan(bulan).filter(function (r) { return _tarunaAktifBulan_(r, bulan); });
 
   // Taruna keluar PERMANEN di TENGAH bulan ini: hari SETELAH tgl_keluar bukan
   // hari makan kampus (cegah overcount di bulan keluar).
@@ -3624,7 +3778,7 @@ function _rekapProyeksiPesanan_(bulan, sampaiTanggal) {
     return true;
   });
   var tarifPerKontrak = {};
-  var taruna = sheetRead(SHEETS.TARUNA);
+  var taruna = tarunaBulan(bulan);
 
   var tidakMakanPerTgl = {}; // tgl -> {nit: true}
   sheetRead(SHEETS.STATUS_HARIAN).forEach(function (r) {
@@ -4175,7 +4329,7 @@ function _generateSpmDalamKampus_(bulan, bayarId, session) {
   });
 
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
   var nitList = rekapRows.map(function (r) { return String(r.nit); });
   var rekeningByNit = {};
   sheetRead(SHEETS.TARUNA_REKENING, function (r) { return nitList.indexOf(String(r.nit)) >= 0; })
@@ -4437,7 +4591,7 @@ function spmAnggota(payload, session) {
   }
 
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(s.bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
   // Normalkan bulan SPM → 'YYYY-MM'. Kolom bulan bisa terbaca sebagai Date
   // (sel diformat tanggal) — kalau dibandingkan mentah, filter REKAP tak pernah
@@ -4483,7 +4637,7 @@ function _nitAlamiDalamKampus_(bulan, prodi, tingkat, penyediaId, rekapRows, tar
   }
   if (!tarunaByNit) {
     tarunaByNit = {};
-    sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+    tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
   }
   var rekeningByNit = {};
   sheetRead(SHEETS.TARUNA_REKENING, function (r) { return String(r.penyedia_id) === String(penyediaId); })
@@ -5114,7 +5268,7 @@ function tagihanStatusDebet(payload, session) {
   if (!rekap.length) throw _fail_('Belum ada rekap bernominal untuk bulan ' + bulan + '.');
 
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
   var tagihanByNit = {};
   _tagihanJoin_().filter(function (t) { return t.bulan === bulan; })
@@ -5355,7 +5509,7 @@ function spCetakMassal(payload, session) {
     });
 
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulanFilter).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
   var daftar = [];
   _tagihanJoin_().forEach(function (t) {
@@ -5523,16 +5677,27 @@ function laporanBulanan(payload, session) {
  * bagian Luar Kampus/Pengusulan/DIPA-SK tidak ada di sini, diisi manual
  * di halaman cetak (lihat frontend pages/laporan/laporan-resmi.tsx).
  */
+var _BULAN_MULAI_CUTOFF_ = '2026-08'; // lihat kontrak-api § laporan.resmi — cut-off
 function laporanResmi(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
   var awal = bulan + '-01', akhir = bulan + '-31';
 
   var tarunaByNit = {};
   var jmlAktif = 0;
-  sheetRead(SHEETS.TARUNA).forEach(function (t) {
+  tarunaBulan(bulan).forEach(function (t) {
     tarunaByNit[String(t.nit)] = t;
-    if (t.status === 'AKTIF') jmlAktif++;
+    if (_tarunaAktifBulan_(t, bulan)) jmlAktif++; // lulus/keluar sebelum bulan ini tak dihitung
   });
+
+  // Cut-off realisasi (keputusan PPK 26-09-2026): mulai bulan 2026-08, SP2D
+  // dihitung bila terbit s.d. tanggal 10 bulan berikutnya. Bulan sebelumnya
+  // tetap basis bulan konsumsi (tanpa cut-off). Bisa ditimpa payload.cutoff.
+  var cutoff = (payload && payload.cutoff) ? _wajibTgl_(payload.cutoff, 'cutoff') : '';
+  if (!cutoff && bulan >= _BULAN_MULAI_CUTOFF_) {
+    var th = parseInt(bulan.slice(0, 4), 10), bl = parseInt(bulan.slice(5, 7), 10) + 1;
+    if (bl > 12) { bl = 1; th++; }
+    cutoff = th + '-' + (bl < 10 ? '0' : '') + bl + '-10';
+  }
 
   var kontrakBulan = sheetRead(SHEETS.KONTRAK, function (r) {
     return r.status === 'DISETUJUI_PPK' && _tglStr_(r.tgl_mulai) <= akhir && _tglStr_(r.tgl_akhir) >= awal;
@@ -5595,8 +5760,18 @@ function laporanResmi(payload, session) {
              String(a.kegiatan).localeCompare(String(b.kegiatan));
     });
   }
-  var sp2dDalam = _sp2dAgregat_('DALAM_KAMPUS');
-  var sp2dLuar = _sp2dAgregat_('LUAR_KAMPUS');
+  // Pisahkan SP2D yang terbit setelah cut-off (atau belum terbit) — diungkapkan,
+  // tidak dihitung sebagai realisasi bulan ini.
+  var sp2dSetelahCutoff = [];
+  function _dalamCutoff_(r) {
+    if (!cutoff) return true;
+    if (r.tgl_sp2d && r.tgl_sp2d <= cutoff) return true;
+    sp2dSetelahCutoff.push(r);
+    return false;
+  }
+  var sp2dDalam = _sp2dAgregat_('DALAM_KAMPUS').filter(_dalamCutoff_);
+  var sp2dLuar = _sp2dAgregat_('LUAR_KAMPUS').filter(_dalamCutoff_);
+  var sp2dSetelahCutoffTotal = 0; sp2dSetelahCutoff.forEach(function (r) { sp2dSetelahCutoffTotal += r.nominal; });
   var sp2dDalamTotal = 0; sp2dDalam.forEach(function (r) { sp2dDalamTotal += r.nominal; });
   var sp2dLuarTotal = 0; sp2dLuar.forEach(function (r) { sp2dLuarTotal += r.nominal; });
 
@@ -5643,6 +5818,7 @@ function laporanResmi(payload, session) {
     sp2d_dalam_total: sp2dDalamTotal,
     sp2d_luar_kampus: sp2dLuar,
     sp2d_luar_total: sp2dLuarTotal,
+    cutoff: cutoff, sp2d_setelah_cutoff: sp2dSetelahCutoff, sp2d_setelah_cutoff_total: sp2dSetelahCutoffTotal,
     luar_kampus: luarKampus,
     luar_kampus_total: luarKampusTotal,
     luar_kampus_orang: luarKampusOrang,
@@ -6188,7 +6364,7 @@ function cetakForm03(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
 
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
   var rows = sheetRead(SHEETS.STATUS_HARIAN, function (r) { return _bulanStr_(r.tanggal) === bulan; });
 
@@ -6343,7 +6519,7 @@ function cetakForm06(payload, session) {
   }
 
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
   var totalHariMakan = 0, totalNominal = 0;
   var baris = rows.map(function (r) {
@@ -6406,7 +6582,7 @@ function _daftarKuasaDebet_(bulan, nitFilter, basis, sampaiTanggal) {
   }
 
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
   var nitList = rekapRows.map(function (r) { return String(r.nit); });
   var rekeningByNit = {};
@@ -6609,7 +6785,7 @@ function cetakBlokirGagalDebet(payload, session) {
     }
 
     var tarunaByNit = {};
-    sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+    tarunaBulan(bulanFilter).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
     var nitList = rows.map(function (t) { return String(t.nit); });
     var rekeningByNit = {};
@@ -6667,7 +6843,7 @@ function cetakBlokirGagalDebet(payload, session) {
 function cetakPendebetanPenyedia(payload, session) {
   var bulanFilter = payload && payload.bulan ? _bulanStr_(payload.bulan) : '';
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulanFilter).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
   var baris = _tagihanJoin_().filter(function (t) {
     return t.status === 'LUNAS' && !t.tgl_diteruskan_penyedia && (!bulanFilter || t.bulan === bulanFilter);
@@ -6756,7 +6932,7 @@ function cetakLaporanPenyaluranPenyedia(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
 
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
   var baris = _tagihanJoin_().filter(function (t) {
     return t.status === 'LUNAS' && !t.tgl_diteruskan_penyedia && t.bulan === bulan;
@@ -6825,7 +7001,7 @@ function cetakForm08(payload, session) {
     Object.keys(hariMap).forEach(function (nit) { hariStatusHarianByNit[nit] = hariMap[nit].hari; });
 
     var tarunaByNit = {};
-    sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+    tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
     var nitList = blkRows.map(function (r) { return String(r.nit); });
     var rekeningByNit = {};
@@ -7029,7 +7205,7 @@ function cetakForm10(payload, session) {
     rekapRows = rekapRows.filter(function (r) { return _int_(r.nominal || 0, 'nominal') > 0; });
 
     var tarunaByNit = {};
-    sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+    tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
     var penyediaById = {};
     sheetRead(SHEETS.PENYEDIA).forEach(function (p) { penyediaById[String(p.penyedia_id)] = p; });
 
@@ -7740,7 +7916,7 @@ function sp2dRekonsiliasi(payload, session) {
   var bulan = _wajibBulan_(payload && payload.bulan, 'bulan');
 
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
 
   // _bulanStr_ (BUKAN String() polos) — cermin cara REKAP_BULANAN/BANTUAN_LUAR_KAMPUS
   // difilter di bawah. Kolom `bulan` bertipe teks ('2026-04'), tapi kalau Google
@@ -8015,7 +8191,7 @@ function sp2dKoreksi(payload, session) {
  */
 function _kelompokDobelSp2d_(bulan) {
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
   var rows = sheetRead(SHEETS.SP2D_MONITORING, function (r) {
     return _bulanStr_(r.bulan) === bulan && r.nit && r.no_sp2d;
   });
@@ -8116,7 +8292,7 @@ function sp2dHapusDobel(payload, session) {
  */
 function _rincianSp2dDalamKampus_(bulan) {
   var tarunaByNit = {};
-  sheetRead(SHEETS.TARUNA).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
+  tarunaBulan(bulan).forEach(function (t) { tarunaByNit[String(t.nit)] = t; });
   var rekeningByNit = {};
   sheetRead(SHEETS.TARUNA_REKENING).forEach(function (r) { rekeningByNit[String(r.nit)] = r; });
   var penyediaById = {};
@@ -9342,6 +9518,11 @@ function _skema_() {
       // nit_anggota/induk_spm_id (spm.split/spm.gabung) — default kosong,
       // TIDAK memengaruhi grup yang belum pernah displit (lihat skema-sheet.md §18).
       ['nit_anggota','s'], ['induk_spm_id','s']
+    ]],
+    // TINGKAT_BULANAN (§19 skema-sheet.md) — label berlaku mulai `bulan` (carry-forward)
+    [SHEETS.TINGKAT_BULANAN, [
+      ['bulan','s'], ['nit','s'], ['prodi','s'], ['tingkat','s'], ['ta','s'],
+      ['sumber','s'], ['timestamp','dt']
     ]]
   ];
 }
