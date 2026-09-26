@@ -470,3 +470,41 @@ function statusTandaiKembali(payload, session) {
     { tanggal_kembali: tanggalKembali });
   return { jml_dibatalkan: dihapus.length };
 }
+
+/**
+ * Daftar periode luar kampus lintas prodi (ADMIN/PPK/STAF_PPK). READ.
+ * Payload {nit?} — kosong = semua. Kembalikan {periode:[{periode_id,nit,status,tgl_mulai,tgl_akhir}]}.
+ */
+function periodeList(payload, session) {
+  var nit = String((payload && payload.nit) || '').trim();
+  var rows = _periodeLuarRows_().filter(function (p) { return !nit || p.nit === nit; });
+  rows.sort(function (a, b) { return a.nit.localeCompare(b.nit) || a.tgl_mulai.localeCompare(b.tgl_mulai); });
+  return { periode: rows };
+}
+
+/**
+ * Koreksi satu periode luar kampus lintas prodi (ADMIN/PPK/STAF_PPK) — mis.
+ * menyesuaikan tanggal mulai magang dengan SK KPA. Payload
+ * {periode_id, status?, tgl_mulai?, tgl_akhir?, alasan}. withLock + audit.
+ */
+function periodeUbah(payload, session) {
+  var periodeId = String((payload && payload.periode_id) || '').trim();
+  if (!periodeId) throw _fail_('periode_id wajib diisi.');
+  var alasan = String((payload && payload.alasan) || '').trim();
+  if (!alasan) throw _fail_('alasan wajib diisi (dasar koreksi, mis. nomor SK).');
+  return withLock(function () {
+    var ada = sheetRead(SHEETS.PERIODE_LUAR, function (r) { return String(r.periode_id) === periodeId; })[0];
+    if (!ada) throw _fail_('Periode tidak ditemukan: ' + periodeId);
+    var status = payload.status ? String(payload.status) : String(ada.status);
+    if (STATUS_LUAR_KAMPUS.indexOf(status) < 0) throw _fail_('status harus luar kampus: ' + STATUS_LUAR_KAMPUS.join(' / '));
+    var tm = payload.tgl_mulai ? _wajibTgl_(payload.tgl_mulai, 'tgl_mulai') : _tglStr_(ada.tgl_mulai);
+    var ta = payload.tgl_akhir ? _wajibTgl_(payload.tgl_akhir, 'tgl_akhir') : _tglStr_(ada.tgl_akhir);
+    if (ta < tm) throw _fail_('tgl_akhir tidak boleh sebelum tgl_mulai.');
+    sheetUpdate(SHEETS.PERIODE_LUAR, 'periode_id', periodeId,
+      { status: status, tgl_mulai: tm, tgl_akhir: ta, input_by: session.user_id, timestamp: new Date() });
+    auditLog(session, 'periode.ubah', 'PERIODE_LUAR', periodeId,
+      { status: ada.status, tgl_mulai: _tglStr_(ada.tgl_mulai), tgl_akhir: _tglStr_(ada.tgl_akhir) },
+      { status: status, tgl_mulai: tm, tgl_akhir: ta, alasan: alasan });
+    return { periode_id: periodeId, nit: String(ada.nit), status: status, tgl_mulai: tm, tgl_akhir: ta };
+  });
+}

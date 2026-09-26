@@ -49,6 +49,8 @@ var ACTION_MAP = {
   'status.tandai_kembali': { handler: statusTandaiKembali, roles: ['ADMIN', 'PEMBINA', 'BAAK', 'PPK', 'STAF_PPK'] },
   'luar.migrasi_periode': { handler: migrasiLuarKePeriode, roles: ['ADMIN'] },
   'periode.impor':      { handler: periodeImpor,      roles: ['ADMIN'] },
+  'periode.list':       { handler: periodeList,       roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
+  'periode.ubah':       { handler: periodeUbah,       roles: ['ADMIN', 'PPK', 'STAF_PPK'] },
 
   // Ketua Jurusan (luar kampus) — role KETUA_JURUSAN, scope prodi (25_ketua_jurusan.gs)
   'kajur.taruna_list':  { handler: kajurTarunaList,  roles: ['KETUA_JURUSAN'] },
