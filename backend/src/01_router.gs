@@ -219,6 +219,7 @@ var ACTION_MAP = {
   'sp2d.koreksi':       { handler: sp2dKoreksi,       roles: ['PPK', 'STAF_PPK', 'ADMIN'] },
   'sp2d.cek_dobel':     { handler: sp2dCekDobel,      roles: ['PPK', 'STAF_PPK', 'ADMIN'] },
   'sp2d.hapus_dobel':   { handler: sp2dHapusDobel,    roles: ['PPK', 'STAF_PPK', 'ADMIN'] },
+  'sp2d.batal':         { handler: sp2dBatal,         roles: ['PPK', 'STAF_PPK', 'ADMIN'] },
 
   // Kokpit PPK — agregasi baca murni, tidak menulis apa pun
   'ppk.kokpit':         { handler: ppkKokpit,         roles: ['PPK', 'STAF_PPK', 'KPA', 'WADIR3'] },

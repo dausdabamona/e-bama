@@ -361,7 +361,7 @@ function _autoIsiSpmDariSp2d_(bulan, session, sumber) {
     if (!spmBulan.length) return { jml_diisi: 0 };
 
     var monBulan = sheetRead(SHEETS.SP2D_MONITORING, function (r) {
-      return _bulanStr_(r.bulan) === bln && !r.nit && r.perlu_cek_manual !== 'YA';
+      return _bulanStr_(r.bulan) === bln && !r.nit && r.perlu_cek_manual !== 'YA' && !_sp2dBatal_(r);
     });
 
     var dalamPerKunci = {};

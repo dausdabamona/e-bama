@@ -336,7 +336,7 @@ function sp2dRekonsiliasi(payload, session) {
   // (gejala: kolom "Sistem" di rekonsiliasi terisi normal, tapi "SP2D" selalu Rp0
   // utk SEMUA kelompok bulan itu). _bulanStr_ menangani String MAUPUN Date.
   var sp2dBulan = sheetRead(SHEETS.SP2D_MONITORING, function (r) { return _bulanStr_(r.bulan) === bulan; });
-  var sp2dValid = sp2dBulan.filter(function (r) { return r.perlu_cek_manual !== 'YA'; });
+  var sp2dValid = sp2dBulan.filter(function (r) { return r.perlu_cek_manual !== 'YA' && !_sp2dBatal_(r); });
   var perluCekManual = sp2dBulan
     .filter(function (r) { return r.perlu_cek_manual === 'YA'; })
     .map(function (r) {
@@ -716,7 +716,7 @@ function _rincianSp2dDalamKampus_(bulan) {
   var semua = sheetRead(SHEETS.SP2D_MONITORING, function (r) {
     return _bulanStr_(r.bulan) === bulan && r.kategori === 'DALAM_KAMPUS';
   });
-  var agregat = semua.filter(function (r) { return !r.nit && r.perlu_cek_manual !== 'YA'; });
+  var agregat = semua.filter(function (r) { return !r.nit && r.perlu_cek_manual !== 'YA' && !_sp2dBatal_(r); });
   var perluCekManual = semua.filter(function (r) { return r.perlu_cek_manual === 'YA'; }).length;
 
   var sp2dPerKunci = {};
@@ -785,4 +785,36 @@ function _pecahSp2dPerSuplierPerkiraan_(sistemSuplierKelompok, sp2dTotal, penyed
     }
   }
   return hasil;
+}
+
+/** Baris SP2D_MONITORING yang ditandai batal (SPM tidak terbit SP2D / diganti SPM lain). */
+function _sp2dBatal_(r) {
+  return String((r && r.perlu_cek_manual) || '') === 'BATAL';
+}
+
+/**
+ * sp2d.batal {no_spm, alasan} — tandai satu baris SP2D_MONITORING sebagai BATAL
+ * (mis. SPM ditolak/diganti sehingga tidak pernah terbit SP2D). Baris TIDAK
+ * dihapus: hanya `perlu_cek_manual`='BATAL' sehingga dikecualikan dari
+ * rekonsiliasi, sinkron SPM, dan laporan. `sp2d.koreksi` atas baris yang sama
+ * membatalkan tanda ini. withLock + AUDIT_LOG. Role PPK/ADMIN.
+ */
+function sp2dBatal(payload, session) {
+  var noSpm = String((payload && payload.no_spm) || '').trim();
+  if (!noSpm) throw _fail_('no_spm wajib diisi.');
+  var alasan = String((payload && payload.alasan) || '').trim();
+  if (!alasan) throw _fail_('alasan wajib diisi.');
+  return withLock(function () {
+    var cocok = sheetRead(SHEETS.SP2D_MONITORING, function (r) { return _kunciNoSpm_(r.no_spm) === _kunciNoSpm_(noSpm); });
+    if (!cocok.length) throw _fail_('Baris SP2D tidak ditemukan: ' + noSpm);
+    cocok.forEach(function (r) {
+      if (String(r.no_sp2d || '').trim()) throw _fail_('SPM ' + noSpm + ' sudah terbit SP2D ' + r.no_sp2d + ' — tidak bisa dibatalkan.');
+    });
+    cocok.forEach(function (r) {
+      sheetUpdate(SHEETS.SP2D_MONITORING, 'no_spm', r.no_spm, { perlu_cek_manual: 'BATAL' });
+      auditLog(session, 'sp2d.batal', 'SP2D_MONITORING', String(r.no_spm),
+        { perlu_cek_manual: r.perlu_cek_manual || '' }, { perlu_cek_manual: 'BATAL', alasan: alasan });
+    });
+    return { dibatalkan: cocok.length, no_spm: noSpm };
+  });
 }

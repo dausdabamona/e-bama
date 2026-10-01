@@ -121,7 +121,7 @@ function laporanResmi(payload, session) {
   // monitoring (baris AGREGAT — tanpa nit; baris per-taruna dikecualikan agar
   // tak dobel). Dikelompokkan/urut per Prodi → Tingkat.
   var _RANK_TK_ = { I: 1, II: 2, III: 3, '1': 1, '2': 2, '3': 3 };
-  var sp2dBulan = sheetRead(SHEETS.SP2D_MONITORING, function (r) { return _bulanStr_(r.bulan) === bulan; });
+  var sp2dBulan = sheetRead(SHEETS.SP2D_MONITORING, function (r) { return _bulanStr_(r.bulan) === bulan && !_sp2dBatal_(r); });
   function _sp2dAgregat_(kategori) {
     return sp2dBulan.filter(function (r) {
       return String(r.kategori) === kategori && !String(r.nit || '').trim();

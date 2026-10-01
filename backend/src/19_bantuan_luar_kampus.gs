@@ -55,7 +55,7 @@ function blkImport(payload, session) {
 
     var barisKunci = {}; // kunci -> {baris: nomor baris sheet, id: bantuan_id lama}
     for (var i = 0; i < data.length; i++) {
-      var k0 = kunci(String(data[i][iNit]), String(data[i][iKeg]), String(data[i][iBulan]), String(data[i][iBayarKe]));
+      var k0 = kunci(String(data[i][iNit]), String(data[i][iKeg]), _bulanStr_(data[i][iBulan]), String(data[i][iBayarKe]).trim());
       barisKunci[k0] = { baris: i + 2, id: data[i][iId] };
     }
 
