@@ -16,7 +16,8 @@ interface ItemNav {
 const LABEL_ROLE: Record<Role, string> = {
   KPA: 'KPA', PPK: 'PPK', STAF_PPK: 'Staf PPK', SENAT: 'Senat', PEMBINA: 'Pembina',
   ADMIN: 'Admin', WADIR3: 'Wadir 3', BAAK: 'BAAK', PENYEDIA: 'Penyedia',
-  KETUA_JURUSAN: 'Ketua Jurusan', OPERATOR_SAKTI: 'Operator SAKTI'
+  KETUA_JURUSAN: 'Ketua Jurusan', OPERATOR_SAKTI: 'Operator SAKTI',
+  ASISTEN_AI: 'Asisten AI (MCP)'
 };
 
 // Bottom-nav per role (sesuai PROMPT 5)
@@ -100,6 +101,10 @@ export const NAV_PER_ROLE: Record<Role, ItemNav[]> = {
   ],
   OPERATOR_SAKTI: [
     { ke: '/cetak', label: 'Cetak', ikon: '🖨️' },
+    { ke: '/akun', label: 'Akun', ikon: '👤' }
+  ],
+  // Akun teknis server MCP (docs/rancangan-mcp.md) — tidak dipakai login di PWA
+  ASISTEN_AI: [
     { ke: '/akun', label: 'Akun', ikon: '👤' }
   ]
 };

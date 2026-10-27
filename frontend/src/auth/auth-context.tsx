@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { Navigate, useLocation } from 'react-router-dom';
 import { api } from '../lib/api';
 
-export type Role = 'KPA' | 'PPK' | 'STAF_PPK' | 'SENAT' | 'PEMBINA' | 'ADMIN' | 'WADIR3' | 'BAAK' | 'PENYEDIA' | 'KETUA_JURUSAN' | 'OPERATOR_SAKTI';
+export type Role = 'KPA' | 'PPK' | 'STAF_PPK' | 'SENAT' | 'PEMBINA' | 'ADMIN' | 'WADIR3' | 'BAAK' | 'PENYEDIA' | 'KETUA_JURUSAN' | 'OPERATOR_SAKTI' | 'ASISTEN_AI';
 
 // STAF_PPK mencerminkan hak PPK di UI (menu, tombol, tampilan) — KECUALI tombol
 // "Buat Pembayaran" (bayar.create) yang tetap khusus PPK. Otorisasi sebenarnya

@@ -22,7 +22,7 @@
 |---|---|---|
 | user_id | string | kunci; kode singkat, mis. `ppk01`, `senat01` |
 | nama | string | |
-| role | enum | `KPA` / `PPK` / `STAF_PPK` / `SENAT` / `PEMBINA` / `ADMIN` / `WADIR3` / `BAAK` / `PENYEDIA` / `KETUA_JURUSAN` / `OPERATOR_SAKTI` |
+| role | enum | `KPA` / `PPK` / `STAF_PPK` / `SENAT` / `PEMBINA` / `ADMIN` / `WADIR3` / `BAAK` / `PENYEDIA` / `KETUA_JURUSAN` / `OPERATOR_SAKTI` / `ASISTEN_AI` |
 | pin_hash | string | SHA-256(kata_sandi + SALT); SALT di Script Properties. Nama kolom dipertahankan (`pin_hash`) walau kredensialnya kini kata sandi bebas min 6 karakter (bukan PIN 6 digit) — hash sama, tak perlu migrasi |
 | token | string | token sesi aktif (UUID) |
 | token_exp | datetime | kadaluarsa 24 jam sejak login |
@@ -54,6 +54,19 @@ Form-10 (Rencana Pengajuan SPM per Suplier) SENGAJA tidak diberikan ke role
 ini karena berisi rekening taruna PENUH (`_hanyaAdminPPK_`, ADMIN/PPK saja) —
 dikonfirmasi Firdaus. Tidak ada kolom tambahan di PENGGUNA untuk role ini
 (tanpa scope FK, beda dari `PENYEDIA`/`KETUA_JURUSAN`).
+
+**Role `ASISTEN_AI` — akun server MCP, BACA saja.** Akun teknis yang dipakai
+server MCP e-BAMA (Claude Desktop di laptop PPK) — lihat `docs/rancangan-mcp.md`.
+Akun terpisah dari akun PPK karena token sesi satu-per-akun (login MCP dengan
+akun PPK akan mematikan sesi PWA). Router hanya mengizinkan action di allowlist
+eksplisit `ASISTEN_AI_ACTIONS` (`01_router.gs`) — seluruhnya action BACA; tidak
+tunduk semantik `roles:[]`. Rekening taruna PENUH (Form-07/08/10, kuasa debet,
+blokir gagal debet, `rekening.*`) SENGAJA tidak diberikan; lapis kedua
+`_hanyaAdminPPK_` di handler tetap menolak role ini. Pengecualian dari aturan
+"hanya aksi tulis yang diaudit": setiap panggilan `ASISTEN_AI` yang berhasil
+dicatat 1 baris AUDIT_LOG (`aksi = 'baca.ai:<action>'`, `ref_type = 'MCP'`,
+`data_baru = {payload}`, TANPA isi balasan). Tanpa kolom tambahan di PENGGUNA.
+Akun dinonaktifkan Admin lewat `status: NONAKTIF` bila MCP tidak dipakai lagi.
 
 **Role `STAF_PPK` — cermin penuh hak PPK, KECUALI `bayar.create`.** Staf
 administrasi yang menyiapkan seluruh berkas (rekap historis, rancangan SPM,

@@ -91,6 +91,11 @@ e-bama/
   ikut `roles:[]`, dibatasi allowlist `OPERATOR_SAKTI_ACTIONS` HANYA ke
   `cetak.form06`/`cetak.form09` (read-only, tanpa rekening penuh); tanpa tautan
   FK karena tidak ada data untuk di-scope (beda dari dua role di atas).
+  `ASISTEN_AI` (akun server MCP, `docs/rancangan-mcp.md`) sama semangatnya —
+  allowlist `ASISTEN_AI_ACTIONS` berisi action BACA saja, TANPA rekening penuh;
+  setiap panggilannya yang berhasil WAJIB 1 baris AUDIT_LOG `baca.ai:<action>`
+  (pengecualian audit-baca kedua, setelah rekening lengkap). Action yang
+  `roles`-nya tidak kosong harus memuat `'ASISTEN_AI'` agar lolos router.
 - **Rekening taruna hanya 4 digit terakhir** (`rek_mask`, pola `••••1234`) di
   sheet TARUNA dan di **SEMUA** action/tampilan lain — validasi menolak input
   yang terlihat seperti nomor rekening penuh lewat `taruna.upsert` maupun impor

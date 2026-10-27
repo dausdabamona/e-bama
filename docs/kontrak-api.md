@@ -322,6 +322,25 @@ luar sistem; diajukan ke PPK untuk diinput. Catatan murni, tanpa alur status.
 > lampau), menyetujui rekap prodinya (`DRAFT→DISETUJUI_KAJUR`), dan hanya melihat
 > REKAP (tanpa nomor rekening). Detail action di tabel Status Harian di atas.
 
+### Akses MCP (role `ASISTEN_AI`) — baca saja
+
+Rancangan & alasan: `docs/rancangan-mcp.md`. Transport sama persis (amplop
+`{action, token, payload}`); akun login biasa lewat `auth.login`.
+
+| Kebutuhan | Action yang diizinkan |
+|---|---|
+| Ringkasan | `ppk.kokpit`, `dashboard.running` |
+| SPM & SP2D | `spm.list`, `bayar.list`, `bayar.get`, `sp2d.list`, `sp2d.rekonsiliasi` |
+| Debet bank | `tagihan.status_debet`, `tagihan.summary`, `tagihan.list` |
+| Rekap & laporan | `rekap.get`, `rekap.harian`, `laporan.bulanan`, `laporan.resmi` |
+| Form SOP | `cetak.form01`–`cetak.form06`, `cetak.form09` |
+| Rujukan | `taruna.list` (hanya `rek_mask`), `auth.logout` |
+
+- Action lain → `{ok:false, error:'Anda tidak berwenang melakukan aksi ini.'}`.
+- Payload & bentuk balasan mengikuti baris action masing-masing di dokumen ini.
+- Setiap panggilan berhasil → 1 baris AUDIT_LOG `baca.ai:<action>` (payload saja).
+- Role ini TIDAK termasuk `ROLE_PROTOTIPE`.
+
 ## Proses internal terjadwal (bukan action HTTP)
 
 | Fungsi | Jadwal | Keterangan |
