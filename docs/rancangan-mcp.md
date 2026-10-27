@@ -57,6 +57,7 @@ yang sama dengan PPK untuk action ini.
 | Rekap & laporan | `laporan.bulanan`, `laporan.resmi` | `laporan_bulanan`, `laporan_resmi` |
 | Form SOP | `cetak.form01`–`cetak.form06`, `cetak.form09` | `data_form_sop` (satu tool, parameter `form`) |
 | Rujukan | `taruna.list` (hanya `rek_mask`) | `daftar_taruna` |
+| Akun | `auth.change_pin` (akun sendiri, via halaman Akun PWA) | — (bukan tool) |
 
 Total: 23 action → 17 tool.
 
@@ -83,6 +84,9 @@ bukan rekening taruna. Rekening ini memang tercetak di surat resmi. Diizinkan.
 1. `00_config.gs` → `ROLES.ASISTEN_AI` dan `ENUM.ROLE` tambah `'ASISTEN_AI'`.
 2. `01_router.gs`:
    - tambah `var ASISTEN_AI_ACTIONS = {...}` (daftar §3 + `auth.logout`);
+     **revisi 27 Okt 2026:** + `auth.change_pin`, karena pengguna baru selalu
+     berkata sandi bawaan `123456` dan tanpa aksi ini akun tertahan di sana.
+     Panggilan ini dikecualikan dari audit baca (payload memuat kata sandi);
    - tambah pagar di `doPost` setelah pagar `OPERATOR_SAKTI`;
    - tambahkan `'ASISTEN_AI'` ke array `roles` action §3 yang `roles`-nya
      tidak kosong (router memeriksa allowlist **dan** `roles`).

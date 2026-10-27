@@ -318,7 +318,10 @@ var ASISTEN_AI_ACTIONS = {
   'cetak.form06':         true,
   'cetak.form09':         true,
   'taruna.list':          true,
-  'auth.logout':          true
+  'auth.logout':          true,
+  // Ganti kata sandi akun sendiri (bawaan pengguna baru 123456). Hanya menyentuh
+  // baris PENGGUNA milik sesi ini; dicatat sendiri oleh authChangePin.
+  'auth.change_pin':      true
 };
 
 /** Health check. */
@@ -376,7 +379,7 @@ function doPost(e) {
     var data = def.handler(payload, session);
     // Audit BACA khusus ASISTEN_AI — jejak data apa yang dibaca AI (payload saja,
     // TANPA isi balasan). Kegagalan audit tidak menggagalkan balasan.
-    if (session && session.role === ROLES.ASISTEN_AI && action !== 'auth.logout') {
+    if (session && session.role === ROLES.ASISTEN_AI && action !== 'auth.logout' && action !== 'auth.change_pin') {
       try { auditLog(session, 'baca.ai:' + action, 'MCP', action, null, { payload: payload }); } catch (eAudit) {}
     }
     return _json_({ ok: true, data: data });

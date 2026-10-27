@@ -334,11 +334,13 @@ Rancangan & alasan: `docs/rancangan-mcp.md`. Transport sama persis (amplop
 | Debet bank | `tagihan.status_debet`, `tagihan.summary`, `tagihan.list` |
 | Rekap & laporan | `rekap.get`, `rekap.harian`, `laporan.bulanan`, `laporan.resmi` |
 | Form SOP | `cetak.form01`–`cetak.form06`, `cetak.form09` |
-| Rujukan | `taruna.list` (hanya `rek_mask`), `auth.logout` |
+| Rujukan | `taruna.list` (hanya `rek_mask`), `auth.logout`, `auth.change_pin` (akun sendiri) |
 
 - Action lain → `{ok:false, error:'Anda tidak berwenang melakukan aksi ini.'}`.
 - Payload & bentuk balasan mengikuti baris action masing-masing di dokumen ini.
-- Setiap panggilan berhasil → 1 baris AUDIT_LOG `baca.ai:<action>` (payload saja).
+- Setiap panggilan berhasil → 1 baris AUDIT_LOG `baca.ai:<action>` (payload saja),
+  KECUALI `auth.logout` dan `auth.change_pin` (payload-nya memuat kata sandi;
+  `auth.change_pin` sudah dicatat sendiri tanpa payload).
 - Role ini TIDAK termasuk `ROLE_PROTOTIPE`.
 
 ## Proses internal terjadwal (bukan action HTTP)

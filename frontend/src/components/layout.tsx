@@ -103,7 +103,7 @@ export const NAV_PER_ROLE: Record<Role, ItemNav[]> = {
     { ke: '/cetak', label: 'Cetak', ikon: '🖨️' },
     { ke: '/akun', label: 'Akun', ikon: '👤' }
   ],
-  // Akun teknis server MCP (docs/rancangan-mcp.md) — tidak dipakai login di PWA
+  // Akun teknis server MCP (docs/rancangan-mcp.md) — login PWA hanya untuk ganti kata sandi
   ASISTEN_AI: [
     { ke: '/akun', label: 'Akun', ikon: '👤' }
   ]
